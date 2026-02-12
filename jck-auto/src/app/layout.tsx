@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/space-grotesk";
 import "./globals.css";
+import FloatingCTA from "@/components/layout/FloatingCTA";
 
 export const metadata: Metadata = {
   title: "JCK AUTO — Импорт автомобилей из Китая, Кореи и Японии",
@@ -18,6 +19,7 @@ export default function RootLayout({
     <html lang="ru">
       <body className="antialiased">
         {children}
+        <FloatingCTA />
       </body>
     </html>
   );
