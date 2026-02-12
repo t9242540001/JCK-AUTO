@@ -28,6 +28,7 @@ const config: Config = {
         china: "#DE2910",
         korea: "#003478",
         japan: "#BC002D",
+        success: "#16A34A",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
