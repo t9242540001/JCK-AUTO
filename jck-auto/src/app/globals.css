@@ -1,0 +1,53 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@theme inline {
+  --color-background: #FFFFFF;
+  --color-surface: #F8F9FA;
+  --color-surface-alt: #F1F3F5;
+  --color-border: #E5E7EB;
+  --color-primary: #1E3A5F;
+  --color-primary-hover: #2A4A73;
+  --color-secondary: #C9A84C;
+  --color-secondary-hover: #D4B85A;
+  --color-text: #111827;
+  --color-text-muted: #6B7280;
+  --color-china: #DE2910;
+  --color-korea: #003478;
+  --color-japan: #BC002D;
+  --color-ring: #1E3A5F;
+
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+  --font-heading: "Space Grotesk Variable", system-ui, sans-serif;
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: "Inter Variable", system-ui, sans-serif;
+}
