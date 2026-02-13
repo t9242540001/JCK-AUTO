@@ -242,12 +242,7 @@ export default function CalculatorPage() {
                           <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
                             <Check className="h-3 w-3 text-primary" />
                           </span>
-                          <div className="flex flex-1 items-baseline justify-between gap-2">
-                            <span className="text-sm text-text-muted">{item.label}</span>
-                            <span className="whitespace-nowrap text-sm font-medium text-text">
-                              {formatPrice(item.value)}
-                            </span>
-                          </div>
+                          <span className="text-sm text-text-muted">{item.label}</span>
                         </div>
                       ))}
                     </div>

@@ -209,7 +209,7 @@ export default function Calculator() {
                             <Check className="h-3 w-3 text-primary" />
                           </span>
                           <span className="text-sm text-text-muted">
-                            {item.label} — {formatPrice(item.value)}
+                            {item.label}
                           </span>
                         </div>
                       ))}
