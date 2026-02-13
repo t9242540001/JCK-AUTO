@@ -1,0 +1,106 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { MessageCircle, Send } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
+import { CONTACTS } from "@/lib/constants";
+import { getWhatsAppLink, cn } from "@/lib/utils";
+
+const NAV_ITEMS = [
+  { label: "Главная", href: "/" },
+  { label: "Калькулятор", href: "/calculator" },
+  { label: "О компании", href: "/about" },
+  { label: "Блог", href: "/blog" },
+];
+
+interface MobileMenuProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
+  const pathname = usePathname();
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-80 p-0">
+        <div className="flex flex-col h-full">
+          <div className="p-6">
+            <SheetTitle className="font-heading text-xl">
+              <span className="font-bold text-primary">JCK</span>
+              <span className="font-light text-text-muted"> AUTO</span>
+            </SheetTitle>
+          </div>
+
+          <nav className="flex flex-col px-6">
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => onOpenChange(false)}
+                className={cn(
+                  "py-3 text-lg transition-colors hover:text-primary",
+                  pathname === item.href
+                    ? "font-medium text-primary"
+                    : "text-text"
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <Separator className="mx-6 my-4" />
+
+          <div className="flex flex-col gap-4 px-6">
+            <p className="text-sm font-medium text-text-muted uppercase tracking-wider">
+              Специалисты
+            </p>
+            {CONTACTS.team.map((member) => (
+              <a
+                key={member.whatsapp}
+                href={`tel:${member.phone.replace(/\s|\(|\)|-/g, "")}`}
+                className="flex items-center gap-3 text-sm"
+              >
+                <span className="text-lg">{member.flag}</span>
+                <div>
+                  <p className="font-medium text-text">{member.name}</p>
+                  <p className="text-text-muted">{member.phone}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+
+          <div className="mt-auto flex gap-3 p-6">
+            <a
+              href={getWhatsAppLink(CONTACTS.team[0].whatsapp)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A]"
+              aria-label="WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4" />
+              WhatsApp
+            </a>
+            <a
+              href={CONTACTS.telegram}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
+              aria-label="Telegram"
+            >
+              <Send className="h-4 w-4" />
+              Telegram
+            </a>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}

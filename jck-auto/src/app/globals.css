@@ -50,4 +50,5 @@ body {
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: "Inter Variable", system-ui, sans-serif;
+  overflow-x: hidden;
 }
