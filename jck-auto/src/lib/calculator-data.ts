@@ -135,13 +135,21 @@ export const RECYCLING_COMPANY: { maxHp: number; under3: number; over3: number }
 
 /* ── 2.7 Фиксированные расходы ────────────────────────────────────── */
 export const FIXED_COSTS = {
-  sbkts: 20_000,
-  epts: 1_200,
-  broker: 25_000,
-  logistics: {
-    china: 150_000,
-    korea: 200_000,
-    japan: 220_000,
+  china: {
+    markup_cny: 16_000,    // Наценка в юанях (все расходы Китай)
+    markup_rub: 150_000,   // Наценка в рублях (все расходы Россия, включая доставку в Уссурийск)
+  },
+  korea: {
+    sbkts: 20_000,
+    epts: 1_200,
+    broker: 25_000,
+    logistics: 200_000,
+  },
+  japan: {
+    sbkts: 20_000,
+    epts: 1_200,
+    broker: 25_000,
+    logistics: 220_000,
   },
 } as const;
 

@@ -153,19 +153,32 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
   const currencyInfo = COUNTRY_CURRENCY[country];
   const currencyRate = rates[currencyInfo.code];
   const eurRate = rates.EUR;
+  const city = DELIVERY_CITY[country];
+
+  const isChina = country === "china";
 
   // 1. Цена в рублях и евро
-  const carPriceRub = Math.round(priceInCurrency * currencyRate);
+  // Китай: effectivePrice = price + markup_cny (все расходы в Китае)
+  const effectivePriceCurrency = isChina
+    ? priceInCurrency + FIXED_COSTS.china.markup_cny
+    : priceInCurrency;
+  const carPriceRub = Math.round(effectivePriceCurrency * currencyRate);
   const carPriceEur = carPriceRub / eurRate;
 
   // 2. Таможенное оформление
   const processingFee = calcCustomsProcessingFee(carPriceRub);
 
   // 3. Таможенные платежи
-  const breakdown: { label: string; value: number }[] = [
-    { label: "Автомобиль", value: carPriceRub },
-    { label: "Таможенное оформление", value: processingFee },
-  ];
+  const breakdown: { label: string; value: number }[] = [];
+
+  if (isChina) {
+    breakdown.push({ label: "Автомобиль", value: Math.round(priceInCurrency * currencyRate) });
+    breakdown.push({ label: "Все расходы в Китае (оформление, страховка, погрузка)", value: Math.round(FIXED_COSTS.china.markup_cny * currencyRate) });
+  } else {
+    breakdown.push({ label: "Автомобиль", value: carPriceRub });
+  }
+
+  breakdown.push({ label: "Таможенное оформление", value: processingFee });
 
   let customsTotal = 0;
 
@@ -187,14 +200,21 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
   const recycling = calcRecyclingFee(enginePower, engineVolume, carAge, buyerType, personalUse);
   breakdown.push({ label: "Утилизационный сбор", value: recycling });
 
-  // 5. Фиксированные
-  breakdown.push({ label: "СБКТС (сертификат безопасности)", value: FIXED_COSTS.sbkts });
-  breakdown.push({ label: "ЭПТС (электронный паспорт ТС)", value: FIXED_COSTS.epts });
-  breakdown.push({ label: "Услуги таможенного брокера", value: FIXED_COSTS.broker });
+  // 5. Фиксированные расходы — разные для Китая и Кореи/Японии
+  let fixedTotal: number;
 
-  const logistics = FIXED_COSTS.logistics[country];
-  const city = DELIVERY_CITY[country];
-  breakdown.push({ label: `Доставка до ${city}`, value: logistics });
+  if (isChina) {
+    const markupRub = FIXED_COSTS.china.markup_rub;
+    breakdown.push({ label: `Доставка до ${city}, СБКТС, ЭПТС, брокер`, value: markupRub });
+    fixedTotal = markupRub;
+  } else {
+    const costs = FIXED_COSTS[country];
+    breakdown.push({ label: "СБКТС (сертификат безопасности)", value: costs.sbkts });
+    breakdown.push({ label: "ЭПТС (электронный паспорт ТС)", value: costs.epts });
+    breakdown.push({ label: "Услуги таможенного брокера", value: costs.broker });
+    breakdown.push({ label: `Доставка до ${city}`, value: costs.logistics });
+    fixedTotal = costs.sbkts + costs.epts + costs.broker + costs.logistics;
+  }
 
   // 6. Итого
   const totalRub =
@@ -202,10 +222,7 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
     processingFee +
     customsTotal +
     recycling +
-    FIXED_COSTS.sbkts +
-    FIXED_COSTS.epts +
-    FIXED_COSTS.broker +
-    logistics;
+    fixedTotal;
 
   return {
     totalRub,
