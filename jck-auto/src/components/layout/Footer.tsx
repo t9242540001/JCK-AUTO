@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Send, Youtube } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
@@ -15,9 +16,13 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-4">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div>
-            <Link href="/" className="font-heading text-xl">
-              <span className="font-bold">JCK</span>
-              <span className="font-light text-white/60"> AUTO</span>
+            <Link href="/" aria-label="JCK AUTO">
+              <Image
+                src="/images/logo-light.svg"
+                alt="JCK AUTO"
+                width={140}
+                height={49}
+              />
             </Link>
             <p className="mt-4 text-sm text-white/70">
               Импорт автомобилей из Китая, Кореи и Японии с полным
