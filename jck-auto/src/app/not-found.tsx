@@ -8,19 +8,19 @@ export default function NotFound() {
         <h1 className="mt-4 text-2xl font-bold text-text">
           Страница не найдена
         </h1>
-        <p className="mt-2 text-muted">
+        <p className="mt-2 text-text-muted">
           Возможно, она была перемещена или удалена
         </p>
         <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
           <Link
             href="/"
-            className="rounded-xl bg-secondary px-6 py-3 font-medium text-white hover:bg-secondary-hover"
+            className="rounded-xl bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-secondary-hover"
           >
             На главную
           </Link>
           <Link
             href="/calculator"
-            className="rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary hover:bg-primary hover:text-white"
+            className="rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
           >
             Калькулятор
           </Link>
