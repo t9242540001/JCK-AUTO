@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 import { Check, MessageCircle } from "lucide-react";
 import { CONTACTS, type Country } from "@/lib/constants";
 import { getWhatsAppLink, cn } from "@/lib/utils";
@@ -9,6 +10,7 @@ interface CountryData {
   country: Country;
   name: string;
   flag: string;
+  image: string;
   description: string;
   features: string[];
   brands: string[];
@@ -20,6 +22,7 @@ const countries: CountryData[] = [
     country: "china",
     name: "Китай",
     flag: "🇨🇳",
+    image: "/images/cars/china.jpg",
     description:
       "Новые автомобили напрямую от дистрибьюторов. Лучшие цены, гарантия ВСК.",
     features: [
@@ -35,6 +38,7 @@ const countries: CountryData[] = [
     country: "korea",
     name: "Южная Корея",
     flag: "🇰🇷",
+    image: "/images/cars/korea.jpg",
     description:
       "Автомобили с аукционов и от дилеров. Проверка PSI, гарантия пробега.",
     features: [
@@ -50,6 +54,7 @@ const countries: CountryData[] = [
     country: "japan",
     name: "Япония",
     flag: "🇯🇵",
+    image: "/images/cars/japan.jpg",
     description:
       "Легендарное японское качество. Авто с аукционов с оценкой состояния.",
     features: [
@@ -98,50 +103,64 @@ export default function Countries() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
                 className={cn(
-                  "rounded-2xl border border-border bg-white p-6 transition-all hover:shadow-md",
+                  "overflow-hidden rounded-2xl border border-border bg-white transition-all hover:shadow-md",
                   c.borderColor
                 )}
               >
-                <div className="text-4xl">{c.flag}</div>
-                <h3 className="mt-3 font-heading text-xl font-bold text-text">
-                  {c.name}
-                </h3>
-                <p className="mt-2 text-sm text-text-muted">{c.description}</p>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {c.brands.map((brand) => (
-                    <span
-                      key={brand}
-                      className="rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted"
-                    >
-                      {brand}
-                    </span>
-                  ))}
+                <div className="relative h-48 md:h-56">
+                  <Image
+                    src={c.image}
+                    alt={`Автомобиль из ${c.name}`}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                  />
                 </div>
 
-                <ul className="mt-4 space-y-2">
-                  {c.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
-                      <span className="text-text-muted">{f}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="p-6">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{c.flag}</span>
+                    <h3 className="font-heading text-xl font-bold text-text">
+                      {c.name}
+                    </h3>
+                  </div>
+                  <p className="mt-2 text-sm text-text-muted">{c.description}</p>
 
-                <div className="mt-6 border-t border-border pt-4">
-                  <p className="text-sm font-medium text-text">
-                    {specialist.name}
-                  </p>
-                  <p className="text-xs text-text-muted">{specialist.role}</p>
-                  <a
-                    href={getWhatsAppLink(specialist.whatsapp)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A]"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Написать в WhatsApp
-                  </a>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {c.brands.map((brand) => (
+                      <span
+                        key={brand}
+                        className="rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted"
+                      >
+                        {brand}
+                      </span>
+                    ))}
+                  </div>
+
+                  <ul className="mt-4 space-y-2">
+                    {c.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
+                        <span className="text-text-muted">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-6 border-t border-border pt-4">
+                    <p className="text-sm font-medium text-text">
+                      {specialist.name}
+                    </p>
+                    <p className="text-xs text-text-muted">{specialist.role}</p>
+                    <a
+                      href={getWhatsAppLink(specialist.whatsapp)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A]"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      Написать в WhatsApp
+                    </a>
+                  </div>
                 </div>
               </motion.div>
             );

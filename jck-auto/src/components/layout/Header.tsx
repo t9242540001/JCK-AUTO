@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Phone, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,9 +48,14 @@ export default function Header() {
       )}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-        <Link href="/" className="font-heading text-xl">
-          <span className="font-bold text-primary">JCK</span>
-          <span className="font-light text-text-muted"> AUTO</span>
+        <Link href="/" aria-label="JCK AUTO">
+          <Image
+            src="/images/logo-dark.svg"
+            alt="JCK AUTO"
+            width={120}
+            height={42}
+            priority
+          />
         </Link>
 
         <nav className="hidden items-center gap-8 lg:flex" role="navigation">
