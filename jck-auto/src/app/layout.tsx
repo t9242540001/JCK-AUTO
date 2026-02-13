@@ -3,6 +3,9 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/space-grotesk";
 import "./globals.css";
 import JsonLd from "@/components/layout/JsonLd";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
+import FloatingCTA from "@/components/layout/FloatingCTA";
 
 /* TODO: Add og-image.jpg 1200x630 to public/images/ */
 
@@ -65,7 +68,10 @@ export default function RootLayout({
     <html lang="ru">
       <body className="antialiased">
         <JsonLd />
-        {children}
+        <Header />
+        <main>{children}</main>
+        <Footer />
+        <FloatingCTA />
       </body>
     </html>
   );
