@@ -43,51 +43,49 @@ export default function ContactCTA() {
           </p>
         </motion.div>
 
-        <div className="mt-12 grid gap-8 lg:grid-cols-5">
-          <div className="flex flex-col gap-4 lg:col-span-3">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="rounded-2xl border border-border bg-white p-6"
-            >
-              <h3 className="font-heading text-lg font-bold text-text">
-                Наши контакты
-              </h3>
+        <div className="mt-12 grid items-start gap-8 md:grid-cols-2">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="rounded-2xl border border-border bg-white p-6"
+          >
+            <h3 className="font-heading text-lg font-bold text-text">
+              Наши контакты
+            </h3>
+            <div className="mt-4 flex flex-col gap-3">
               <a
                 href={`tel:${CONTACTS.phoneRaw}`}
-                className="mt-4 flex items-center gap-2 text-text-muted transition-colors hover:text-primary"
+                className="flex items-center gap-2 text-text-muted transition-colors hover:text-primary"
               >
                 <Phone className="h-5 w-5" />
                 <span className="text-lg font-medium">{CONTACTS.phone}</span>
               </a>
-              <div className="mt-6 flex gap-3">
-                <a
-                  href={CONTACTS.telegram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
-                >
-                  <Send className="h-4 w-4" />
-                  {CONTACTS.telegramHandle}
-                </a>
-                <a
-                  href={`tel:${CONTACTS.phoneRaw}`}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
-                >
-                  <Phone className="h-4 w-4" />
-                  Позвонить
-                </a>
-              </div>
-            </motion.div>
-          </div>
+              <a
+                href={CONTACTS.telegram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
+              >
+                <Send className="h-4 w-4" />
+                Написать
+              </a>
+              <a
+                href={`tel:${CONTACTS.phoneRaw}`}
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+              >
+                <Phone className="h-4 w-4" />
+                Позвонить
+              </a>
+            </div>
+          </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
-            className="rounded-2xl border border-border bg-white p-6 lg:col-span-2"
+            className="rounded-2xl border border-border bg-white p-6"
           >
             <h3 className="font-heading text-lg font-bold text-text">
               Оставить заявку
