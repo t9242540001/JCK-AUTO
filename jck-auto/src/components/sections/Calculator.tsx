@@ -90,10 +90,11 @@ export default function Calculator() {
             Калькулятор
           </p>
           <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
-            Рассчитайте стоимость
+            Узнайте стоимость вашего авто за 30 секунд
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
-            Узнайте примерную стоимость импорта автомобиля &laquo;под ключ&raquo;
+            Калькулятор учитывает таможенные пошлины, утилизационный сбор,
+            доставку и наши услуги. Без скрытых платежей
           </p>
         </motion.div>
 

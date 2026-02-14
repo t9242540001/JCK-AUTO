@@ -40,14 +40,14 @@ export default function Hero() {
           </span>
 
           <h1 className="mt-6 font-heading text-3xl font-bold leading-tight text-text sm:text-4xl md:text-5xl lg:text-6xl">
-            Привезём автомобиль{" "}
-            <span className="text-primary">вашей мечты из Азии</span>
+            Автомобиль из Китая, Кореи или Японии —{" "}
+            <span className="text-primary">дешевле, чем у дилера</span>
           </h1>
 
           <p className="mt-5 max-w-xl text-base text-text-muted sm:text-lg">
-            Полное сопровождение от подбора автомобиля до получения ключей.
-            Прозрачные цены, проверка каждого авто, гарантия до 2 лет от
-            Страхового Дома ВСК.
+            Подберём, проверим и доставим автомобиль из Китая, Кореи или Японии.
+            Полный фотоотчёт на каждом этапе. Вы платите только после проверки.
+            Гарантия до 2 лет от Страхового Дома ВСК.
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:gap-4">

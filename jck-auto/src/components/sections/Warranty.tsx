@@ -30,11 +30,12 @@ export default function Warranty() {
               Эксклюзив
             </span>
             <h2 className="mt-4 font-heading text-3xl font-bold text-white md:text-4xl">
-              Гарантия от Страхового Дома ВСК
+              Гарантия до 2 лет от Страхового Дома ВСК
             </h2>
             <p className="mt-4 text-lg text-white/70">
               На новые автомобили из Китая доступна продлённая гарантия до 2 лет.
-              Ваш автомобиль защищён от непредвиденных поломок.
+              Ремонт только в авторизованных СТО с оригинальными запчастями.
+              Действует на всей территории РФ.
             </p>
 
             <ul className="mt-6 space-y-3">
@@ -45,6 +46,11 @@ export default function Warranty() {
                 </li>
               ))}
             </ul>
+
+            <p className="mt-6 text-sm text-white/60">
+              Это не просто обещание — это официальный страховой полис от одной
+              из крупнейших страховых компаний России
+            </p>
 
             <Link
               href="/calculator"
