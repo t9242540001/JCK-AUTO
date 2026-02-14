@@ -51,7 +51,7 @@ export default function Header() {
             src="/images/logo-dark.svg"
             alt="JCK AUTO"
             width={120}
-            height={42}
+            height={50}
             priority
           />
         </Link>

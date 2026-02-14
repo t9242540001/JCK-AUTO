@@ -20,8 +20,8 @@ export default function Footer() {
               <Image
                 src="/images/logo-light.svg"
                 alt="JCK AUTO"
-                width={140}
-                height={49}
+                width={120}
+                height={50}
               />
             </Link>
             <p className="mt-4 text-sm text-white/70">
