@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MessageCircle, Send } from "lucide-react";
+import { Phone, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CONTACTS } from "@/lib/constants";
-import { getWhatsAppLink } from "@/lib/utils";
 
 export default function FloatingCTA() {
   const [visible, setVisible] = useState(false);
@@ -27,13 +26,11 @@ export default function FloatingCTA() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            href={getWhatsAppLink(CONTACTS.team[0].whatsapp)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-110"
-            aria-label="Написать в WhatsApp"
+            href={`tel:${CONTACTS.phoneRaw}`}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-transform hover:scale-110"
+            aria-label="Позвонить"
           >
-            <MessageCircle className="h-6 w-6" />
+            <Phone className="h-6 w-6" />
           </motion.a>
           <motion.a
             initial={{ scale: 0, opacity: 0 }}

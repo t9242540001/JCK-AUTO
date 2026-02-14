@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Send, Youtube } from "lucide-react";
+import { Phone, Send, Youtube } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
 const NAV_ITEMS = [
@@ -20,8 +20,8 @@ export default function Footer() {
               <Image
                 src="/images/logo-light.svg"
                 alt="JCK AUTO"
-                width={140}
-                height={49}
+                width={120}
+                height={50}
               />
             </Link>
             <p className="mt-4 text-sm text-white/70">
@@ -52,20 +52,22 @@ export default function Footer() {
               Контакты
             </h3>
             <div className="mt-4 flex flex-col gap-3">
-              {CONTACTS.team.map((member) => (
-                <div key={member.whatsapp} className="flex items-center gap-2">
-                  <span className="text-sm">{member.flag}</span>
-                  <div>
-                    <p className="text-sm font-medium">{member.name}</p>
-                    <a
-                      href={`tel:${member.phone.replace(/\s|\(|\)|-/g, "")}`}
-                      className="text-xs text-white/70 transition-colors hover:text-white"
-                    >
-                      {member.phone}
-                    </a>
-                  </div>
-                </div>
-              ))}
+              <a
+                href={`tel:${CONTACTS.phoneRaw}`}
+                className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
+              >
+                <Phone className="h-4 w-4" />
+                {CONTACTS.phone}
+              </a>
+              <a
+                href={CONTACTS.telegram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
+              >
+                <Send className="h-4 w-4" />
+                Telegram {CONTACTS.telegramHandle}
+              </a>
             </div>
           </div>
 

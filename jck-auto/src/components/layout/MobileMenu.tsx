@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageCircle, Send } from "lucide-react";
+import { Phone, Send } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { CONTACTS } from "@/lib/constants";
-import { getWhatsAppLink, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "Главная", href: "/" },
@@ -60,33 +60,38 @@ export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
 
           <div className="flex flex-col gap-4 px-6">
             <p className="text-sm font-medium text-text-muted uppercase tracking-wider">
-              Специалисты
+              Контакты
             </p>
-            {CONTACTS.team.map((member) => (
-              <a
-                key={member.whatsapp}
-                href={`tel:${member.phone.replace(/\s|\(|\)|-/g, "")}`}
-                className="flex items-center gap-3 text-sm"
-              >
-                <span className="text-lg">{member.flag}</span>
-                <div>
-                  <p className="font-medium text-text">{member.name}</p>
-                  <p className="text-text-muted">{member.phone}</p>
-                </div>
-              </a>
-            ))}
+            <a
+              href={`tel:${CONTACTS.phoneRaw}`}
+              className="flex items-center gap-3 text-sm"
+            >
+              <Phone className="h-4 w-4 text-primary" />
+              <div>
+                <p className="font-medium text-text">{CONTACTS.phone}</p>
+              </div>
+            </a>
+            <a
+              href={CONTACTS.telegram}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 text-sm"
+            >
+              <Send className="h-4 w-4 text-[#2AABEE]" />
+              <div>
+                <p className="font-medium text-text">Telegram {CONTACTS.telegramHandle}</p>
+              </div>
+            </a>
           </div>
 
           <div className="mt-auto flex gap-3 p-6">
             <a
-              href={getWhatsAppLink(CONTACTS.team[0].whatsapp)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A]"
-              aria-label="WhatsApp"
+              href={`tel:${CONTACTS.phoneRaw}`}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+              aria-label="Позвонить"
             >
-              <MessageCircle className="h-4 w-4" />
-              WhatsApp
+              <Phone className="h-4 w-4" />
+              Позвонить
             </a>
             <a
               href={CONTACTS.telegram}
