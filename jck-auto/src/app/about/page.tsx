@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check } from "lucide-react";
-import { CONTACTS, type Country } from "@/lib/constants";
-import { getWhatsAppLink } from "@/lib/utils";
+import { Check, Phone, Send } from "lucide-react";
+import { CONTACTS } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "О компании",
   description:
     "Команда экспертов по импорту автомобилей из Китая, Кореи и Японии.",
-};
-
-const countryColors: Record<Country, string> = {
-  china: "bg-china",
-  korea: "bg-korea",
-  japan: "bg-japan",
 };
 
 const miniStats = [
@@ -85,7 +78,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Block 3 — Team */}
+      {/* Block 3 — Team & Contact */}
       <section className="bg-white py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="text-center">
@@ -93,58 +86,43 @@ export default function AboutPage() {
               Наша команда
             </p>
             <h2 className="mt-2 font-heading text-2xl font-bold text-text md:text-3xl">
-              Специалист по каждой стране
+              Профессиональная команда экспертов
             </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-text-muted">
+              Наши специалисты работают по каждому направлению: Китай, Корея и Япония.
+              Свяжитесь с нами для консультации.
+            </p>
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-3">
-            {CONTACTS.team.map((member) => (
-              <div
-                key={member.whatsapp}
-                className="rounded-2xl border border-border bg-white p-6 text-center"
+          <div className="mx-auto mt-12 max-w-lg">
+            <div className="rounded-2xl border border-border bg-white p-8 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
+                JCK
+              </div>
+              <h3 className="mt-4 font-heading text-xl font-bold text-text">
+                Свяжитесь с нами
+              </h3>
+              <p className="mt-2 text-sm text-text-muted">
+                Ответим на все вопросы по импорту автомобилей
+              </p>
+              <a
+                href={`tel:${CONTACTS.phoneRaw}`}
+                className="mt-4 flex items-center justify-center gap-2 text-lg font-medium text-text transition-colors hover:text-primary"
               >
-                <div
-                  className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white ${countryColors[member.country]}`}
-                >
-                  {member.name.charAt(0)}
-                </div>
-                <p className="mt-2 text-lg">{member.flag}</p>
-                <h3 className="mt-2 font-heading font-bold text-text">
-                  {member.name}
-                </h3>
-                <p className="text-sm text-text-muted">{member.role}</p>
+                <Phone className="h-5 w-5" />
+                {CONTACTS.phone}
+              </a>
+              <div className="mt-4 flex gap-3">
                 <a
-                  href={`tel:${member.phone.replace(/\s|\(|\)|-/g, "")}`}
-                  className="mt-2 block text-sm text-text-muted transition-colors hover:text-primary"
-                >
-                  {member.phone}
-                </a>
-                <a
-                  href={getWhatsAppLink(member.whatsapp)}
+                  href={CONTACTS.telegram}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-3 inline-block rounded-xl bg-[#25D366] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A]"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
                 >
-                  WhatsApp
+                  <Send className="h-4 w-4" />
+                  Telegram {CONTACTS.telegramHandle}
                 </a>
               </div>
-            ))}
-          </div>
-
-          <div className="mx-auto mt-6 max-w-sm">
-            <div className="rounded-2xl border border-border bg-white p-6 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
-                А
-              </div>
-              <h3 className="mt-3 font-heading font-bold text-text">
-                Артём Требов
-              </h3>
-              <p className="text-sm text-text-muted">
-                Встреча и выдача автомобилей
-              </p>
-              <p className="mt-2 text-sm italic text-text-muted">
-                Встретит вас при получении автомобиля
-              </p>
             </div>
           </div>
         </div>

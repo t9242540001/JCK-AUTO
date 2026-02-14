@@ -2,9 +2,9 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Check, MessageCircle } from "lucide-react";
+import { Check, Send } from "lucide-react";
 import { CONTACTS, type Country } from "@/lib/constants";
-import { getWhatsAppLink, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface CountryData {
   country: Country;
@@ -69,9 +69,6 @@ const countries: CountryData[] = [
 ];
 
 export default function Countries() {
-  const getSpecialist = (country: Country) =>
-    CONTACTS.team.find((m) => m.country === country)!;
-
   return (
     <section id="countries" className="bg-white py-20">
       <div className="mx-auto max-w-7xl px-4">
@@ -93,78 +90,71 @@ export default function Countries() {
         </motion.div>
 
         <div className="mt-12 grid gap-8 md:grid-cols-3">
-          {countries.map((c, i) => {
-            const specialist = getSpecialist(c.country);
-            return (
-              <motion.div
-                key={c.country}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className={cn(
-                  "overflow-hidden rounded-2xl border border-border bg-white transition-all hover:shadow-md",
-                  c.borderColor
-                )}
-              >
-                <div className="relative h-48 md:h-56">
-                  <Image
-                    src={c.image}
-                    alt={`Автомобиль из ${c.name}`}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                  />
+          {countries.map((c, i) => (
+            <motion.div
+              key={c.country}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className={cn(
+                "overflow-hidden rounded-2xl border border-border bg-white transition-all hover:shadow-md",
+                c.borderColor
+              )}
+            >
+              <div className="relative h-48 md:h-56">
+                <Image
+                  src={c.image}
+                  alt={`Автомобиль из ${c.name}`}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                />
+              </div>
+
+              <div className="p-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{c.flag}</span>
+                  <h3 className="font-heading text-xl font-bold text-text">
+                    {c.name}
+                  </h3>
                 </div>
+                <p className="mt-2 text-sm text-text-muted">{c.description}</p>
 
-                <div className="p-6">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{c.flag}</span>
-                    <h3 className="font-heading text-xl font-bold text-text">
-                      {c.name}
-                    </h3>
-                  </div>
-                  <p className="mt-2 text-sm text-text-muted">{c.description}</p>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {c.brands.map((brand) => (
-                      <span
-                        key={brand}
-                        className="rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted"
-                      >
-                        {brand}
-                      </span>
-                    ))}
-                  </div>
-
-                  <ul className="mt-4 space-y-2">
-                    {c.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
-                        <span className="text-text-muted">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="mt-6 border-t border-border pt-4">
-                    <p className="text-sm font-medium text-text">
-                      {specialist.name}
-                    </p>
-                    <p className="text-xs text-text-muted">{specialist.role}</p>
-                    <a
-                      href={getWhatsAppLink(specialist.whatsapp)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A]"
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {c.brands.map((brand) => (
+                    <span
+                      key={brand}
+                      className="rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted"
                     >
-                      <MessageCircle className="h-4 w-4" />
-                      Написать в WhatsApp
-                    </a>
-                  </div>
+                      {brand}
+                    </span>
+                  ))}
                 </div>
-              </motion.div>
-            );
-          })}
+
+                <ul className="mt-4 space-y-2">
+                  {c.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
+                      <span className="text-text-muted">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-6 border-t border-border pt-4">
+                  <a
+                    href={CONTACTS.telegram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
+                  >
+                    <Send className="h-4 w-4" />
+                    Написать в Telegram
+                  </a>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
     </section>

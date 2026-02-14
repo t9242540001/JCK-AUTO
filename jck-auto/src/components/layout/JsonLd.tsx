@@ -10,12 +10,12 @@ export default function JsonLd() {
     contactPoint: [
       {
         "@type": "ContactPoint",
-        telephone: "+7-914-708-73-91",
+        telephone: "+7-914-732-19-50",
         contactType: "sales",
         availableLanguage: "Russian",
       },
     ],
-    sameAs: ["https://t.me/jck_auto", "https://youtube.com/@JCK_AUTO"],
+    sameAs: ["https://t.me/jck_auto_manager", "https://youtube.com/@JCK_AUTO"],
   };
 
   const localBusiness = {
@@ -23,7 +23,7 @@ export default function JsonLd() {
     "@type": "AutoDealer",
     name: "JCK AUTO",
     url: "https://jckauto.ru",
-    telephone: "+7-914-708-73-91",
+    telephone: "+7-914-732-19-50",
     description: "Импорт автомобилей из Китая, Кореи и Японии",
     address: {
       "@type": "PostalAddress",

@@ -2,15 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { MessageCircle, Send, Phone } from "lucide-react";
+import { Send, Phone } from "lucide-react";
 import { CONTACTS, type Country } from "@/lib/constants";
-import { getWhatsAppLink } from "@/lib/utils";
-
-const countryColors: Record<Country, string> = {
-  china: "bg-china",
-  korea: "bg-korea",
-  japan: "bg-japan",
-};
 
 export default function ContactCTA() {
   const [name, setName] = useState("");
@@ -51,56 +44,42 @@ export default function ContactCTA() {
         </motion.div>
 
         <div className="mt-12 grid gap-8 lg:grid-cols-5">
-          <div className="grid gap-4 sm:grid-cols-3 lg:col-span-3">
-            {CONTACTS.team.map((member, i) => (
-              <motion.div
-                key={member.whatsapp}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="rounded-2xl border border-border bg-white p-6"
+          <div className="flex flex-col gap-4 lg:col-span-3">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="rounded-2xl border border-border bg-white p-6"
+            >
+              <h3 className="font-heading text-lg font-bold text-text">
+                Наши контакты
+              </h3>
+              <a
+                href={`tel:${CONTACTS.phoneRaw}`}
+                className="mt-4 flex items-center gap-2 text-text-muted transition-colors hover:text-primary"
               >
-                <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white ${countryColors[member.country]}`}
-                >
-                  {member.name.charAt(0)}
-                </div>
-                <h3 className="mt-3 font-heading font-bold text-text">
-                  {member.name}
-                </h3>
-                <p className="text-xs text-text-muted">{member.role}</p>
+                <Phone className="h-5 w-5" />
+                <span className="text-lg font-medium">{CONTACTS.phone}</span>
+              </a>
+              <div className="mt-6 flex gap-3">
                 <a
-                  href={`tel:${member.phone.replace(/\s|\(|\)|-/g, "")}`}
-                  className="mt-2 flex items-center gap-1 text-sm text-text-muted transition-colors hover:text-primary"
+                  href={CONTACTS.telegram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
                 >
-                  <Phone className="h-3 w-3" />
-                  {member.phone}
+                  <Send className="h-4 w-4" />
+                  Telegram {CONTACTS.telegramHandle}
                 </a>
-                <div className="mt-4 flex gap-2">
-                  <a
-                    href={getWhatsAppLink(member.whatsapp)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#25D366] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#20BD5A]"
-                    aria-label={`WhatsApp ${member.name}`}
-                  >
-                    <MessageCircle className="h-3 w-3" />
-                    WA
-                  </a>
-                  <a
-                    href={CONTACTS.telegram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#2AABEE] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#229ED9]"
-                    aria-label={`Telegram ${member.name}`}
-                  >
-                    <Send className="h-3 w-3" />
-                    TG
-                  </a>
-                </div>
-              </motion.div>
-            ))}
+                <a
+                  href={`tel:${CONTACTS.phoneRaw}`}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+                >
+                  <Phone className="h-4 w-4" />
+                  Позвонить
+                </a>
+              </div>
+            </motion.div>
           </div>
 
           <motion.div

@@ -35,8 +35,6 @@ export default function Header() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [lastScrollY]);
 
-  const andrey = CONTACTS.team[0];
-
   return (
     <header
       className={cn(
@@ -77,11 +75,11 @@ export default function Header() {
 
         <div className="hidden items-center gap-4 lg:flex">
           <a
-            href={`tel:${andrey.phone.replace(/\s|\(|\)|-/g, "")}`}
+            href={`tel:${CONTACTS.phoneRaw}`}
             className="flex items-center gap-2 text-sm text-text-muted transition-colors hover:text-primary"
           >
             <Phone className="h-4 w-4" />
-            {andrey.phone}
+            {CONTACTS.phone}
           </a>
           <a
             href={CONTACTS.telegram}

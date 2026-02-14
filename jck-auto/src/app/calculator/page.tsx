@@ -49,8 +49,6 @@ export default function CalculatorPage() {
   const [personalUse, setPersonalUse] = useState(true);
   const [result, setResult] = useState<CalcResult | null>(null);
 
-  const andrey = CONTACTS.team[0];
-
   useEffect(() => {
     fetchCBRRates().then(setRates);
   }, []);
@@ -263,7 +261,7 @@ export default function CalculatorPage() {
                         Получить точную оценку
                       </a>
                       <a
-                        href={`tel:${andrey.phone.replace(/\s|\(|\)|-/g, "")}`}
+                        href={`tel:${CONTACTS.phoneRaw}`}
                         className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
                       >
                         <Phone className="h-4 w-4" />
