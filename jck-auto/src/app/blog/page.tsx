@@ -4,9 +4,14 @@ import Link from "next/link";
 import { getAllPosts } from "@/lib/blog";
 
 export const metadata: Metadata = {
-  title: "Блог",
+  title: {
+    absolute:
+      "Блог JCK AUTO — гайды по импорту авто из Китая, Кореи и Японии",
+  },
   description:
-    "Полезные статьи об импорте автомобилей из Китая, Кореи и Японии.",
+    "Полезные статьи об импорте автомобилей из Китая, Кореи и Японии: растаможка, выбор авто, обзоры моделей, изменения законодательства, советы покупателям.",
+  keywords:
+    "блог импорт авто, статьи растаможка, обзоры китайских авто, как привезти авто из Японии, импорт автомобилей гайд",
 };
 
 const countryBadge: Record<string, { label: string; className: string }> = {
@@ -25,10 +30,10 @@ export default function BlogPage() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Блог
           </p>
-          <h1 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Полезные статьи об импорте
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+          <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
             Разбираем процесс, законодательство и развеиваем мифы
           </p>
         </div>

@@ -12,43 +12,35 @@ import FloatingCTA from "@/components/layout/FloatingCTA";
 export const metadata: Metadata = {
   metadataBase: new URL("https://jckauto.ru"),
   title: {
-    default: "JCK AUTO — Импорт автомобилей из Китая, Кореи и Японии",
+    default: "JCK AUTO — импорт автомобилей из Китая, Кореи и Японии",
     template: "%s | JCK AUTO",
   },
   description:
-    "Полное сопровождение импорта автомобилей из Азии. Прозрачные цены, проверка каждого авто, гарантия до 2 лет от Страхового Дома ВСК.",
+    "Импорт автомобилей из Китая, Кореи и Японии под ключ. Подбор, проверка, доставка, растаможка. Гарантия ВСК до 2 лет.",
   keywords: [
     "импорт авто",
     "авто из Китая",
     "авто из Кореи",
     "авто из Японии",
     "JCK AUTO",
-    "растаможка авто",
-    "купить авто из Азии",
+    "растаможка",
+    "авто под заказ",
   ],
   authors: [{ name: "JCK AUTO" }],
+  creator: "JCK AUTO",
   openGraph: {
     type: "website",
     locale: "ru_RU",
-    url: "https://jckauto.ru",
     siteName: "JCK AUTO",
-    title: "JCK AUTO — Импорт автомобилей из Китая, Кореи и Японии",
+    title: "JCK AUTO — импорт автомобилей из Китая, Кореи и Японии",
     description:
-      "Полное сопровождение импорта автомобилей из Азии. Прозрачные цены, проверка каждого авто, гарантия до 2 лет.",
-    images: [
-      {
-        url: "/images/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: "JCK AUTO",
-      },
-    ],
+      "Привезём автомобиль из Китая, Кореи или Японии под ключ. Подбор, проверка, доставка, гарантия.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "JCK AUTO — Импорт автомобилей из Китая, Кореи и Японии",
-    description: "Полное сопровождение импорта автомобилей из Азии.",
-    images: ["/images/og-image.jpg"],
+    title: "JCK AUTO — импорт авто из Китая, Кореи и Японии",
+    description:
+      "Привезём автомобиль из Китая, Кореи или Японии под ключ.",
   },
   robots: {
     index: true,

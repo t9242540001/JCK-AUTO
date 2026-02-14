@@ -8,31 +8,31 @@ const values = [
     icon: Eye,
     title: "Прозрачность",
     description:
-      "Вы видите каждый этап: от подбора авто до финальной стоимости. Никаких скрытых платежей.",
+      "Полный фотоотчёт на каждом этапе — кузов, салон, двигатель, VIN. Вы видите всё до оплаты. Никаких скрытых платежей.",
   },
   {
     icon: ShieldCheck,
     title: "Ответственность",
     description:
-      "Несём финансовую ответственность за каждый автомобиль. Гарантия ВСК на новые авто из Китая.",
+      "Если обнаружен скрытый дефект — ремонт за наш счёт. Гарантия ВСК до 2 лет на новые авто из Китая.",
   },
   {
     icon: GraduationCap,
     title: "Экспертность",
     description:
-      "Знаем рынки Азии изнутри. Наши агенты работают на месте — в Китае, Корее и Японии.",
+      "Работаем с дистрибьюторами Китая, Encar.com в Корее и аукционами Японии. Знаем особенности каждого рынка.",
   },
   {
     icon: RefreshCw,
     title: "Гибкость",
     description:
-      "Подберём авто под любой бюджет и требования. Работаем с дистрибьюторами, Encar.com и аукционами Японии.",
+      "Подберём любую марку и комплектацию — от бюджетного кроссовера до Mercedes с китайского рынка.",
   },
 ];
 
 export default function Values() {
   return (
-    <section id="values" className="bg-surface-alt py-20">
+    <section id="values" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -43,15 +43,15 @@ export default function Values() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Наши ценности
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Почему выбирают нас
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Принципы, которыми мы руководствуемся в каждой сделке
           </p>
         </motion.div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {values.map((v, i) => (
             <motion.div
               key={v.title}

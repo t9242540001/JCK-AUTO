@@ -29,7 +29,7 @@ export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-80 p-0">
+      <SheetContent side="right" className="w-[85vw] max-w-80 p-0">
         <div className="flex flex-col h-full">
           <div className="p-6">
             <SheetTitle className="font-heading text-xl">
@@ -79,7 +79,7 @@ export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
             >
               <Send className="h-4 w-4 text-[#2AABEE]" />
               <div>
-                <p className="font-medium text-text">Telegram {CONTACTS.telegramHandle}</p>
+                <p className="font-medium text-text">Написать в Telegram</p>
               </div>
             </a>
           </div>
@@ -101,7 +101,7 @@ export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
               aria-label="Telegram"
             >
               <Send className="h-4 w-4" />
-              Telegram
+              Написать
             </a>
           </div>
         </div>

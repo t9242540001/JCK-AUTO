@@ -11,7 +11,7 @@ import { faqData } from "@/data/faq";
 
 export default function FAQ() {
   return (
-    <section id="faq" className="bg-white py-20">
+    <section id="faq" className="bg-white py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -22,10 +22,10 @@ export default function FAQ() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Вопросы
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Частые вопросы
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Ответы на самые популярные вопросы об импорте автомобилей
           </p>
         </motion.div>

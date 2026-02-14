@@ -13,7 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: "https://jckauto.ru/calculator",
       lastModified: new Date(),
       changeFrequency: "monthly",
-      priority: 0.8,
+      priority: 0.9,
     },
     {
       url: "https://jckauto.ru/about",

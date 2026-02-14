@@ -24,12 +24,12 @@ const countries: CountryData[] = [
     flag: "🇨🇳",
     image: "/images/cars/china.jpg",
     description:
-      "Новые автомобили напрямую от дистрибьюторов. Не только китайские бренды — любые марки, доступные на рынке Китая.",
+      "Новые автомобили напрямую от дистрибьюторов. Не только китайские бренды — Toyota, BMW, Mercedes с китайского рынка.",
     features: [
-      "Новые авто с завода",
+      "Новые авто от дистрибьюторов — без пробега",
+      "Любые мировые марки с внутреннего рынка",
       "Гарантия до 2 лет от ВСК",
-      "Доставка 30-45 дней",
-      "Локализация интерфейса — индивидуально",
+      "Доставка автовозом — от 25 дней",
     ],
     brands: ["Changan", "Haval", "Geely", "Toyota", "BMW", "Mercedes"],
     borderColor: "hover:border-china",
@@ -40,12 +40,12 @@ const countries: CountryData[] = [
     flag: "🇰🇷",
     image: "/images/cars/korea.jpg",
     description:
-      "Подбор через крупнейшую платформу Encar.com. Проверка PSI, гарантия пробега.",
+      "Подбор через Encar.com — крупнейшую площадку Кореи. Проверенные б/у авто с прозрачной историей.",
     features: [
-      "Подбор через Encar.com",
-      "Гарантированный пробег",
-      "Доставка 35-50 дней",
-      "Страховка на перевозку",
+      "Подбор через Encar.com — крупнейшую площадку",
+      "Проверенные б/у авто с прозрачной историей",
+      "Возврат корейского НДС — дополнительная выгода",
+      "Доставка морем — 35-50 дней",
     ],
     brands: ["Hyundai", "Kia", "Genesis"],
     borderColor: "hover:border-korea",
@@ -56,12 +56,12 @@ const countries: CountryData[] = [
     flag: "🇯🇵",
     image: "/images/cars/japan.jpg",
     description:
-      "Легендарное японское качество. Авто с аукционов с оценкой состояния.",
+      "Аукционные авто с детальным отчётом состояния. Японское качество обслуживания — минимальный износ.",
     features: [
-      "Аукционная оценка",
-      "Минимальный пробег",
-      "Доставка 35-55 дней",
-      "Полный пакет документов",
+      "Аукционные авто с детальным отчётом состояния",
+      "Японское качество обслуживания — минимальный износ",
+      "Доставка морем через Владивосток",
+      "Полный пакет документов для ГИБДД",
     ],
     brands: ["Toyota", "Honda", "Mazda", "Subaru"],
     borderColor: "hover:border-japan",
@@ -70,7 +70,7 @@ const countries: CountryData[] = [
 
 export default function Countries() {
   return (
-    <section id="countries" className="bg-white py-20">
+    <section id="countries" className="bg-white py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -81,11 +81,12 @@ export default function Countries() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Направления
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
-            Три страны — одна команда
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
+            Подберём автомобиль с рынка Китая, Кореи или Японии
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
-            Работаем напрямую с проверенными поставщиками в каждой стране
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
+            Для каждой страны — свои источники, проверенные партнёры и отлаженная
+            логистика. Честная итоговая цена без скрытых платежей
           </p>
         </motion.div>
 
@@ -146,7 +147,7 @@ export default function Countries() {
                     href={CONTACTS.telegram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
                   >
                     <Send className="h-4 w-4" />
                     Написать в Telegram

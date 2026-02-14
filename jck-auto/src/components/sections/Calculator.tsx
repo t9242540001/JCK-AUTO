@@ -78,7 +78,7 @@ export default function Calculator() {
   const inputClass = selectClass;
 
   return (
-    <section id="calculator" className="bg-white py-20">
+    <section id="calculator" className="bg-white py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -89,11 +89,12 @@ export default function Calculator() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Калькулятор
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
-            Рассчитайте стоимость
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
+            Узнайте стоимость вашего авто за 30 секунд
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
-            Узнайте примерную стоимость импорта автомобиля &laquo;под ключ&raquo;
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
+            Калькулятор учитывает таможенные пошлины, утилизационный сбор,
+            доставку и наши услуги. Без скрытых платежей
           </p>
         </motion.div>
 
@@ -193,7 +194,7 @@ export default function Calculator() {
                       <p className="text-sm font-medium text-text-muted">
                         Стоимость &laquo;под ключ&raquo;
                       </p>
-                      <p className="mt-1 text-3xl font-bold text-primary">
+                      <p className="mt-1 text-2xl font-bold text-primary sm:text-3xl">
                         {formatPrice(result.totalRub)}
                       </p>
                       <p className="mt-1 text-sm text-text-muted">
@@ -215,7 +216,7 @@ export default function Calculator() {
                       ))}
                     </div>
 
-                    <p className="text-xs text-text-muted">
+                    <p className="break-words text-xs text-text-muted">
                       Курс ЦБ РФ на {result.currencyRate.date}: 1 EUR = {result.currencyRate.eurRate.toFixed(2)} ₽ | 1 {result.currencyRate.code} = {result.currencyRate.rate.toFixed(result.currencyRate.code === "KRW" ? 4 : 2)} ₽
                     </p>
 

@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { getAllPosts, getPostBySlug } from "@/lib/blog";
 import { CONTACTS } from "@/lib/constants";
 
@@ -29,9 +29,13 @@ export async function generateMetadata({
   const post = getPostBySlug(slug);
   if (!post) return {};
   return {
-    title: post.title,
+    title: { absolute: `${post.title} | Блог JCK AUTO` },
     description: post.description,
     openGraph: {
+      title: post.title,
+      description: post.description,
+      type: "article",
+      publishedTime: post.date,
       images: post.image ? [{ url: post.image }] : [],
     },
   };
@@ -45,8 +49,22 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const allPosts = getAllPosts();
   const relatedPosts = allPosts.filter((p) => p.slug !== slug).slice(0, 3);
 
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.description,
+    datePublished: post.date,
+    ...(post.image ? { image: post.image } : {}),
+    author: { "@type": "Organization", name: "JCK AUTO" },
+  };
+
   return (
     <div className="min-h-screen bg-white pb-20 pt-28">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
       <article className="mx-auto max-w-3xl px-4">
         <Link
           href="/blog"
@@ -73,7 +91,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </span>
         </div>
 
-        <h1 className="mt-4 font-heading text-3xl font-bold text-text md:text-4xl">
+        <h1 className="mt-4 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
           {post.title}
         </h1>
 
@@ -89,11 +107,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </div>
         )}
 
-        <div className="prose prose-lg mt-8 max-w-none prose-headings:font-heading prose-headings:text-text prose-p:text-text-muted prose-a:text-primary prose-strong:text-text prose-li:text-text-muted">
+        <div className="prose mt-8 max-w-none sm:prose-lg prose-headings:font-heading prose-headings:text-text prose-p:text-text-muted prose-a:text-primary prose-strong:text-text prose-li:text-text-muted">
           <MDXRemote source={post.content} />
         </div>
 
-        <div className="mt-16 rounded-2xl border border-border bg-surface-alt p-8 text-center">
+        <div className="mt-12 rounded-2xl border border-border bg-surface-alt p-6 text-center sm:mt-16 sm:p-8">
           <h2 className="font-heading text-xl font-bold text-text">
             Хотите привезти автомобиль?
           </h2>
@@ -111,19 +129,20 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xl border-2 border-primary px-8 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary px-8 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
             >
+              <Send className="h-4 w-4" />
               Написать в Telegram
             </a>
           </div>
         </div>
 
         {relatedPosts.length > 0 && (
-          <section className="mt-16 border-t border-gray-200 pt-12">
-            <h2 className="mb-8 text-2xl font-bold text-[#1E3A5F]">
+          <section className="mt-16 border-t border-border pt-12">
+            <h2 className="mb-8 font-heading text-xl font-bold text-text sm:text-2xl">
               Читайте также
             </h2>
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {relatedPosts.map((related) => (
                 <Link
                   href={`/blog/${related.slug}`}
@@ -131,7 +150,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   className="group"
                 >
                   {related.image && (
-                    <div className="relative mb-3 aspect-[2/1] overflow-hidden rounded-lg">
+                    <div className="relative mb-3 aspect-[2/1] overflow-hidden rounded-xl">
                       <Image
                         src={related.image}
                         alt={related.title}
@@ -140,10 +159,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                       />
                     </div>
                   )}
-                  <h3 className="line-clamp-2 font-semibold text-[#1E3A5F] transition-colors group-hover:text-[#C9A84C]">
+                  <h3 className="line-clamp-2 font-heading font-semibold text-text transition-colors group-hover:text-primary">
                     {related.title}
                   </h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                  <p className="mt-1 line-clamp-2 text-sm text-text-muted">
                     {related.description}
                   </p>
                 </Link>

@@ -7,33 +7,38 @@ const steps = [
   {
     icon: MessageCircle,
     title: "Заявка",
-    description: "Обсуждаем ваши пожелания, бюджет и подбираем варианты",
+    description:
+      "Бесплатная консультация: обсуждаем марку, бюджет, комплектацию и подбираем лучшие варианты",
   },
   {
     icon: Search,
-    title: "Проверка PSI",
-    description: "Полная диагностика: фото, видео, проверка VIN и пробега",
+    title: "Подбор и проверка",
+    description:
+      "Находим авто, проводим PSI-проверку с фото- и видеоотчётом. Вы одобряете автомобиль до оплаты",
   },
   {
     icon: Ship,
-    title: "Логистика",
-    description: "Доставка морем или автовозом с страховкой на весь путь",
+    title: "Покупка и доставка",
+    description:
+      "Выкупаем авто, организуем доставку морем или автовозом со страховкой на весь путь",
   },
   {
     icon: FileCheck,
-    title: "Таможня",
-    description: "Растаможка, СБКТС, оформление электронного ПТС",
+    title: "Таможня и документы",
+    description:
+      "Берём на себя растаможку, СБКТС, оформление ЭПТС — полный пакет для регистрации в ГИБДД",
   },
   {
     icon: Key,
     title: "Получение",
-    description: "Передаём ключи и полный пакет документов для ГИБДД",
+    description:
+      "Передаём ключи и все документы. Помогаем с регистрацией в ГИБДД",
   },
 ];
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="bg-surface-alt py-20">
+    <section id="how-it-works" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -44,11 +49,12 @@ export default function HowItWorks() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Процесс
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Как мы работаем
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
-            Пять простых шагов от заявки до получения автомобиля
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
+            Пять шагов от заявки до получения автомобиля. Вы контролируете каждый
+            этап — мы присылаем фото и видео на каждом шаге
           </p>
         </motion.div>
 

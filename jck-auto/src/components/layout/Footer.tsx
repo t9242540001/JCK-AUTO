@@ -34,12 +34,12 @@ export default function Footer() {
             <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-white/50">
               Навигация
             </h3>
-            <nav className="mt-4 flex flex-col gap-2">
+            <nav className="mt-4 flex flex-col gap-1">
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="text-sm text-white/70 transition-colors hover:text-white"
+                  className="py-1.5 text-sm text-white/70 transition-colors hover:text-white"
                 >
                   {item.label}
                 </Link>
@@ -51,10 +51,10 @@ export default function Footer() {
             <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-white/50">
               Контакты
             </h3>
-            <div className="mt-4 flex flex-col gap-3">
+            <div className="mt-4 flex flex-col gap-1">
               <a
                 href={`tel:${CONTACTS.phoneRaw}`}
-                className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
+                className="flex items-center gap-2 py-1.5 text-sm text-white/70 transition-colors hover:text-white"
               >
                 <Phone className="h-4 w-4" />
                 {CONTACTS.phone}
@@ -63,10 +63,10 @@ export default function Footer() {
                 href={CONTACTS.telegram}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
+                className="flex items-center gap-2 py-1.5 text-sm text-white/70 transition-colors hover:text-white"
               >
                 <Send className="h-4 w-4" />
-                {CONTACTS.telegramHandle}
+                Написать
               </a>
             </div>
           </div>
@@ -80,7 +80,7 @@ export default function Footer() {
                 href={CONTACTS.youtube}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
+                className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
                 aria-label="YouTube"
               >
                 <Youtube className="h-5 w-5" />
@@ -89,7 +89,7 @@ export default function Footer() {
                 href="https://t.me/jckauto_import_koreya"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
+                className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
                 aria-label="Telegram"
               >
                 <Send className="h-5 w-5" />

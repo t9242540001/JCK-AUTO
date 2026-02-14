@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calculator as CalcIcon, Check, Phone, Loader2 } from "lucide-react";
+import { Calculator as CalcIcon, Check, Phone, Loader2, Send } from "lucide-react";
 import {
   calculateTotal,
   formatPrice,
@@ -86,10 +86,10 @@ export default function CalculatorPage() {
         <p className="text-sm font-medium uppercase tracking-wider text-secondary">
           Калькулятор стоимости
         </p>
-        <h1 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl lg:text-5xl">
+        <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
           Сколько стоит привезти автомобиль?
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+        <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
           Введите параметры и получите расчёт всех расходов &laquo;под ключ&raquo;: таможня, утильсбор, доставка, оформление
         </p>
       </motion.div>
@@ -225,7 +225,7 @@ export default function CalculatorPage() {
                       <p className="text-sm font-medium text-text-muted">
                         Стоимость &laquo;под ключ&raquo;
                       </p>
-                      <p className="mt-1 text-3xl font-bold text-primary">
+                      <p className="mt-1 text-2xl font-bold text-primary sm:text-3xl">
                         {formatPrice(result.totalRub)}
                       </p>
                       <p className="mt-1 text-sm text-text-muted">
@@ -245,7 +245,7 @@ export default function CalculatorPage() {
                       ))}
                     </div>
 
-                    <p className="mt-4 text-xs text-text-muted">
+                    <p className="mt-4 break-words text-xs text-text-muted">
                       Курс ЦБ РФ на {result.currencyRate.date}:{" "}
                       1 EUR = {result.currencyRate.eurRate.toFixed(2)} ₽ |{" "}
                       1 {result.currencyRate.code} = {result.currencyRate.rate.toFixed(result.currencyRate.code === "KRW" ? 4 : 2)} ₽
@@ -256,9 +256,10 @@ export default function CalculatorPage() {
                         href={CONTACTS.telegram}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 rounded-xl bg-secondary px-6 py-3 text-center font-medium text-white transition-colors hover:bg-secondary-hover"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-secondary-hover"
                       >
-                        Получить точную оценку
+                        <Send className="h-4 w-4" />
+                        Написать в Telegram
                       </a>
                       <a
                         href={`tel:${CONTACTS.phoneRaw}`}
