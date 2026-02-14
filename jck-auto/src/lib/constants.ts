@@ -1,6 +1,6 @@
 export const CONTACTS = {
   company: "JCK AUTO",
-  legal: "ИП Дьяченко",
+  legal: "ИП Дьяченко Б.Г.",
   telegram: "https://t.me/jck_auto_manager",
   telegramHandle: "@jck_auto_manager",
   phone: "+7 (914) 732-19-50",
