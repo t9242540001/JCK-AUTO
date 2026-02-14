@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calculator as CalcIcon, Check, Phone, Loader2 } from "lucide-react";
+import { Calculator as CalcIcon, Check, Phone, Loader2, Send } from "lucide-react";
 import {
   calculateTotal,
   formatPrice,
@@ -256,9 +256,10 @@ export default function CalculatorPage() {
                         href={CONTACTS.telegram}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 rounded-xl bg-secondary px-6 py-3 text-center font-medium text-white transition-colors hover:bg-secondary-hover"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-secondary-hover"
                       >
-                        Получить точную оценку
+                        <Send className="h-4 w-4" />
+                        Написать в Telegram
                       </a>
                       <a
                         href={`tel:${CONTACTS.phoneRaw}`}

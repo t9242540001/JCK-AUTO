@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { Send } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
 const stats = [
@@ -60,8 +61,9 @@ export default function Hero() {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xl border-2 border-primary px-8 py-4 text-center font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary px-8 py-4 text-center font-medium text-primary transition-colors hover:bg-primary hover:text-white"
             >
+              <Send className="h-5 w-5" />
               Написать в Telegram
             </a>
           </div>

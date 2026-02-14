@@ -1,6 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check, Phone, Send, ShieldCheck, Car, Users, Eye } from "lucide-react";
+import {
+  Check,
+  Phone,
+  Send,
+  ShieldCheck,
+  Car,
+  Users,
+  Eye,
+  Camera,
+  ScanSearch,
+  Paintbrush,
+  FileCheck,
+} from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
 export const metadata: Metadata = {
@@ -41,7 +53,7 @@ const countries = [
   {
     name: "Корея",
     description:
-      "99% подбора через платформу Encar.com — крупнейший автомобильный маркетплейс Южной Кореи. Работаем через проверенных агентов-партнёров, не через аукционы.",
+      "99% подбора через платформу Encar.com — крупнейший автомобильный маркетплейс Южной Кореи. Работаем через проверенных агентов-партнёров на месте.",
   },
   {
     name: "Япония",
@@ -52,8 +64,32 @@ const countries = [
 
 const vskFeatures = [
   "Продлённая гарантия до 2 лет на новые автомобили",
-  "Ремонт в авторизованных СТО с оригинальными запчастями",
+  "Ремонт только в авторизованных СТО с оригинальными запчастями",
   "Действует на всей территории РФ",
+  "Эксклюзивный продукт на рынке",
+];
+
+const psiSteps = [
+  {
+    icon: Camera,
+    title: "Фото- и видеоотчёт",
+    text: "Полный отчёт: кузов, салон, двигатель, пробег, VIN-номер.",
+  },
+  {
+    icon: ScanSearch,
+    title: "Диагностика сканером",
+    text: "Компьютерная диагностика всех систем автомобиля.",
+  },
+  {
+    icon: Paintbrush,
+    title: "Толщина ЛКП",
+    text: "Проверка лакокрасочного покрытия толщиномером для выявления ремонта.",
+  },
+  {
+    icon: FileCheck,
+    title: "Отчёт клиенту",
+    text: "Результаты проверки отправляются вам до подтверждения сделки.",
+  },
 ];
 
 const miniStats = [
@@ -77,8 +113,8 @@ export default function AboutPage() {
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-text-muted">
             JCK AUTO ({CONTACTS.legal}) — работаем под заказ клиента. У нас нет
-            склада автомобилей: каждый автомобиль подбирается индивидуально под
-            ваши задачи и бюджет.
+            склада автомобилей: каждый автомобиль — новый или с пробегом —
+            подбирается индивидуально под ваши задачи и бюджет.
           </p>
         </div>
       </section>
@@ -170,7 +206,41 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Block 4 — VSK */}
+      {/* Block 4 — PSI */}
+      <section className="bg-surface-alt py-16">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="text-center">
+            <p className="text-sm font-medium uppercase tracking-wider text-secondary">
+              Контроль качества
+            </p>
+            <h2 className="mt-2 font-heading text-2xl font-bold text-text md:text-3xl">
+              Предотгрузочная проверка (PSI)
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-text-muted">
+              Каждый автомобиль проходит независимую проверку перед отправкой.
+              Вы получаете полный отчёт до подтверждения сделки.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {psiSteps.map((step) => (
+              <div
+                key={step.title}
+                className="rounded-2xl border border-border bg-white p-6"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <step.icon className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="mt-4 font-heading text-base font-bold text-text">
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-sm text-text-muted">{step.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Block 5 — VSK */}
       <section className="bg-primary py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mx-auto max-w-2xl text-center">
@@ -193,7 +263,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Block 5 — Contact */}
+      {/* Block 6 — Contact */}
       <section className="bg-white py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mx-auto max-w-lg">
@@ -222,7 +292,7 @@ export default function AboutPage() {
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
                 >
                   <Send className="h-4 w-4" />
-                  {CONTACTS.telegramHandle}
+                  Написать в Telegram
                 </a>
               </div>
             </div>
@@ -230,7 +300,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Block 6 — CTA */}
+      {/* Block 7 — CTA */}
       <section className="bg-surface-alt py-16">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <h2 className="font-heading text-2xl font-bold text-text md:text-3xl">
@@ -244,8 +314,9 @@ export default function AboutPage() {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xl bg-secondary px-8 py-4 font-medium text-white transition-colors hover:bg-secondary-hover"
+              className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-8 py-4 font-medium text-white transition-colors hover:bg-secondary-hover"
             >
+              <Send className="h-5 w-5" />
               Написать в Telegram
             </a>
             <Link

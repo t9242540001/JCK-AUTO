@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Phone, Menu } from "lucide-react";
+import { Phone, Menu, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CONTACTS } from "@/lib/constants";
 import MobileMenu from "./MobileMenu";
@@ -83,9 +83,10 @@ export default function Header() {
             href={CONTACTS.telegram}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-xl bg-secondary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-secondary-hover"
+            className="flex items-center gap-2 rounded-xl bg-secondary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-secondary-hover"
           >
-            Оставить заявку
+            <Send className="h-4 w-4" />
+            Написать в Telegram
           </a>
         </div>
 

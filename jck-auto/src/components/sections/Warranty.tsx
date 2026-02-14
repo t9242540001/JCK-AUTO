@@ -12,7 +12,7 @@ const features = [
 
 const stats = [
   { value: "2 года", label: "максимальный срок" },
-  { value: "100%", label: "покрытие ремонта" },
+  { value: "Полное", label: "покрытие ремонта" },
   { value: "РФ", label: "территория действия" },
 ];
 

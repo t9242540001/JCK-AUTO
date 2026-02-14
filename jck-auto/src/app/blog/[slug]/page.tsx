@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { getAllPosts, getPostBySlug } from "@/lib/blog";
 import { CONTACTS } from "@/lib/constants";
 
@@ -111,8 +111,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xl border-2 border-primary px-8 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary px-8 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
             >
+              <Send className="h-4 w-4" />
               Написать в Telegram
             </a>
           </div>
