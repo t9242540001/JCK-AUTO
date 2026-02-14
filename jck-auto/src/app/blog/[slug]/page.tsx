@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
@@ -30,6 +31,9 @@ export async function generateMetadata({
   return {
     title: post.title,
     description: post.description,
+    openGraph: {
+      images: post.image ? [{ url: post.image }] : [],
+    },
   };
 }
 
@@ -69,6 +73,18 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         <h1 className="mt-4 font-heading text-3xl font-bold text-text md:text-4xl">
           {post.title}
         </h1>
+
+        {post.image && (
+          <div className="relative mt-8 aspect-[2/1] w-full overflow-hidden rounded-xl">
+            <Image
+              src={post.image}
+              alt={post.title}
+              fill
+              className="object-cover"
+              priority
+            />
+          </div>
+        )}
 
         <div className="prose prose-lg mt-8 max-w-none prose-headings:font-heading prose-headings:text-text prose-p:text-text-muted prose-a:text-primary prose-strong:text-text prose-li:text-text-muted">
           <MDXRemote source={post.content} />
