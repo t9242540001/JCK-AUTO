@@ -29,7 +29,7 @@ export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-80 p-0">
+      <SheetContent side="right" className="w-[85vw] max-w-80 p-0">
         <div className="flex flex-col h-full">
           <div className="p-6">
             <SheetTitle className="font-heading text-xl">

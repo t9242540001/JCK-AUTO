@@ -91,7 +91,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </span>
         </div>
 
-        <h1 className="mt-4 font-heading text-3xl font-bold text-text md:text-4xl">
+        <h1 className="mt-4 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
           {post.title}
         </h1>
 
@@ -138,11 +138,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         </div>
 
         {relatedPosts.length > 0 && (
-          <section className="mt-16 border-t border-gray-200 pt-12">
-            <h2 className="mb-8 text-2xl font-bold text-[#1E3A5F]">
+          <section className="mt-16 border-t border-border pt-12">
+            <h2 className="mb-8 font-heading text-xl font-bold text-text sm:text-2xl">
               Читайте также
             </h2>
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {relatedPosts.map((related) => (
                 <Link
                   href={`/blog/${related.slug}`}
@@ -150,7 +150,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   className="group"
                 >
                   {related.image && (
-                    <div className="relative mb-3 aspect-[2/1] overflow-hidden rounded-lg">
+                    <div className="relative mb-3 aspect-[2/1] overflow-hidden rounded-xl">
                       <Image
                         src={related.image}
                         alt={related.title}
@@ -159,10 +159,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                       />
                     </div>
                   )}
-                  <h3 className="line-clamp-2 font-semibold text-[#1E3A5F] transition-colors group-hover:text-[#C9A84C]">
+                  <h3 className="line-clamp-2 font-heading font-semibold text-text transition-colors group-hover:text-primary">
                     {related.title}
                   </h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                  <p className="mt-1 line-clamp-2 text-sm text-text-muted">
                     {related.description}
                   </p>
                 </Link>

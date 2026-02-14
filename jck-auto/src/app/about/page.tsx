@@ -113,7 +113,7 @@ export default function AboutPage() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             О компании
           </p>
-          <h1 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl lg:text-5xl">
+          <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
             Делаем импорт автомобилей прозрачным и понятным
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-text-muted">
@@ -258,8 +258,8 @@ export default function AboutPage() {
             </p>
             <ul className="mt-8 space-y-3 text-left">
               {vskFeatures.map((f) => (
-                <li key={f} className="flex items-center gap-3">
-                  <Check className="h-5 w-5 shrink-0 text-secondary" />
+                <li key={f} className="flex items-start gap-3">
+                  <Check className="mt-0.5 h-5 w-5 shrink-0 text-secondary" />
                   <span className="text-white/80">{f}</span>
                 </li>
               ))}

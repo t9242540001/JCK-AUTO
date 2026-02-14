@@ -89,7 +89,7 @@ export default function Calculator() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Калькулятор
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Узнайте стоимость вашего авто за 30 секунд
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
@@ -216,7 +216,7 @@ export default function Calculator() {
                       ))}
                     </div>
 
-                    <p className="text-xs text-text-muted">
+                    <p className="break-words text-xs text-text-muted">
                       Курс ЦБ РФ на {result.currencyRate.date}: 1 EUR = {result.currencyRate.eurRate.toFixed(2)} ₽ | 1 {result.currencyRate.code} = {result.currencyRate.rate.toFixed(result.currencyRate.code === "KRW" ? 4 : 2)} ₽
                     </p>
 

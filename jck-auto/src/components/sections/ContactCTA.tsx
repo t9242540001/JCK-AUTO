@@ -18,7 +18,7 @@ export default function ContactCTA() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Начните сейчас
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Расскажите, какой автомобиль ищете — мы подберём лучший вариант
           </h2>
           <p className="mt-4 text-lg text-text-muted">

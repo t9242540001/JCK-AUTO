@@ -86,7 +86,7 @@ export default function CalculatorPage() {
         <p className="text-sm font-medium uppercase tracking-wider text-secondary">
           Калькулятор стоимости
         </p>
-        <h1 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl lg:text-5xl">
+        <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
           Сколько стоит привезти автомобиль?
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
@@ -245,7 +245,7 @@ export default function CalculatorPage() {
                       ))}
                     </div>
 
-                    <p className="mt-4 text-xs text-text-muted">
+                    <p className="mt-4 break-words text-xs text-text-muted">
                       Курс ЦБ РФ на {result.currencyRate.date}:{" "}
                       1 EUR = {result.currencyRate.eurRate.toFixed(2)} ₽ |{" "}
                       1 {result.currencyRate.code} = {result.currencyRate.rate.toFixed(result.currencyRate.code === "KRW" ? 4 : 2)} ₽

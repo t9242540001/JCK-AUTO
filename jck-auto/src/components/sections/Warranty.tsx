@@ -29,7 +29,7 @@ export default function Warranty() {
             <span className="inline-block rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-secondary">
               Эксклюзив
             </span>
-            <h2 className="mt-4 font-heading text-3xl font-bold text-white md:text-4xl">
+            <h2 className="mt-4 font-heading text-2xl font-bold text-white sm:text-3xl md:text-4xl">
               Гарантия до 2 лет от Страхового Дома ВСК
             </h2>
             <p className="mt-4 text-lg text-white/70">
@@ -54,7 +54,7 @@ export default function Warranty() {
 
             <Link
               href="/calculator"
-              className="mt-8 inline-block rounded-xl bg-secondary px-8 py-4 font-medium text-white transition-colors hover:bg-secondary-hover"
+              className="mt-8 block w-full rounded-xl bg-secondary px-8 py-4 text-center font-medium text-white transition-colors hover:bg-secondary-hover sm:inline-block sm:w-auto"
             >
               Рассчитать стоимость
             </Link>
@@ -64,7 +64,7 @@ export default function Warranty() {
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            className="rounded-2xl bg-white/10 p-8 backdrop-blur-sm"
+            className="rounded-2xl bg-white/10 p-6 backdrop-blur-sm sm:p-8"
           >
             <div className="flex justify-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10">

@@ -34,12 +34,12 @@ export default function Footer() {
             <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-white/50">
               Навигация
             </h3>
-            <nav className="mt-4 flex flex-col gap-2">
+            <nav className="mt-4 flex flex-col gap-1">
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="text-sm text-white/70 transition-colors hover:text-white"
+                  className="py-1.5 text-sm text-white/70 transition-colors hover:text-white"
                 >
                   {item.label}
                 </Link>
@@ -51,10 +51,10 @@ export default function Footer() {
             <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-white/50">
               Контакты
             </h3>
-            <div className="mt-4 flex flex-col gap-3">
+            <div className="mt-4 flex flex-col gap-1">
               <a
                 href={`tel:${CONTACTS.phoneRaw}`}
-                className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
+                className="flex items-center gap-2 py-1.5 text-sm text-white/70 transition-colors hover:text-white"
               >
                 <Phone className="h-4 w-4" />
                 {CONTACTS.phone}
@@ -63,7 +63,7 @@ export default function Footer() {
                 href={CONTACTS.telegram}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
+                className="flex items-center gap-2 py-1.5 text-sm text-white/70 transition-colors hover:text-white"
               >
                 <Send className="h-4 w-4" />
                 Написать

@@ -39,7 +39,7 @@ export default function Hero() {
             🚗 Китай &bull; Корея &bull; Япония
           </span>
 
-          <h1 className="mt-6 font-heading text-3xl font-bold leading-tight text-text sm:text-4xl md:text-5xl lg:text-6xl">
+          <h1 className="mt-6 font-heading text-2xl font-bold leading-tight text-text sm:text-3xl md:text-4xl lg:text-5xl">
             Автомобиль из Китая, Кореи или Японии —{" "}
             <span className="text-primary">дешевле, чем у дилера</span>
           </h1>
@@ -53,7 +53,7 @@ export default function Hero() {
           <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:gap-4">
             <Link
               href="/calculator"
-              className="rounded-xl bg-secondary px-8 py-4 text-center font-medium text-white transition-colors hover:bg-secondary-hover"
+              className="rounded-xl bg-secondary px-6 py-3.5 text-center font-medium text-white transition-colors hover:bg-secondary-hover sm:px-8 sm:py-4"
             >
               Рассчитать стоимость
             </Link>
@@ -61,7 +61,7 @@ export default function Hero() {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary px-8 py-4 text-center font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary px-6 py-3.5 text-center font-medium text-primary transition-colors hover:bg-primary hover:text-white sm:px-8 sm:py-4"
             >
               <Send className="h-5 w-5" />
               Написать в Telegram

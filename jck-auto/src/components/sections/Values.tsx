@@ -43,7 +43,7 @@ export default function Values() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Наши ценности
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Почему выбирают нас
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
@@ -51,7 +51,7 @@ export default function Values() {
           </p>
         </motion.div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {values.map((v, i) => (
             <motion.div
               key={v.title}

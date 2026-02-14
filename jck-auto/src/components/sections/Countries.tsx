@@ -81,7 +81,7 @@ export default function Countries() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Направления
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Подберём автомобиль с рынка Китая, Кореи или Японии
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
@@ -147,7 +147,7 @@ export default function Countries() {
                     href={CONTACTS.telegram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
                   >
                     <Send className="h-4 w-4" />
                     Написать в Telegram

@@ -24,7 +24,7 @@ export default function Testimonials() {
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Отзывы
           </p>
-          <h2 className="mt-2 font-heading text-3xl font-bold text-text md:text-4xl">
+          <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Что говорят клиенты
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">

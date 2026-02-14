@@ -91,7 +91,7 @@ export default function Header() {
         </div>
 
         <button
-          className="lg:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-lg lg:hidden"
           onClick={() => setMobileMenuOpen(true)}
           aria-label="Открыть меню"
         >
