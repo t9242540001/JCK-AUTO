@@ -42,6 +42,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const post = getPostBySlug(slug);
   if (!post) notFound();
 
+  const allPosts = getAllPosts();
+  const relatedPosts = allPosts.filter((p) => p.slug !== slug).slice(0, 3);
+
   return (
     <div className="min-h-screen bg-white pb-20 pt-28">
       <article className="mx-auto max-w-3xl px-4">
@@ -114,6 +117,40 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             </a>
           </div>
         </div>
+
+        {relatedPosts.length > 0 && (
+          <section className="mt-16 border-t border-gray-200 pt-12">
+            <h2 className="mb-8 text-2xl font-bold text-[#1E3A5F]">
+              Читайте также
+            </h2>
+            <div className="grid gap-6 md:grid-cols-3">
+              {relatedPosts.map((related) => (
+                <Link
+                  href={`/blog/${related.slug}`}
+                  key={related.slug}
+                  className="group"
+                >
+                  {related.image && (
+                    <div className="relative mb-3 aspect-[2/1] overflow-hidden rounded-lg">
+                      <Image
+                        src={related.image}
+                        alt={related.title}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                  )}
+                  <h3 className="line-clamp-2 font-semibold text-[#1E3A5F] transition-colors group-hover:text-[#C9A84C]">
+                    {related.title}
+                  </h3>
+                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                    {related.description}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </article>
     </div>
   );
