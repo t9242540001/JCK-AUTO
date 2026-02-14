@@ -114,12 +114,11 @@ export default function AboutPage() {
             О компании
           </p>
           <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
-            Делаем импорт автомобилей прозрачным и понятным
+            Делаем импорт автомобилей простым и понятным
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base text-text-muted sm:text-lg">
-            JCK AUTO ({CONTACTS.legal}) — работаем под заказ клиента. У нас нет
-            склада автомобилей: каждый автомобиль — новый или с пробегом —
-            подбирается индивидуально под ваши задачи и бюджет.
+            JCK AUTO — работаем под заказ клиента. Каждый автомобиль — новый или
+            с пробегом — подбирается индивидуально под ваши задачи и бюджет.
           </p>
         </div>
       </section>
