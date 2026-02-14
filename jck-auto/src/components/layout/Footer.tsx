@@ -86,7 +86,7 @@ export default function Footer() {
                 <Youtube className="h-5 w-5" />
               </a>
               <a
-                href={CONTACTS.telegram}
+                href="https://t.me/jckauto_import_koreya"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
