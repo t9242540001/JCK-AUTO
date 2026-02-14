@@ -26,13 +26,13 @@ export default function Hero() {
       />
 
       {/* Content over the background */}
-      <div className="relative mx-auto max-w-7xl px-4 pt-28 pb-16 sm:pt-32 sm:pb-20">
+      <div className="relative mx-auto max-w-7xl px-4 pt-28 pb-8 sm:pt-32 sm:pb-10">
         {/* Main card with semi-transparent background */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="max-w-3xl rounded-2xl bg-white/85 p-6 backdrop-blur-sm sm:p-8 md:p-12"
+          className="max-w-3xl rounded-2xl bg-white/75 p-6 backdrop-blur-sm sm:p-8 md:p-12"
         >
           <span className="inline-block rounded-full bg-surface-alt px-4 py-1.5 text-sm font-medium text-text-muted">
             🚗 Китай &bull; Корея &bull; Япония
@@ -72,12 +72,12 @@ export default function Hero() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="mt-6 grid grid-cols-2 gap-3 sm:mt-8 sm:gap-4 md:grid-cols-4"
+          className="mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:gap-4 md:grid-cols-4"
         >
           {stats.map((stat) => (
             <div
               key={stat.label}
-              className="rounded-2xl border border-white/20 bg-white/80 p-4 text-center backdrop-blur-sm sm:p-6"
+              className="rounded-2xl border border-white/20 bg-white/70 p-4 text-center backdrop-blur-sm sm:p-6"
             >
               <p className="font-heading text-2xl font-bold text-primary sm:text-3xl">
                 {stat.value}
