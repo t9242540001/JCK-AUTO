@@ -69,7 +69,7 @@ export default function ContactCTA() {
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
                 >
                   <Send className="h-4 w-4" />
-                  Telegram {CONTACTS.telegramHandle}
+                  {CONTACTS.telegramHandle}
                 </a>
                 <a
                   href={`tel:${CONTACTS.phoneRaw}`}
