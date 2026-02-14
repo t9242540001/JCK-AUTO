@@ -38,7 +38,7 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="bg-surface-alt py-20">
+    <section id="how-it-works" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -52,7 +52,7 @@ export default function HowItWorks() {
           <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Как мы работаем
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Пять шагов от заявки до получения автомобиля. Вы контролируете каждый
             этап — мы присылаем фото и видео на каждом шаге
           </p>

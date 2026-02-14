@@ -7,7 +7,7 @@ import { CONTACTS } from "@/lib/constants";
 
 export default function ContactCTA() {
   return (
-    <section id="contact" className="bg-surface-alt py-20">
+    <section id="contact" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -21,7 +21,7 @@ export default function ContactCTA() {
           <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Расскажите, какой автомобиль ищете — мы подберём лучший вариант
           </h2>
-          <p className="mt-4 text-lg text-text-muted">
+          <p className="mt-4 text-base text-text-muted sm:text-lg">
             Бесплатная консультация. Ответим в течение 15 минут
           </p>
 

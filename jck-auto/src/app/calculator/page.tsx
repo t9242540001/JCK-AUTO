@@ -89,7 +89,7 @@ export default function CalculatorPage() {
         <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
           Сколько стоит привезти автомобиль?
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+        <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
           Введите параметры и получите расчёт всех расходов &laquo;под ключ&raquo;: таможня, утильсбор, доставка, оформление
         </p>
       </motion.div>
@@ -225,7 +225,7 @@ export default function CalculatorPage() {
                       <p className="text-sm font-medium text-text-muted">
                         Стоимость &laquo;под ключ&raquo;
                       </p>
-                      <p className="mt-1 text-3xl font-bold text-primary">
+                      <p className="mt-1 text-2xl font-bold text-primary sm:text-3xl">
                         {formatPrice(result.totalRub)}
                       </p>
                       <p className="mt-1 text-sm text-text-muted">

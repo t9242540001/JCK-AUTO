@@ -107,11 +107,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </div>
         )}
 
-        <div className="prose prose-lg mt-8 max-w-none prose-headings:font-heading prose-headings:text-text prose-p:text-text-muted prose-a:text-primary prose-strong:text-text prose-li:text-text-muted">
+        <div className="prose mt-8 max-w-none sm:prose-lg prose-headings:font-heading prose-headings:text-text prose-p:text-text-muted prose-a:text-primary prose-strong:text-text prose-li:text-text-muted">
           <MDXRemote source={post.content} />
         </div>
 
-        <div className="mt-16 rounded-2xl border border-border bg-surface-alt p-8 text-center">
+        <div className="mt-12 rounded-2xl border border-border bg-surface-alt p-6 text-center sm:mt-16 sm:p-8">
           <h2 className="font-heading text-xl font-bold text-text">
             Хотите привезти автомобиль?
           </h2>

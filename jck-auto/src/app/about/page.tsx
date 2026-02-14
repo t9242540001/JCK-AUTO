@@ -108,7 +108,7 @@ export default function AboutPage() {
   return (
     <>
       {/* Block 1 — Hero */}
-      <section className="bg-white pb-16 pt-28">
+      <section className="bg-white pb-10 pt-28 sm:pb-16">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             О компании
@@ -116,7 +116,7 @@ export default function AboutPage() {
           <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
             Делаем импорт автомобилей прозрачным и понятным
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-text-muted">
+          <p className="mx-auto mt-6 max-w-2xl text-base text-text-muted sm:text-lg">
             JCK AUTO ({CONTACTS.legal}) — работаем под заказ клиента. У нас нет
             склада автомобилей: каждый автомобиль — новый или с пробегом —
             подбирается индивидуально под ваши задачи и бюджет.
@@ -125,7 +125,7 @@ export default function AboutPage() {
       </section>
 
       {/* Block 2 — Mission & Values */}
-      <section className="bg-surface-alt py-16">
+      <section className="bg-surface-alt py-10 sm:py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="grid items-start gap-12 md:grid-cols-2">
             <div>
@@ -180,7 +180,7 @@ export default function AboutPage() {
       </section>
 
       {/* Block 3 — Sources per country */}
-      <section className="bg-white py-16">
+      <section className="bg-white py-10 sm:py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="text-center">
             <p className="text-sm font-medium uppercase tracking-wider text-secondary">
@@ -212,7 +212,7 @@ export default function AboutPage() {
       </section>
 
       {/* Block 4 — PSI */}
-      <section className="bg-surface-alt py-16">
+      <section className="bg-surface-alt py-10 sm:py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="text-center">
             <p className="text-sm font-medium uppercase tracking-wider text-secondary">
@@ -246,7 +246,7 @@ export default function AboutPage() {
       </section>
 
       {/* Block 5 — VSK */}
-      <section className="bg-primary py-16">
+      <section className="bg-primary py-10 sm:py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="font-heading text-2xl font-bold text-white md:text-3xl">
@@ -269,10 +269,10 @@ export default function AboutPage() {
       </section>
 
       {/* Block 6 — Contact */}
-      <section className="bg-white py-16">
+      <section className="bg-white py-10 sm:py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mx-auto max-w-lg">
-            <div className="rounded-2xl border border-border bg-white p-8 text-center">
+            <div className="rounded-2xl border border-border bg-white p-6 text-center sm:p-8">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
                 JCK
               </div>
@@ -306,12 +306,12 @@ export default function AboutPage() {
       </section>
 
       {/* Block 7 — CTA */}
-      <section className="bg-surface-alt py-16">
+      <section className="bg-surface-alt py-10 sm:py-16">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <h2 className="font-heading text-2xl font-bold text-text md:text-3xl">
             Готовы обсудить ваш автомобиль?
           </h2>
-          <p className="mt-4 text-lg text-text-muted">
+          <p className="mt-4 text-base text-text-muted sm:text-lg">
             Свяжитесь с нами или рассчитайте стоимость прямо сейчас
           </p>
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">

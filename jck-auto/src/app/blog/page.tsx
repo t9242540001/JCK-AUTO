@@ -33,7 +33,7 @@ export default function BlogPage() {
           <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Полезные статьи об импорте
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+          <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
             Разбираем процесс, законодательство и развеиваем мифы
           </p>
         </div>

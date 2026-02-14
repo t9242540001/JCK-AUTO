@@ -32,7 +32,7 @@ const values = [
 
 export default function Values() {
   return (
-    <section id="values" className="bg-surface-alt py-20">
+    <section id="values" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -46,7 +46,7 @@ export default function Values() {
           <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Почему выбирают нас
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Принципы, которыми мы руководствуемся в каждой сделке
           </p>
         </motion.div>

@@ -18,7 +18,7 @@ const stats = [
 
 export default function Warranty() {
   return (
-    <section id="warranty" className="bg-primary py-20">
+    <section id="warranty" className="bg-primary py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <div className="grid items-center gap-12 md:grid-cols-2">
           <motion.div
@@ -32,7 +32,7 @@ export default function Warranty() {
             <h2 className="mt-4 font-heading text-2xl font-bold text-white sm:text-3xl md:text-4xl">
               Гарантия до 2 лет от Страхового Дома ВСК
             </h2>
-            <p className="mt-4 text-lg text-white/70">
+            <p className="mt-4 text-base text-white/70 sm:text-lg">
               На новые автомобили из Китая доступна продлённая гарантия до 2 лет.
               Ремонт только в авторизованных СТО с оригинальными запчастями.
               Действует на всей территории РФ.
@@ -77,10 +77,10 @@ export default function Warranty() {
             <p className="mt-2 text-center text-sm text-white/60">
               Официальный партнёр JCK AUTO
             </p>
-            <div className="mt-8 grid grid-cols-3 gap-4">
+            <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4">
               {stats.map((s) => (
                 <div key={s.label} className="text-center">
-                  <p className="font-heading text-2xl font-bold text-secondary">
+                  <p className="font-heading text-lg font-bold text-secondary sm:text-2xl">
                     {s.value}
                   </p>
                   <p className="mt-1 text-xs text-white/60">{s.label}</p>

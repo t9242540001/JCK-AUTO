@@ -70,7 +70,7 @@ const countries: CountryData[] = [
 
 export default function Countries() {
   return (
-    <section id="countries" className="bg-white py-20">
+    <section id="countries" className="bg-white py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -84,7 +84,7 @@ export default function Countries() {
           <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Подберём автомобиль с рынка Китая, Кореи или Японии
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Для каждой страны — свои источники, проверенные партнёры и отлаженная
             логистика. Честная итоговая цена без скрытых платежей
           </p>

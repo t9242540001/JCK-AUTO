@@ -13,7 +13,7 @@ const countryFlag: Record<string, string> = {
 
 export default function Testimonials() {
   return (
-    <section id="testimonials" className="bg-surface-alt py-20">
+    <section id="testimonials" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -27,7 +27,7 @@ export default function Testimonials() {
           <h2 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
             Что говорят клиенты
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-text-muted">
+          <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Реальные отзывы людей, которые уже привезли авто с нашей помощью
           </p>
         </motion.div>
@@ -54,12 +54,12 @@ export default function Testimonials() {
               <p className="mt-4 text-sm text-text-muted">
                 &laquo;{t.text}&raquo;
               </p>
-              <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
                 <div>
                   <p className="text-sm font-medium text-text">{t.name}</p>
                   <p className="text-xs text-text-muted">{t.city}</p>
                 </div>
-                <span className="rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted">
+                <span className="shrink-0 rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted">
                   {countryFlag[t.country]} {t.car}
                 </span>
               </div>
@@ -85,12 +85,12 @@ export default function Testimonials() {
               <p className="mt-4 text-sm text-text-muted">
                 &laquo;{t.text}&raquo;
               </p>
-              <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
                 <div>
                   <p className="text-sm font-medium text-text">{t.name}</p>
                   <p className="text-xs text-text-muted">{t.city}</p>
                 </div>
-                <span className="rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted">
+                <span className="shrink-0 rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted">
                   {countryFlag[t.country]} {t.car}
                 </span>
               </div>
