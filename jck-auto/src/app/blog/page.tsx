@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { getAllPosts } from "@/lib/blog";
 
@@ -41,9 +42,22 @@ export default function BlogPage() {
                 href={`/blog/${post.slug}`}
                 className="group flex flex-col gap-6 rounded-2xl border border-border bg-white p-6 transition-all hover:shadow-md md:flex-row"
               >
-                <div className="flex h-32 w-full shrink-0 items-center justify-center rounded-xl bg-border/50 text-4xl md:w-48">
-                  📷
-                </div>
+                {post.image ? (
+                  <div className="relative w-full shrink-0 overflow-hidden rounded-xl md:w-48">
+                    <div className="aspect-[2/1] md:h-32 md:aspect-auto">
+                      <Image
+                        src={post.image}
+                        alt={post.title}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-32 w-full shrink-0 items-center justify-center rounded-xl bg-border/50 text-4xl md:w-48">
+                    📷
+                  </div>
+                )}
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
                     <time>
