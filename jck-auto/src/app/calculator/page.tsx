@@ -128,7 +128,7 @@ export default function CalculatorPage() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-text">Цена автомобиля</label>
+                  <label className="text-sm font-medium text-text">Цена автомобиля {country === "china" ? "в Китае" : country === "korea" ? "в Южной Корее" : "в Японии"}</label>
                   <input
                     type="number"
                     value={price}
@@ -272,9 +272,9 @@ export default function CalculatorPage() {
 
                     <p className="mt-6 text-xs leading-relaxed text-text-muted">
                       * Расчёт носит информационный характер. Итоговая стоимость может
-                      отличаться в зависимости от фактического курса на дату оформления,
-                      условий доставки и других факторов. Для точного расчёта свяжитесь
-                      с менеджером.
+                      отличаться в меньшую или большую сторону в зависимости от курса
+                      валют и других факторов на дату оформления. Для точного расчёта
+                      свяжитесь с менеджером.
                     </p>
                   </div>
                 ) : (

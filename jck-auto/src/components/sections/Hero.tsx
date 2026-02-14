@@ -40,8 +40,8 @@ export default function Hero() {
           </span>
 
           <h1 className="mt-6 font-heading text-2xl font-bold leading-tight text-text sm:text-3xl md:text-4xl lg:text-5xl">
-            Автомобиль из Китая, Кореи или Японии —{" "}
-            <span className="text-primary">дешевле, чем у дилера</span>
+            Автомобиль из Китая, Кореи или Японии{" "}
+            <span className="text-primary">без посредников</span>
           </h1>
 
           <p className="mt-5 max-w-xl text-base text-text-muted sm:text-lg">

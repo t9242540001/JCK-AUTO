@@ -124,7 +124,7 @@ export default function Calculator() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-text">Цена автомобиля</label>
+                  <label className="text-sm font-medium text-text">Цена автомобиля {country === "china" ? "в Китае" : country === "korea" ? "в Южной Корее" : "в Японии"}</label>
                   <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={pricePlaceholder[country]} className={inputClass} />
                   <p className="mt-1 text-xs text-text-muted">
                     1 {COUNTRY_CURRENCY[country].code} = {rates[COUNTRY_CURRENCY[country].code].toFixed(2)} ₽
