@@ -29,9 +29,13 @@ export async function generateMetadata({
   const post = getPostBySlug(slug);
   if (!post) return {};
   return {
-    title: post.title,
+    title: { absolute: `${post.title} | Блог JCK AUTO` },
     description: post.description,
     openGraph: {
+      title: post.title,
+      description: post.description,
+      type: "article",
+      publishedTime: post.date,
       images: post.image ? [{ url: post.image }] : [],
     },
   };
@@ -45,8 +49,22 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const allPosts = getAllPosts();
   const relatedPosts = allPosts.filter((p) => p.slug !== slug).slice(0, 3);
 
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.description,
+    datePublished: post.date,
+    ...(post.image ? { image: post.image } : {}),
+    author: { "@type": "Organization", name: "JCK AUTO" },
+  };
+
   return (
     <div className="min-h-screen bg-white pb-20 pt-28">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
       <article className="mx-auto max-w-3xl px-4">
         <Link
           href="/blog"
