@@ -19,6 +19,7 @@ export async function uploadCarPhoto(
     access: "public",
     contentType: mimeType,
     addRandomSuffix: false,
+    allowOverwrite: true,
   });
 
   return blob.url;
@@ -87,5 +88,6 @@ export async function writeCatalogJson(cars: Car[]): Promise<void> {
     access: "public",
     contentType: "application/json",
     addRandomSuffix: false,
+    allowOverwrite: true,
   });
 }
