@@ -1,0 +1,110 @@
+import { google } from "googleapis";
+import {
+  getGoogleServiceAccountKey,
+  getGoogleDriveFolderId,
+} from "./config";
+
+function getAuthClient() {
+  const credentials = getGoogleServiceAccountKey();
+  return new google.auth.GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/drive.readonly"],
+  });
+}
+
+function getDrive() {
+  const auth = getAuthClient();
+  return google.drive({ version: "v3", auth });
+}
+
+export interface DriveFolder {
+  id: string;
+  name: string;
+}
+
+export interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+}
+
+export interface DriveCarFiles {
+  screenshots: DriveFile[];
+  photos: DriveFile[];
+}
+
+const IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/jpg",
+];
+
+function isScreenshot(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.includes("скрин") || lower.includes("screen");
+}
+
+/**
+ * List car subfolders inside the root Google Drive folder.
+ */
+export async function listCarFolders(): Promise<DriveFolder[]> {
+  const drive = getDrive();
+  const folderId = getGoogleDriveFolderId();
+
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id, name)",
+    orderBy: "name",
+    pageSize: 1000,
+  });
+
+  return (res.data.files || []).map((f) => ({
+    id: f.id!,
+    name: f.name!,
+  }));
+}
+
+/**
+ * List files inside a car folder, split into screenshots and photos.
+ */
+export async function listFolderFiles(
+  folderId: string
+): Promise<DriveCarFiles> {
+  const drive = getDrive();
+
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false`,
+    fields: "files(id, name, mimeType)",
+    pageSize: 1000,
+  });
+
+  const allFiles = (res.data.files || []).map((f) => ({
+    id: f.id!,
+    name: f.name!,
+    mimeType: f.mimeType!,
+  }));
+
+  const images = allFiles.filter((f) =>
+    IMAGE_MIME_TYPES.includes(f.mimeType.toLowerCase())
+  );
+
+  const screenshots = images.filter((f) => isScreenshot(f.name));
+  const photos = images.filter((f) => !isScreenshot(f.name));
+
+  return { screenshots, photos };
+}
+
+/**
+ * Download a file from Google Drive as a Buffer.
+ */
+export async function downloadFile(fileId: string): Promise<Buffer> {
+  const drive = getDrive();
+
+  const res = await drive.files.get(
+    { fileId, alt: "media" },
+    { responseType: "arraybuffer" }
+  );
+
+  return Buffer.from(res.data as ArrayBuffer);
+}
