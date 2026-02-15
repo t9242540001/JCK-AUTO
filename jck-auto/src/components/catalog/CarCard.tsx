@@ -65,9 +65,21 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
             {specs.join(" • ")}
           </p>
 
-          <p className="mt-3 font-heading text-xl font-bold text-primary">
-            {formatPrice(car.price, car.currency)}
-          </p>
+          {car.priceRub ? (
+            <div className="mt-3">
+              <p className="font-heading text-xl font-bold text-primary">
+                от {car.priceRub.toLocaleString("ru-RU")} ₽
+              </p>
+              <p className="mt-0.5 text-xs text-text-muted">
+                {formatPrice(car.price, car.currency)}
+                {car.exchangeRate ? ` · Курс: ${car.exchangeRate.toFixed(2)} ₽` : ""}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-3 font-heading text-xl font-bold text-primary">
+              {formatPrice(car.price, car.currency)}
+            </p>
+          )}
 
           <span className="mt-3 inline-block text-sm font-medium text-secondary transition-colors group-hover:text-secondary-hover">
             Подробнее →
