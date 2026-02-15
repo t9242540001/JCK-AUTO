@@ -42,7 +42,13 @@ const IMAGE_MIME_TYPES = [
 
 function isScreenshot(name: string): boolean {
   const lower = name.toLowerCase();
-  return lower.includes("скрин") || lower.includes("screen");
+  return (
+    lower.includes("скрин") ||
+    lower.includes("screen") ||
+    lower.includes("характеристик") ||
+    lower.includes("spec") ||
+    lower.includes("info")
+  );
 }
 
 /**
@@ -89,8 +95,19 @@ export async function listFolderFiles(
     IMAGE_MIME_TYPES.includes(f.mimeType.toLowerCase())
   );
 
-  const screenshots = images.filter((f) => isScreenshot(f.name));
-  const photos = images.filter((f) => !isScreenshot(f.name));
+  let screenshots = images.filter((f) => isScreenshot(f.name));
+  let photos = images.filter((f) => !isScreenshot(f.name));
+
+  // Fallback: if no screenshot detected, treat the first image as screenshot
+  if (screenshots.length === 0 && images.length > 0) {
+    screenshots = [images[0]];
+    photos = images.slice(1);
+    console.log(`[drive] Screenshot fallback (first image): ${images[0].name}`);
+  } else {
+    for (const s of screenshots) {
+      console.log(`[drive] Screenshot detected: ${s.name}`);
+    }
+  }
 
   return { screenshots, photos };
 }
