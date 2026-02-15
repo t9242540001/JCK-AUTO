@@ -1,4 +1,7 @@
 import { put, del, list } from "@vercel/blob";
+import type { Car } from "@/types/car";
+
+const CATALOG_JSON_PATH = "catalog/catalog.json";
 
 /**
  * Upload a car photo to Vercel Blob Storage.
@@ -54,4 +57,35 @@ export async function getCarPhotoUrls(carSlug: string): Promise<string[]> {
   } while (cursor);
 
   return urls;
+}
+
+/**
+ * Read the catalog.json from Blob Storage.
+ * Returns empty array if file doesn't exist.
+ */
+export async function readCatalogJson(): Promise<Car[]> {
+  try {
+    const result = await list({ prefix: CATALOG_JSON_PATH });
+    const blob = result.blobs.find((b) => b.pathname === CATALOG_JSON_PATH);
+    if (!blob) return [];
+
+    const response = await fetch(blob.url);
+    if (!response.ok) return [];
+
+    return (await response.json()) as Car[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Write the catalog.json to Blob Storage.
+ */
+export async function writeCatalogJson(cars: Car[]): Promise<void> {
+  const json = JSON.stringify(cars, null, 2);
+  await put(CATALOG_JSON_PATH, json, {
+    access: "public",
+    contentType: "application/json",
+    addRandomSuffix: false,
+  });
 }

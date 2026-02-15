@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Send, Calculator, ChevronRight } from "lucide-react";
+import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import { CONTACTS } from "@/lib/constants";
 import {
@@ -18,13 +19,15 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-function getCar(id: string) {
-  return mockCars.find((c) => c.id === id) || null;
+async function getAllCars() {
+  const blobCars = await readCatalogJson();
+  return blobCars.length > 0 ? blobCars : mockCars;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const car = getCar(id);
+  const cars = await getAllCars();
+  const car = cars.find((c) => c.id === id);
   if (!car) return { title: "Автомобиль не найден | JCK AUTO" };
 
   return {
@@ -34,15 +37,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export function generateStaticParams() {
-  return mockCars.map((car) => ({ id: car.id }));
+  return [];
 }
 
 export default async function CarDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const car = getCar(id);
+  const cars = await getAllCars();
+  const car = cars.find((c) => c.id === id);
   if (!car) notFound();
 
-  const otherCars = mockCars
+  const otherCars = cars
     .filter((c) => c.id !== car.id)
     .slice(0, 3);
 

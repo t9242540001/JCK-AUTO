@@ -1,8 +1,9 @@
 import { MetadataRoute } from "next";
 import { getAllPosts } from "@/lib/blog";
+import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: "https://jckauto.ru",
@@ -36,7 +37,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 
-  const catalogPages: MetadataRoute.Sitemap = mockCars.map((car) => ({
+  let cars = await readCatalogJson();
+  if (cars.length === 0) {
+    cars = mockCars;
+  }
+
+  const catalogPages: MetadataRoute.Sitemap = cars.map((car) => ({
     url: `https://jckauto.ru/catalog/${car.id}`,
     lastModified: new Date(car.createdAt),
     changeFrequency: "weekly" as const,
