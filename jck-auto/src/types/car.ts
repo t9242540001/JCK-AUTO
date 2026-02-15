@@ -22,6 +22,17 @@ export interface Car {
   isNativeMileage: boolean;
   hasInspectionReport: boolean;
   description?: string;
+  priceRub?: number;
+  exchangeRate?: number;
+  priceCalculatedAt?: string;
+  priceBreakdown?: {
+    carPriceRub: number;
+    customsFee: number;
+    customsDuty: number;
+    recyclingFee: number;
+    deliveryCost: number;
+    serviceFee: number;
+  };
   createdAt: string;
 }
 

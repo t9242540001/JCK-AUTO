@@ -9,6 +9,8 @@ import {
 import { parseCarScreenshot } from "./screenshotParser";
 import { generateCarDescription } from "./descriptionGenerator";
 import { generateSlug } from "./carUtils";
+import { calculateFullPriceWithRates } from "./priceCalculator";
+import { fetchCBRRates } from "./currency";
 
 const MAX_NEW_PER_RUN = 10;
 
@@ -46,6 +48,11 @@ export async function syncCatalog(): Promise<SyncResult> {
   console.log(
     `[sync] New: ${newFolders.length}, Removed: ${removedCars.length}`
   );
+
+  // 3.5. Fetch CBR rates for price calculation
+  console.log("[sync] Fetching CBR exchange rates...");
+  const rates = await fetchCBRRates();
+  console.log(`[sync] Rates: CNY=${rates.CNY}, EUR=${rates.EUR}, date=${rates.date}`);
 
   // 4. Process new folders (limited to MAX_NEW_PER_RUN)
   const toProcess = newFolders.slice(0, MAX_NEW_PER_RUN);
@@ -140,6 +147,19 @@ export async function syncCatalog(): Promise<SyncResult> {
         photos: photoUrls.length > 0 ? photoUrls : ["/images/cars/placeholder.jpg"],
         description,
       };
+
+      // 4h. Calculate price in rubles
+      try {
+        console.log("[sync]   Calculating price in rubles...");
+        const priceResult = calculateFullPriceWithRates(car, rates);
+        car.priceRub = priceResult.totalRub;
+        car.exchangeRate = priceResult.exchangeRate;
+        car.priceCalculatedAt = new Date().toISOString();
+        car.priceBreakdown = priceResult.breakdown;
+        console.log(`[sync]   Price: ${priceResult.totalRub.toLocaleString("ru-RU")} ₽`);
+      } catch (priceErr) {
+        console.error("[sync]   Price calculation failed:", priceErr);
+      }
 
       newCars.push(car);
       result.added.push(folder.name);
