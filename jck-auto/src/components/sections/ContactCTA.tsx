@@ -30,7 +30,7 @@ export default function ContactCTA() {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-8 py-4 font-medium text-white transition-colors hover:bg-secondary-hover"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
             >
               <Send className="h-5 w-5" />
               Написать в Telegram

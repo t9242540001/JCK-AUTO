@@ -256,7 +256,7 @@ export default function CalculatorPage() {
                         href={CONTACTS.telegram}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-secondary-hover"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-6 py-3 font-medium text-white transition-colors hover:bg-[#229ED9]"
                       >
                         <Send className="h-4 w-4" />
                         Написать в Telegram

@@ -141,8 +141,8 @@ export default async function CarDetailPage({ params }: PageProps) {
             )}
 
             {car.condition && (
-              <div className="mt-4 inline-block rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-800">
-                Состояние: {car.condition}
+              <div className="mt-4 inline-block rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 text-sm text-gray-600">
+                Отметки: {car.condition}
               </div>
             )}
 
@@ -188,7 +188,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-4 font-medium text-white transition-colors hover:bg-secondary-hover"
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-6 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
             >
               <Send className="h-5 w-5" />
               Написать в Telegram
@@ -253,7 +253,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-8 py-4 font-medium text-white transition-colors hover:bg-secondary-hover"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
             >
               <Send className="h-5 w-5" />
               Написать в Telegram
