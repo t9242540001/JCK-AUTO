@@ -45,3 +45,17 @@ const TRANSMISSION_LABELS: Record<string, string> = {
 export function getTransmissionLabel(t: string): string {
   return TRANSMISSION_LABELS[t] || t;
 }
+
+export function cleanBrand(brand: string): string {
+  return brand.replace(/^Used\s+/i, "").trim();
+}
+
+const COUNTRY_GENITIVE: Record<string, string> = {
+  china: "Китая",
+  korea: "Кореи",
+  japan: "Японии",
+};
+
+export function getCountryGenitive(country: string): string {
+  return COUNTRY_GENITIVE[country] || country;
+}

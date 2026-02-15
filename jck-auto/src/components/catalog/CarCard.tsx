@@ -9,6 +9,7 @@ import {
   getCountryLabel,
   getCountryFlag,
   getTransmissionLabel,
+  cleanBrand,
 } from "@/lib/carUtils";
 
 const COUNTRY_BG: Record<string, string> = {
@@ -44,7 +45,7 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
         <div className="relative aspect-[4/3] overflow-hidden">
           <Image
             src={car.photos[0]}
-            alt={`${car.brand} ${car.model} ${car.year}`}
+            alt={`${cleanBrand(car.brand)} ${car.model} ${car.year}`}
             fill
             className="object-cover transition-transform duration-300 group-hover:scale-105"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -58,7 +59,7 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
 
         <div className="p-4">
           <h3 className="font-heading text-lg font-bold text-text">
-            {car.brand} {car.model} {car.year}
+            {cleanBrand(car.brand)} {car.model} {car.year}
           </h3>
 
           <p className="mt-1 text-sm text-text-muted">
@@ -66,15 +67,9 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
           </p>
 
           {car.priceRub ? (
-            <div className="mt-3">
-              <p className="font-heading text-xl font-bold text-primary">
-                от {car.priceRub.toLocaleString("ru-RU")} ₽
-              </p>
-              <p className="mt-0.5 text-xs text-text-muted">
-                {formatPrice(car.price, car.currency)}
-                {car.exchangeRate ? ` · Курс: ${car.exchangeRate.toFixed(2)} ₽` : ""}
-              </p>
-            </div>
+            <p className="mt-3 font-heading text-xl font-bold text-primary">
+              ≈ {car.priceRub.toLocaleString("ru-RU")} ₽
+            </p>
           ) : (
             <p className="mt-3 font-heading text-xl font-bold text-primary">
               {formatPrice(car.price, car.currency)}

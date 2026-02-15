@@ -99,7 +99,7 @@ const psiSteps = [
 
 const miniStats = [
   { value: "3", label: "страны" },
-  { value: "45+", label: "дней" },
+  { value: "Любые", label: "модели авто и техники" },
   { value: "24/7", label: "на связи" },
   { value: "2 года", label: "гарантия" },
 ];

@@ -8,7 +8,7 @@ import { CONTACTS } from "@/lib/constants";
 
 const stats = [
   { value: "3", label: "страны" },
-  { value: "от 45", label: "дней" },
+  { value: "Любые", label: "модели авто и техники" },
   { value: "100%", label: "прозрачность" },
   { value: "до 2 лет", label: "гарантия" },
 ];
