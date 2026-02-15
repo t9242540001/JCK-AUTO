@@ -9,6 +9,8 @@ import {
   formatPrice,
   getCountryLabel,
   getCountryFlag,
+  getCountryGenitive,
+  cleanBrand,
 } from "@/lib/carUtils";
 import CarGallery from "@/components/catalog/CarGallery";
 import CarSpecs from "@/components/catalog/CarSpecs";
@@ -36,9 +38,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const car = cars.find((c) => c.id === id);
   if (!car) return { title: "Автомобиль не найден | JCK AUTO" };
 
+  const brand = cleanBrand(car.brand);
+  const countryGen = getCountryGenitive(car.country);
+  const priceStr = car.priceRub
+    ? `≈ ${car.priceRub.toLocaleString("ru-RU")} ₽`
+    : formatPrice(car.price, car.currency);
+
   return {
-    title: `${car.brand} ${car.model} ${car.year} ${car.folderName.replace(`${car.brand} ${car.model} ${car.year}`, "").trim()} — купить из ${getCountryLabel(car.country)} | JCK AUTO`,
-    description: `${car.brand} ${car.model} ${car.year}, ${car.engineVolume} ${car.transmission}, ${car.mileage > 0 ? `${car.mileage.toLocaleString("ru-RU")} км` : "новый"}, ${car.power} л.с. Цена ${formatPrice(car.price, car.currency)}. Доставка из ${getCountryLabel(car.country)} под ключ.`,
+    title: `${brand} ${car.model} ${car.year} — купить из ${countryGen} | JCK AUTO`,
+    description: `${brand} ${car.model} ${car.year}, ${car.engineVolume} ${car.transmission}, ${car.mileage > 0 ? `${car.mileage.toLocaleString("ru-RU")} км` : "новый"}. Цена ${priceStr}. Доставка из ${countryGen} под ключ с гарантией до 2 лет.`,
+    keywords: [
+      `купить ${brand} ${car.model}`,
+      `${brand} ${car.model} из ${countryGen}`,
+      `импорт ${brand} ${car.model}`,
+      `${brand} ${car.model} ${car.year} цена`,
+    ],
+    openGraph: {
+      title: `${brand} ${car.model} ${car.year} — купить из ${countryGen} | JCK AUTO`,
+      description: `${brand} ${car.model} ${car.year}, ${car.engineVolume} ${car.transmission}, ${car.mileage > 0 ? `${car.mileage.toLocaleString("ru-RU")} км` : "новый"}. Цена ${priceStr}. Доставка из ${countryGen} под ключ с гарантией до 2 лет.`,
+      images: car.photos.length > 0 ? [car.photos[0]] : [],
+    },
   };
 }
 
@@ -79,7 +98,7 @@ export default async function CarDetailPage({ params }: PageProps) {
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
           <span className="text-text">
-            {car.brand} {car.model} {car.year}
+            {cleanBrand(car.brand)} {car.model} {car.year}
           </span>
         </nav>
 
@@ -89,7 +108,7 @@ export default async function CarDetailPage({ params }: PageProps) {
           <div className="lg:col-span-3">
             <CarGallery
               photos={car.photos}
-              alt={`${car.brand} ${car.model} ${car.year}`}
+              alt={`${cleanBrand(car.brand)} ${car.model} ${car.year}`}
             />
           </div>
 
@@ -102,20 +121,13 @@ export default async function CarDetailPage({ params }: PageProps) {
             </span>
 
             <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl">
-              {car.folderName}
+              {car.folderName.replace(/^Used\s+/i, "")}
             </h1>
 
             {car.priceRub ? (
               <div className="mt-4">
                 <p className="font-heading text-3xl font-bold text-primary sm:text-4xl">
-                  от {car.priceRub.toLocaleString("ru-RU")} ₽{" "}
-                  <span className="text-sm font-normal text-gray-400">*</span>
-                </p>
-                <p className="mt-1 text-sm text-text-muted">
-                  {formatPrice(car.price, car.currency)}
-                  {car.exchangeRate
-                    ? ` · Курс ЦБ: 1 ${car.currency} = ${car.exchangeRate.toFixed(2)} ₽`
-                    : ""}
+                  ≈ {car.priceRub.toLocaleString("ru-RU")} ₽<sup className="text-xs text-gray-400 ml-0.5">*</sup>
                 </p>
               </div>
             ) : (
@@ -124,12 +136,14 @@ export default async function CarDetailPage({ params }: PageProps) {
               </p>
             )}
 
-            {car.condition && (
-              <p className="mt-3 text-sm text-text-muted">{car.condition}</p>
-            )}
-
             {car.description && (
               <p className="mt-4 text-text-muted">{car.description}</p>
+            )}
+
+            {car.condition && (
+              <div className="mt-4 inline-block rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-800">
+                Состояние: {car.condition}
+              </div>
             )}
 
             <div className="mt-5 space-y-2">
@@ -232,7 +246,7 @@ export default async function CarDetailPage({ params }: PageProps) {
             Хотите этот автомобиль?
           </h2>
           <p className="mx-auto mt-2 max-w-lg text-base text-white/80 sm:text-lg">
-            Напишите нам — рассчитаем полную стоимость доставки под ключ
+            Напишите нам — рассчитаем точную стоимость доставки под ключ
           </p>
           <div className="mt-6 flex flex-col justify-center gap-4 sm:flex-row">
             <a
