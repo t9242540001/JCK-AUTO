@@ -31,11 +31,16 @@ const SYSTEM_PROMPT = `Ты — эксперт по автомобилям. Пр
 - drivetrain: "2WD", "4WD", "AWD"
 - fuelType: "Бензин", "Дизель", "Электро", "Гибрид"
 - features — извлеки все опции/оснащение из скрина
+- IMPORTANT: Do NOT include the word "Used" in brand or model fields. Extract only the brand name (e.g. "Lexus", not "Used Lexus") and model name (e.g. "RX 350", not "Used RX 350").
 - Если данные не видны — ставь null
 - bodyType определи по внешнему виду если не указан явно
 - Год определи из даты выпуска если указана как дата (2021-06-10 → 2021)
 - isNativeMileage: true если указано "Да" у "Родной пробег", false если "Нет"
 - hasInspectionReport: true если указано "Да" у "Отчет о проверке", false если "Нет"`;
+
+function cleanCarName(value: string): string {
+  return value.replace(/^Used\s+/i, "").trim();
+}
 
 function extractJson(text: string): string {
   // Remove ```json ... ``` wrapper if present
@@ -95,8 +100,8 @@ export async function parseCarScreenshot(
   }
 
   return {
-    brand: parsed.brand as string,
-    model: parsed.model as string,
+    brand: cleanCarName(parsed.brand as string),
+    model: cleanCarName(parsed.model as string),
     folderName: (parsed.fullName as string) || folderName,
     year: parsed.year as number,
     price: parsed.price as number,

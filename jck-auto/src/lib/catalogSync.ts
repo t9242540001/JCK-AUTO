@@ -223,6 +223,24 @@ export async function syncCatalog(): Promise<SyncResult> {
     (c) => !removedCars.some((r) => r.id === c.id)
   );
 
+  // 5.6. Clean "Used" prefix from brand/model of existing cars
+  let cleanedCount = 0;
+  for (const car of remainingCars) {
+    let cleaned = false;
+    if (car.brand && /^Used\s+/i.test(car.brand)) {
+      car.brand = car.brand.replace(/^Used\s+/i, "").trim();
+      cleaned = true;
+    }
+    if (car.model && /^Used\s+/i.test(car.model)) {
+      car.model = car.model.replace(/^Used\s+/i, "").trim();
+      cleaned = true;
+    }
+    if (cleaned) cleanedCount++;
+  }
+  if (cleanedCount > 0) {
+    console.log(`[sync] Cleaned "Used" prefix from ${cleanedCount} car names`);
+  }
+
   let recalcCount = 0;
   for (const car of remainingCars) {
     const needsRecalc =
