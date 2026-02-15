@@ -24,3 +24,17 @@ export interface Car {
   description?: string;
   createdAt: string;
 }
+
+export interface DriveCarFolder {
+  folderId: string;
+  folderName: string;
+  screenshotFileId: string;
+  photoFileIds: string[];
+}
+
+export interface SyncResult {
+  added: string[];
+  removed: string[];
+  updated: string[];
+  errors: { folder: string; error: string }[];
+}
