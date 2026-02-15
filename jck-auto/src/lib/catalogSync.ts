@@ -14,6 +14,27 @@ import { fetchCBRRates } from "./currency";
 
 const MAX_NEW_PER_RUN = 10;
 
+const COVER_KEYWORDS = ["1", "front", "перед", "перёд", "обложка", "cover"];
+
+/**
+ * Find the index of the cover photo in a list of files.
+ * Matches exact base name (without extension) or base name starting with a keyword
+ * followed by a separator (_, -, space).
+ * Returns -1 if no cover photo found.
+ */
+export function findCoverPhotoIndex(files: { name: string }[]): number {
+  for (let i = 0; i < files.length; i++) {
+    const baseName = files[i].name.replace(/\.[^.]+$/, "").toLowerCase();
+    for (const kw of COVER_KEYWORDS) {
+      if (baseName === kw) return i;
+      if (baseName.startsWith(kw) && /^[_\- ]/.test(baseName.slice(kw.length))) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
 export async function syncCatalog(): Promise<SyncResult> {
   const result: SyncResult = {
     added: [],
@@ -124,13 +145,26 @@ export async function syncCatalog(): Promise<SyncResult> {
       console.log("[sync]   Generating description with Claude...");
       const description = await generateCarDescription(partialCar);
 
-      // 4f. Upload photos to Blob
+      // 4f. Upload photos to Blob (cover photo first, then alphabetical)
       console.log(
         `[sync]   Uploading ${files.photos.length} photos to Blob...`
       );
       const photoUrls: string[] = [];
 
-      for (const photo of files.photos) {
+      const coverIdx = findCoverPhotoIndex(files.photos);
+      let orderedPhotos: typeof files.photos;
+      if (coverIdx >= 0) {
+        const cover = files.photos[coverIdx];
+        const rest = files.photos
+          .filter((_, i) => i !== coverIdx)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        orderedPhotos = [cover, ...rest];
+        console.log(`[sync]   Cover photo: "${cover.name}"`);
+      } else {
+        orderedPhotos = [...files.photos];
+      }
+
+      for (const photo of orderedPhotos) {
         const buffer = await downloadFile(photo.id);
         const url = await uploadCarPhoto(
           slug,
@@ -184,10 +218,40 @@ export async function syncCatalog(): Promise<SyncResult> {
     }
   }
 
-  // 6. Build updated catalog
+  // 5.5. Recalculate prices for existing cars without priceRub or with stale rates (>24h)
   const remainingCars = currentCatalog.filter(
     (c) => !removedCars.some((r) => r.id === c.id)
   );
+
+  let recalcCount = 0;
+  for (const car of remainingCars) {
+    const needsRecalc =
+      !car.priceRub ||
+      !car.priceCalculatedAt ||
+      Date.now() - new Date(car.priceCalculatedAt).getTime() >
+        24 * 60 * 60 * 1000;
+
+    if (needsRecalc && rates) {
+      try {
+        const priceResult = calculateFullPriceWithRates(car, rates);
+        car.priceRub = priceResult.totalRub;
+        car.exchangeRate = priceResult.exchangeRate;
+        car.priceCalculatedAt = new Date().toISOString();
+        car.priceBreakdown = priceResult.breakdown;
+        recalcCount++;
+      } catch (err) {
+        console.error(
+          `[sync] Price recalc failed for "${car.id}":`,
+          err instanceof Error ? err.message : err
+        );
+      }
+    }
+  }
+  if (recalcCount > 0) {
+    console.log(`[sync] Recalculated prices for ${recalcCount} existing cars`);
+  }
+
+  // 6. Build updated catalog
   const updatedCatalog = [...remainingCars, ...newCars];
 
   // 7. Save to Blob
