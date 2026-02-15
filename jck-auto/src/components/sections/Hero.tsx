@@ -61,7 +61,7 @@ export default function Hero() {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary px-6 py-3.5 text-center font-medium text-primary transition-colors hover:bg-primary hover:text-white sm:px-8 sm:py-4"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-6 py-3.5 text-center font-medium text-white transition-colors hover:bg-[#229ED9] sm:px-8 sm:py-4"
             >
               <Send className="h-5 w-5" />
               Написать в Telegram

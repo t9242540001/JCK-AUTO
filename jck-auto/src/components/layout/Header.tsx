@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -19,31 +19,11 @@ const NAV_ITEMS = [
 
 export default function Header() {
   const pathname = usePathname();
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      setIsScrolled(currentScrollY > 50);
-      setIsVisible(currentScrollY < lastScrollY || currentScrollY < 50);
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
-
   return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        "bg-white shadow-sm",
-        isVisible ? "translate-y-0" : "-translate-y-full"
-      )}
-    >
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 shadow-sm backdrop-blur-sm">
+
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
         <Link href="/" aria-label="JCK AUTO">
           <Image
@@ -84,7 +64,7 @@ export default function Header() {
             href={CONTACTS.telegram}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-xl bg-secondary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-secondary-hover"
+            className="flex items-center gap-2 rounded-xl bg-[#2AABEE] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
           >
             <Send className="h-4 w-4" />
             Написать в Telegram

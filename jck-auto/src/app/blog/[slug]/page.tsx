@@ -3,9 +3,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Send } from "lucide-react";
 import { getAllPosts, getPostBySlug } from "@/lib/blog";
 import { CONTACTS } from "@/lib/constants";
+import { readCatalogJson } from "@/lib/blobStorage";
+import { mockCars } from "@/data/mockCars";
+import CarCard from "@/components/catalog/CarCard";
 
 const countryLabel: Record<string, string> = {
   china: "🇨🇳 Китай",
@@ -48,6 +51,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
   const allPosts = getAllPosts();
   const relatedPosts = allPosts.filter((p) => p.slug !== slug).slice(0, 3);
+
+  let catalogCars = await readCatalogJson();
+  if (catalogCars.length === 0) catalogCars = mockCars;
+  const shuffled = [...catalogCars].sort(() => Math.random() - 0.5);
+  const previewCars = shuffled.slice(0, 3);
 
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -129,13 +137,35 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               href={CONTACTS.telegram}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary px-8 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-3 font-medium text-white transition-colors hover:bg-[#229ED9]"
             >
               <Send className="h-4 w-4" />
               Написать в Telegram
             </a>
           </div>
         </div>
+
+        {previewCars.length > 0 && (
+          <section className="mt-16 border-t border-border pt-12">
+            <h2 className="mb-8 font-heading text-xl font-bold text-text sm:text-2xl">
+              Автомобили в наличии
+            </h2>
+            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
+              {previewCars.map((car, i) => (
+                <CarCard key={car.id} car={car} index={i} />
+              ))}
+            </div>
+            <div className="mt-8 text-center">
+              <Link
+                href="/catalog"
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-primary px-8 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+              >
+                Смотреть все
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </section>
+        )}
 
         {relatedPosts.length > 0 && (
           <section className="mt-16 border-t border-border pt-12">
