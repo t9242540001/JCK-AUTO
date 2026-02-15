@@ -3,6 +3,7 @@ import Hero from "@/components/sections/Hero";
 import Countries from "@/components/sections/Countries";
 import HowItWorks from "@/components/sections/HowItWorks";
 import Calculator from "@/components/sections/Calculator";
+import CatalogPreview from "@/components/sections/CatalogPreview";
 import Values from "@/components/sections/Values";
 import Warranty from "@/components/sections/Warranty";
 import Testimonials from "@/components/sections/Testimonials";
@@ -27,6 +28,7 @@ export default function Home() {
       <Countries />
       <HowItWorks />
       <Calculator />
+      <CatalogPreview />
       <Values />
       <Warranty />
       <Testimonials />
