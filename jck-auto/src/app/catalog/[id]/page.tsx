@@ -15,6 +15,12 @@ import CarSpecs from "@/components/catalog/CarSpecs";
 import CarTrustBlock from "@/components/catalog/CarTrustBlock";
 import CarCard from "@/components/catalog/CarCard";
 
+const DELIVERY_CITY: Record<string, string> = {
+  china: "Уссурийска",
+  korea: "Владивостока",
+  japan: "Владивостока",
+};
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -102,7 +108,8 @@ export default async function CarDetailPage({ params }: PageProps) {
             {car.priceRub ? (
               <div className="mt-4">
                 <p className="font-heading text-3xl font-bold text-primary sm:text-4xl">
-                  от {car.priceRub.toLocaleString("ru-RU")} ₽
+                  от {car.priceRub.toLocaleString("ru-RU")} ₽{" "}
+                  <span className="text-sm font-normal text-gray-400">*</span>
                 </p>
                 <p className="mt-1 text-sm text-text-muted">
                   {formatPrice(car.price, car.currency)}
@@ -124,6 +131,44 @@ export default async function CarDetailPage({ params }: PageProps) {
             {car.description && (
               <p className="mt-4 text-text-muted">{car.description}</p>
             )}
+
+            <div className="mt-5 space-y-2">
+              <p className="text-sm font-medium text-gray-900">Что входит в стоимость:</p>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li className="flex items-start gap-2">
+                  <span className="text-[#C9A84C] mt-0.5">✓</span>
+                  <span>Стоимость автомобиля</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#C9A84C] mt-0.5">✓</span>
+                  <span>Таможенное оформление</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#C9A84C] mt-0.5">✓</span>
+                  <span>Единый таможенный сбор</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#C9A84C] mt-0.5">✓</span>
+                  <span>Утилизационный сбор</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#C9A84C] mt-0.5">✓</span>
+                  <span>СБКТС и ЭПТС</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#C9A84C] mt-0.5">✓</span>
+                  <span>Доставка до {DELIVERY_CITY[car.country] || "Владивостока"}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#C9A84C] mt-0.5">✓</span>
+                  <span>Услуги компании</span>
+                </li>
+              </ul>
+            </div>
+
+            <p className="mt-4 text-xs text-gray-400 leading-relaxed">
+              * Цена может измениться как в меньшую, так и в большую сторону в зависимости от курса валют и других факторов. Точную стоимость уточняйте у менеджера.
+            </p>
 
             <a
               href={CONTACTS.telegram}
@@ -156,76 +201,6 @@ export default async function CarDetailPage({ params }: PageProps) {
             <CarSpecs car={car} />
           </div>
         </section>
-
-        {/* Price breakdown */}
-        {car.priceRub && car.priceBreakdown && (
-          <section className="mt-12">
-            <h2 className="font-heading text-xl font-bold text-text sm:text-2xl">
-              Из чего складывается цена
-            </h2>
-            <div className="mt-6 rounded-xl border border-border bg-surface p-6">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-text-muted">Цена автомобиля</span>
-                  <span className="font-medium text-text">
-                    {formatPrice(car.price, car.currency)} ({car.priceBreakdown.carPriceRub.toLocaleString("ru-RU")} ₽)
-                  </span>
-                </div>
-                {car.country === "china" && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-text-muted">Расходы в Китае (оформление, страховка, погрузка)</span>
-                    <span className="font-medium text-text">
-                      {Math.round((car.priceBreakdown.deliveryCost > 0 ? (car.priceRub - car.priceBreakdown.carPriceRub - car.priceBreakdown.customsFee - car.priceBreakdown.customsDuty - car.priceBreakdown.recyclingFee - car.priceBreakdown.deliveryCost) : 0)).toLocaleString("ru-RU")} ₽
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-text-muted">Таможенное оформление</span>
-                  <span className="font-medium text-text">
-                    {car.priceBreakdown.customsFee.toLocaleString("ru-RU")} ₽
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-text-muted">Единая таможенная ставка</span>
-                  <span className="font-medium text-text">
-                    {car.priceBreakdown.customsDuty.toLocaleString("ru-RU")} ₽
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-text-muted">Утилизационный сбор</span>
-                  <span className="font-medium text-text">
-                    {car.priceBreakdown.recyclingFee.toLocaleString("ru-RU")} ₽
-                  </span>
-                </div>
-                {car.priceBreakdown.deliveryCost > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-text-muted">
-                      Доставка до {car.country === "china" ? "Уссурийска" : "Владивостока"}, СБКТС, ЭПТС, брокер
-                    </span>
-                    <span className="font-medium text-text">
-                      {(car.priceBreakdown.deliveryCost + car.priceBreakdown.serviceFee).toLocaleString("ru-RU")} ₽
-                    </span>
-                  </div>
-                )}
-                <div className="border-t border-border pt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-heading text-lg font-bold text-text">ИТОГО</span>
-                    <span className="font-heading text-lg font-bold text-primary">
-                      {car.priceRub.toLocaleString("ru-RU")} ₽
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <p className="mt-4 text-xs text-text-muted">
-                Расчёт по курсу ЦБ на{" "}
-                {car.priceCalculatedAt
-                  ? new Date(car.priceCalculatedAt).toLocaleDateString("ru-RU")
-                  : "—"}
-                . Итоговая стоимость может отличаться в зависимости от курса валют на дату оформления.
-              </p>
-            </div>
-          </section>
-        )}
 
         {/* Features */}
         {car.features.length > 0 && (

@@ -26,9 +26,9 @@ export default function Home() {
     <>
       <Hero />
       <Countries />
+      <CatalogPreview />
       <HowItWorks />
       <Calculator />
-      <CatalogPreview />
       <Values />
       <Warranty />
       <Testimonials />
