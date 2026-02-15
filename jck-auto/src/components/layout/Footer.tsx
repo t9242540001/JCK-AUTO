@@ -5,6 +5,7 @@ import { CONTACTS } from "@/lib/constants";
 
 const NAV_ITEMS = [
   { label: "Главная", href: "/" },
+  { label: "Каталог", href: "/catalog" },
   { label: "Калькулятор", href: "/calculator" },
   { label: "О компании", href: "/about" },
   { label: "Блог", href: "/blog" },
