@@ -9,6 +9,7 @@ import { CONTACTS } from "@/lib/constants";
 import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import CarCard from "@/components/catalog/CarCard";
+import SocialFollow from "@/components/sections/SocialFollow";
 
 const countryLabel: Record<string, string> = {
   china: "🇨🇳 Китай",
@@ -201,6 +202,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </section>
         )}
       </article>
+
+      <SocialFollow />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
+import SocialFollow from "@/components/sections/SocialFollow";
 
 export const metadata: Metadata = {
   title: {
@@ -332,6 +333,8 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+
+      <SocialFollow />
     </>
   );
 }

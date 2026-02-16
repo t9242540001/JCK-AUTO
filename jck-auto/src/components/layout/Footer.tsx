@@ -99,8 +99,20 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 border-t border-white/10 pt-8 text-center text-xs text-white/50">
-          &copy; {new Date().getFullYear()} {CONTACTS.company}. {CONTACTS.legal}
+        <div className="mt-12 border-t border-white/10 pt-8">
+          <div className="flex flex-col items-center gap-3 text-xs text-white/50 sm:flex-row sm:justify-between">
+            <p>
+              &copy; {new Date().getFullYear()} {CONTACTS.company}. {CONTACTS.legal}
+            </p>
+            <div className="flex gap-4">
+              <Link href="/privacy" className="transition-colors hover:text-white">
+                Политика конфиденциальности
+              </Link>
+              <Link href="/terms" className="transition-colors hover:text-white">
+                Пользовательское соглашение
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </footer>
