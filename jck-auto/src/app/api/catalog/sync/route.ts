@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { syncCatalog } from "@/lib/catalogSync";
 
 export const maxDuration = 300;
@@ -15,6 +16,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await syncCatalog();
+    revalidatePath("/catalog", "page");
+    revalidatePath("/", "page");
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -35,6 +38,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await syncCatalog();
+    revalidatePath("/catalog", "page");
+    revalidatePath("/", "page");
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
