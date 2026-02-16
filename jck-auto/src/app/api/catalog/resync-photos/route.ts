@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { listCarFolders, listFolderFiles, downloadFile } from "@/lib/googleDrive";
 import {
   readCatalogJson,
@@ -150,6 +151,14 @@ export async function POST(request: NextRequest) {
       `[resync-photos] Saving catalog (${catalog.length} cars) to Blob...`,
     );
     await writeCatalogJson(catalog);
+
+    // 5. Revalidate Next.js cache
+    revalidatePath("/catalog", "page");
+    revalidatePath("/", "page");
+    for (const car of catalog) {
+      revalidatePath(`/catalog/${car.id}`, "page");
+    }
+    console.log("[resync-photos] Cache revalidated");
 
     const skipped = catalog.length > MAX_PER_RUN ? catalog.length - MAX_PER_RUN : 0;
     console.log(
