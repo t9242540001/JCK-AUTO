@@ -14,7 +14,18 @@
  */
 
 import { execSync } from "child_process";
+import { existsSync } from "fs";
+import { resolve } from "path";
+import { config as dotenvConfig } from "dotenv";
 import { syncCatalog } from "@/lib/catalogSync";
+
+// Load .env.local if it exists and env vars are not already set (VDS local run).
+// GitHub Actions passes env vars directly, so dotenv is a no-op there.
+const envLocalPath = resolve(process.cwd(), ".env.local");
+if (existsSync(envLocalPath)) {
+  dotenvConfig({ path: envLocalPath, override: false });
+  console.log(`[sync-catalog] Loaded env from ${envLocalPath}`);
+}
 
 const REQUIRED_ENV = [
   "GOOGLE_SERVICE_ACCOUNT_KEY",

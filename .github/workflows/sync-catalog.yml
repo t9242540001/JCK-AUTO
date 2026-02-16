@@ -22,7 +22,18 @@ jobs:
             cd /var/www/jckauto/app/jck-auto
             git pull
             npm install
+            echo "=== Node version ==="
+            node -v
+            echo "=== npm version ==="
+            npm -v
+            echo "=== tsx check ==="
+            ls -la node_modules/.bin/tsx || echo "tsx NOT found in node_modules"
+            echo "=== PATH ==="
+            echo $PATH
+            echo "=== package.json sync-catalog ==="
             cat package.json | grep sync-catalog
+            echo "=== Starting sync ==="
+            export PATH="$PATH:$(pwd)/node_modules/.bin"
             GOOGLE_SERVICE_ACCOUNT_KEY='${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' \
             GOOGLE_DRIVE_FOLDER_ID='${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}' \
             ANTHROPIC_API_KEY='${{ secrets.ANTHROPIC_API_KEY }}' \
