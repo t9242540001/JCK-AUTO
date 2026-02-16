@@ -1,0 +1,29 @@
+name: Sync Catalog
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Sync catalog on VDS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: root
+          key: ${{ secrets.VDS_SSH_KEY }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            cd /var/www/jckauto/app/jck-auto
+            git pull origin main
+            npm install --production=false
+            GOOGLE_SERVICE_ACCOUNT_KEY='${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' \
+            GOOGLE_DRIVE_FOLDER_ID='${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}' \
+            ANTHROPIC_API_KEY='${{ secrets.ANTHROPIC_API_KEY }}' \
+            npm run sync-catalog
