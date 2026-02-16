@@ -4,6 +4,7 @@ import "@fontsource-variable/space-grotesk";
 import "./globals.css";
 import JsonLd from "@/components/layout/JsonLd";
 import Header from "@/components/layout/Header";
+import YandexMetrika from "@/components/layout/YandexMetrika";
 import Footer from "@/components/layout/Footer";
 import FloatingCTA from "@/components/layout/FloatingCTA";
 
@@ -11,6 +12,7 @@ import FloatingCTA from "@/components/layout/FloatingCTA";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://jckauto.ru"),
+  verification: { yandex: "388e8da3dab7e5fb" },
   title: {
     default: "JCK AUTO — импорт автомобилей из Китая, Кореи и Японии",
     template: "%s | JCK AUTO",
@@ -61,6 +63,7 @@ export default function RootLayout({
       <body className="antialiased">
         <JsonLd />
         <Header />
+        <YandexMetrika />
         <main>{children}</main>
         <Footer />
         <FloatingCTA />
