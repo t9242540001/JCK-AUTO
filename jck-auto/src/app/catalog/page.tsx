@@ -1,6 +1,7 @@
 import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import CatalogClient from "@/components/catalog/CatalogClient";
+import SocialFollow from "@/components/sections/SocialFollow";
 
 export default async function CatalogPage() {
   // Try Blob first, fall back to mock data
@@ -32,6 +33,8 @@ export default async function CatalogPage() {
           <CatalogClient cars={cars} />
         </div>
       </section>
+
+      <SocialFollow />
     </>
   );
 }

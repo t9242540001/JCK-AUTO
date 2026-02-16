@@ -16,6 +16,7 @@ import CarGallery from "@/components/catalog/CarGallery";
 import CarSpecs from "@/components/catalog/CarSpecs";
 import CarTrustBlock from "@/components/catalog/CarTrustBlock";
 import CarCard from "@/components/catalog/CarCard";
+import SocialFollow from "@/components/sections/SocialFollow";
 
 const DELIVERY_CITY: Record<string, string> = {
   china: "Уссурийска",
@@ -282,6 +283,8 @@ export default async function CarDetailPage({ params }: PageProps) {
           </section>
         )}
       </div>
+
+      <SocialFollow />
     </div>
   );
 }

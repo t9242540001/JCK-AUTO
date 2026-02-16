@@ -9,6 +9,7 @@ import Warranty from "@/components/sections/Warranty";
 import Testimonials from "@/components/sections/Testimonials";
 import FAQ from "@/components/sections/FAQ";
 import ContactCTA from "@/components/sections/ContactCTA";
+import SocialFollow from "@/components/sections/SocialFollow";
 
 export const metadata: Metadata = {
   title: {
@@ -34,6 +35,7 @@ export default function Home() {
       <Testimonials />
       <FAQ />
       <ContactCTA />
+      <SocialFollow />
     </>
   );
 }

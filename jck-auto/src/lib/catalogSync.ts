@@ -112,7 +112,14 @@ export async function syncCatalog(): Promise<SyncResult> {
       const screenshotBuffer = await downloadFile(screenshot.id);
 
       console.log("[sync]   Parsing screenshot with Claude Vision...");
-      const parsed = await parseCarScreenshot(screenshotBuffer, folder.name);
+      let parsed: Partial<Car>;
+      try {
+        parsed = await parseCarScreenshot(screenshotBuffer, folder.name);
+      } catch (firstErr) {
+        console.warn(`[sync]   First parse attempt failed for "${folder.name}", retrying in 2s...`);
+        await new Promise((r) => setTimeout(r, 2000));
+        parsed = await parseCarScreenshot(screenshotBuffer, folder.name, true);
+      }
 
       // 4d. Build partial car for description generation
       const partialCar: Car = {

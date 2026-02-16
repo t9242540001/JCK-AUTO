@@ -49,33 +49,51 @@ function extractJson(text: string): string {
   return text.trim();
 }
 
+const RETRY_PROMPT = `Extract car data from this screenshot as JSON. Return ONLY valid JSON, no markdown. Format:
+{"brand":"","model":"","fullName":"","year":0,"price":0,"currency":"CNY","mileage":0,"engineVolume":0,"transmission":"AT","drivetrain":"2WD","fuelType":"","color":"","power":0,"bodyType":"","location":"","isNativeMileage":false,"hasInspectionReport":false,"condition":"","features":[]}
+Do NOT include "Used" in brand or model.`;
+
 export async function parseCarScreenshot(
   imageBuffer: Buffer,
-  folderName: string
+  folderName: string,
+  retry = false,
 ): Promise<Partial<Car>> {
   const client = new Anthropic({ apiKey: getAnthropicApiKey() });
   const base64 = imageBuffer.toString("base64");
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 2048,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: "image/png", data: base64 },
-          },
-          {
-            type: "text",
-            text: `Вот скриншот автомобиля. Название папки: ${folderName}. Извлеки все характеристики.`,
-          },
-        ],
-      },
-    ],
-  });
+  let response;
+  try {
+    response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2048,
+      system: retry ? RETRY_PROMPT : SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/png", data: base64 },
+            },
+            {
+              type: "text",
+              text: retry
+                ? `Extract car data from screenshot. Folder: ${folderName}`
+                : `Вот скриншот автомобиля. Название папки: ${folderName}. Извлеки все характеристики.`,
+            },
+          ],
+        },
+      ],
+    });
+  } catch (err: unknown) {
+    const apiErr = err as { status?: number; message?: string; body?: unknown };
+    console.error(
+      `Screenshot parse error for ${folderName}:`,
+      apiErr.status ?? "unknown",
+      apiErr.body ?? apiErr.message ?? err,
+    );
+    throw err;
+  }
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
