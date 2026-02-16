@@ -21,7 +21,7 @@ jobs:
           script: |
             cd /var/www/jckauto/app/jck-auto
             git pull
-            npm install --omit=dev || npm install
+            npm install
             cat package.json | grep sync-catalog
             GOOGLE_SERVICE_ACCOUNT_KEY='${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' \
             GOOGLE_DRIVE_FOLDER_ID='${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}' \
