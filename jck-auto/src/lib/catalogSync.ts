@@ -285,6 +285,77 @@ export async function syncCatalog(): Promise<SyncResult> {
     }
   }
 
+  // 4.5. Re-sync files from Google Drive for existing cars that still need AI processing.
+  //       This handles the case where user adds a screenshot (2.png) AFTER the initial sync.
+  const pendingExisting = currentCatalog.filter(
+    (c) => c.needsAiProcessing === true && driveSlugMap.has(c.id)
+  );
+  if (pendingExisting.length > 0) {
+    console.log(`\n[sync] Re-syncing files for ${pendingExisting.length} cars with needsAiProcessing=true`);
+    for (const car of pendingExisting) {
+      const driveFolder = driveSlugMap.get(car.id)!;
+      console.log(`[sync]   Re-syncing "${car.id}" from Drive folder "${driveFolder.name}"...`);
+      try {
+        const files = await listFolderFiles(driveFolder.id);
+        const totalFiles = files.screenshots.length + files.photos.length;
+        console.log(`[sync]   Drive has ${totalFiles} files (screenshots: ${files.screenshots.length}, photos: ${files.photos.length})`);
+
+        if (totalFiles === 0) {
+          console.log(`[sync]   No files on Drive, skipping`);
+          continue;
+        }
+
+        // Delete old files on disk and re-download everything from Drive
+        await deleteCarPhotos(car.id);
+
+        // Save screenshots (includes "2.*" files)
+        for (const scr of files.screenshots) {
+          try {
+            const buffer = await downloadFile(scr.id);
+            await uploadCarPhoto(car.id, scr.name, buffer, scr.mimeType);
+            console.log(`[sync]   Saved screenshot: ${scr.name} (${buffer.length} bytes)`);
+          } catch (err) {
+            console.error(`[sync]   Failed to save screenshot "${scr.name}":`, err instanceof Error ? err.message : err);
+          }
+        }
+
+        // Save photos (cover first, then alphabetical)
+        const photoUrls: string[] = [];
+        const coverIdx = findCoverPhotoIndex(files.photos);
+        let orderedPhotos: typeof files.photos;
+        if (coverIdx >= 0) {
+          const cover = files.photos[coverIdx];
+          const rest = files.photos
+            .filter((_, i) => i !== coverIdx)
+            .sort((a, b) => a.name.localeCompare(b.name));
+          orderedPhotos = [cover, ...rest];
+        } else {
+          orderedPhotos = [...files.photos];
+        }
+
+        for (const photo of orderedPhotos) {
+          try {
+            const buffer = await downloadFile(photo.id);
+            const url = await uploadCarPhoto(car.id, photo.name, buffer, photo.mimeType);
+            photoUrls.push(url);
+          } catch (err) {
+            console.error(`[sync]   Failed to save photo "${photo.name}":`, err instanceof Error ? err.message : err);
+          }
+        }
+
+        if (photoUrls.length > 0) {
+          car.photos = photoUrls;
+        }
+
+        result.updated.push(car.folderName);
+        console.log(`[sync]   Re-synced ${totalFiles} files for ${car.id}`);
+      } catch (err) {
+        console.error(`[sync]   Error re-syncing "${car.id}":`, err instanceof Error ? err.message : err);
+        result.errors.push({ folder: car.folderName, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  }
+
   // 5. Remove deleted cars
   for (const car of removedCars) {
     console.log(`[sync] Removing car: ${car.id}`);

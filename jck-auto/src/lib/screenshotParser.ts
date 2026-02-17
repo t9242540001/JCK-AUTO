@@ -4,14 +4,13 @@ import { getAnthropicApiKey } from "./config";
 const SYSTEM_PROMPT = `You are an expert at extracting car data from Chinese car marketplace screenshots.
 Analyze the screenshot and return ONLY valid JSON (no markdown, no \`\`\`json\`\`\`, no explanations).
 The screenshot is from a Chinese used car platform (e.g. 瓜子二手车, 懂车帝, 二手车之家, 优信). Look for:
-- Price — VERY IMPORTANT! Chinese car prices use 万 (wàn = 10,000). Examples:
-  * "11.28万" = 112800 yuan
-  * "7.28万" = 72800 yuan
-  * "21.38万" = 213800 yuan
-  * "5.6万" = 56000 yuan
-  * "¥11.28万" = 112800 yuan
+- Price — VERY IMPORTANT! Look for ANY price on the screenshot:
+  * Chinese 万 format: "11.28万" = 112800 yuan, "7.28万" = 72800 yuan, "5.6万" = 56000 yuan
+  * Full yuan format: "¥112800" = 112800 yuan, "¥72,800" = 72800 yuan
+  * Mixed: "¥11.28万" = 112800 yuan
   The price is usually the LARGEST prominent number on the page, often in red/orange.
-  ALWAYS convert 万 to full yuan: multiply by 10000 and return as INTEGER.
+  If price uses 万, multiply by 10000. If price is already in full yuan, return as-is.
+  ALWAYS return price as INTEGER in full yuan.
 - Brand and model name
 - Year/date of manufacture (上牌 = registration date, 年款 = model year)
 - Engine volume (in liters, e.g. "1.0" means 1.0L, "1.5T" means 1.5L turbo)
@@ -113,11 +112,10 @@ Look through ALL images to find the one with price, mileage, and specs — this 
 The listing screenshot typically shows: price in 万 (wàn), mileage in 万公里, specs table, location.
 Car photos show the exterior/interior of the car — use these to identify color and body type.
 
-PRICE FORMAT: Chinese prices use 万 (wàn = 10,000). Examples:
-  * "11.28万" = 112800 yuan
-  * "7.28万" = 72800 yuan
-  * "5.6万" = 56000 yuan
-  ALWAYS convert 万 to full yuan: multiply by 10000 and return as INTEGER.
+PRICE FORMAT: Look for ANY price format:
+  * Chinese 万: "11.28万" = 112800, "7.28万" = 72800, "5.6万" = 56000
+  * Full yuan: "¥112800" = 112800, "¥72,800" = 72800
+  If price uses 万, multiply by 10000. If already in full yuan, return as-is. Return as INTEGER.
 
 MILEAGE FORMAT: "2.9万公里" = 29000 km. Return as INTEGER in km.
 
