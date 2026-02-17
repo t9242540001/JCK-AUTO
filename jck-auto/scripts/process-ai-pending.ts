@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// Global error handlers — must be FIRST, before any imports that might crash
 process.on("uncaughtException", (err) => {
   console.error("[FATAL] Uncaught exception:", err.message);
   console.error(err.stack);
@@ -9,24 +10,38 @@ process.on("unhandledRejection", (reason) => {
   process.exit(1);
 });
 
+// Force unbuffered output for GitHub Actions log streaming
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+console.log = (...args: any[]) => {
+  originalLog(...args);
+  process.stdout.write("");
+};
+console.error = (...args: any[]) => {
+  originalError(...args);
+  process.stderr.write("");
+};
+console.warn = (...args: any[]) => {
+  originalWarn(...args);
+  process.stderr.write("");
+};
+
 /**
- * Process cars with needsAiProcessing: true using Anthropic Vision API.
+ * Process cars needing AI using Anthropic Vision API on GitHub Actions runner.
  *
- * This script is designed to run on a GitHub Actions runner (non-Russian IP)
- * where Anthropic API is accessible. It reads a local catalog.json,
- * finds cars needing AI processing, parses their screenshots via Claude Vision,
- * calculates prices, and saves the updated catalog.
+ * Finds cars by TWO criteria:
+ *   1. needsAiProcessing === true  (explicit flag from sync-catalog)
+ *   2. price === 0 && !priceRub    (fallback: AI was blocked, folder-name parse gave price 0)
+ *
+ * For each: reads screenshot from ./screenshots/{carId}/, sends to Claude Vision,
+ * generates description, calculates priceRub.
  *
  * Usage:
  *   npx tsx -r tsconfig-paths/register scripts/process-ai-pending.ts ./catalog.json
  *
- * Prerequisites:
- *   - catalog.json downloaded from VDS via SCP
- *   - Screenshots downloaded to ./screenshots/{carId}/ via SCP
- *   - ANTHROPIC_API_KEY env variable set
- *
  * Required env:
- *   ANTHROPIC_API_KEY — for Claude Vision & description generation
+ *   ANTHROPIC_API_KEY
  */
 
 import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
@@ -59,33 +74,87 @@ function getMimeType(fileName: string): string {
 
 /**
  * Find the first screenshot file in ./screenshots/{carId}/
+ * Also tries extracting carId from photos[0] path as fallback.
  */
-function findScreenshot(carId: string): { buffer: Buffer; mimeType: string } | null {
-  const dir = join(SCREENSHOTS_DIR, carId);
-  if (!existsSync(dir)) {
-    console.warn(`[process-pending]   No screenshot dir: ${dir}`);
-    return null;
+function findScreenshot(car: Car): { buffer: Buffer; mimeType: string } | null {
+  // Primary: look in ./screenshots/{carId}/
+  const primaryDir = join(SCREENSHOTS_DIR, car.id);
+  console.log(`[process-pending]   Looking for screenshot in: ${primaryDir}`);
+
+  if (existsSync(primaryDir)) {
+    const found = findImageInDir(primaryDir);
+    if (found) return found;
   }
 
-  const files = readdirSync(dir).filter((f) =>
-    /\.(jpe?g|png|webp|gif)$/i.test(f)
-  );
-
-  if (files.length === 0) {
-    console.warn(`[process-pending]   No image files in ${dir}`);
-    return null;
+  // Fallback: extract directory name from photos[0] path
+  // photos[0] looks like "/storage/catalog/honda-crider-2019-180turbo-luxur/filename.jpeg"
+  if (car.photos && car.photos.length > 0) {
+    const photoPath = car.photos[0];
+    const match = photoPath.match(/\/storage\/catalog\/([^/]+)\//);
+    if (match) {
+      const photoCarId = match[1];
+      if (photoCarId !== car.id) {
+        console.log(`[process-pending]   Trying photo path carId: ${photoCarId}`);
+        const altDir = join(SCREENSHOTS_DIR, photoCarId);
+        if (existsSync(altDir)) {
+          const found = findImageInDir(altDir);
+          if (found) return found;
+        }
+      }
+    }
   }
 
-  const file = files[0];
-  const filePath = join(dir, file);
-  console.log(`[process-pending]   Using screenshot: ${filePath}`);
-  return {
-    buffer: readFileSync(filePath),
-    mimeType: getMimeType(file),
-  };
+  console.warn(`[process-pending]   No screenshot found for ${car.id}`);
+
+  // List what's actually in screenshots/ for debugging
+  if (existsSync(SCREENSHOTS_DIR)) {
+    try {
+      const dirs = readdirSync(SCREENSHOTS_DIR);
+      console.warn(`[process-pending]   Available screenshot dirs: ${dirs.join(", ") || "(empty)"}`);
+    } catch { /* ignore */ }
+  }
+
+  return null;
+}
+
+function findImageInDir(dir: string): { buffer: Buffer; mimeType: string } | null {
+  try {
+    const files = readdirSync(dir).filter((f) =>
+      /\.(jpe?g|png|webp|gif)$/i.test(f)
+    );
+    if (files.length === 0) {
+      console.warn(`[process-pending]   No image files in ${dir}`);
+      return null;
+    }
+    const file = files[0];
+    const filePath = join(dir, file);
+    const buffer = readFileSync(filePath);
+    console.log(`[process-pending]   Using screenshot: ${filePath} (${buffer.length} bytes)`);
+    return { buffer, mimeType: getMimeType(file) };
+  } catch (err) {
+    console.error(`[process-pending]   Error reading dir ${dir}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
+ * Determine if a car needs AI processing:
+ *   1. needsAiProcessing === true (explicit flag)
+ *   2. price === 0 && !priceRub   (fallback — AI was blocked, got folder-name defaults)
+ */
+function needsProcessing(car: Car): boolean {
+  if (car.needsAiProcessing === true) return true;
+  if (car.price === 0 && !car.priceRub) return true;
+  return false;
 }
 
 async function main(): Promise<void> {
+  console.log("[process-pending] === Script started ===");
+  console.log(`[process-pending] Node: ${process.version}`);
+  console.log(`[process-pending] CWD: ${process.cwd()}`);
+  console.log(`[process-pending] Time: ${new Date().toISOString()}`);
+  console.log(`[process-pending] argv: ${process.argv.join(" ")}`);
+
   const catalogPath = process.argv[2];
   if (!catalogPath) {
     console.error("Usage: process-ai-pending.ts <path-to-catalog.json>");
@@ -95,25 +164,66 @@ async function main(): Promise<void> {
   const resolvedPath = resolve(catalogPath);
   console.log(`[process-pending] Catalog path: ${resolvedPath}`);
   console.log(`[process-pending] Screenshots dir: ${SCREENSHOTS_DIR}`);
-  console.log(`[process-pending] Time: ${new Date().toISOString()}`);
 
+  // Validate env
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("[process-pending] ANTHROPIC_API_KEY is not set");
+    console.error("[process-pending] ERROR: ANTHROPIC_API_KEY is not set");
     process.exit(1);
   }
-  console.log(`[process-pending] ANTHROPIC_API_KEY: set (${process.env.ANTHROPIC_API_KEY.length} chars)`);
+  const keyLen = process.env.ANTHROPIC_API_KEY.length;
+  console.log(`[process-pending] ANTHROPIC_API_KEY: set (${keyLen} chars)`);
+  if (keyLen < 50) {
+    console.warn(`[process-pending] WARNING: ANTHROPIC_API_KEY is suspiciously short (${keyLen} chars)`);
+  }
 
+  // Validate catalog file
   if (!existsSync(resolvedPath)) {
-    console.error(`[process-pending] File not found: ${resolvedPath}`);
+    console.error(`[process-pending] ERROR: File not found: ${resolvedPath}`);
     process.exit(1);
+  }
+
+  // Debug: list screenshots directory
+  console.log(`\n[process-pending] Screenshots directory contents:`);
+  if (existsSync(SCREENSHOTS_DIR)) {
+    try {
+      const topLevel = readdirSync(SCREENSHOTS_DIR);
+      console.log(`[process-pending]   ${SCREENSHOTS_DIR}: ${topLevel.join(", ") || "(empty)"}`);
+      for (const d of topLevel) {
+        const subDir = join(SCREENSHOTS_DIR, d);
+        try {
+          const files = readdirSync(subDir);
+          console.log(`[process-pending]   ${d}/: ${files.join(", ") || "(empty)"}`);
+        } catch { /* not a directory */ }
+      }
+    } catch (err) {
+      console.error(`[process-pending]   Error listing: ${err instanceof Error ? err.message : err}`);
+    }
+  } else {
+    console.warn(`[process-pending]   Directory does not exist: ${SCREENSHOTS_DIR}`);
   }
 
   // 1. Read catalog
-  const catalog: Car[] = JSON.parse(readFileSync(resolvedPath, "utf-8"));
+  console.log(`\n[process-pending] Reading catalog...`);
+  let catalog: Car[];
+  try {
+    catalog = JSON.parse(readFileSync(resolvedPath, "utf-8"));
+  } catch (err) {
+    console.error(`[process-pending] ERROR: Failed to parse catalog.json:`, err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
   console.log(`[process-pending] Catalog has ${catalog.length} cars`);
 
-  const pending = catalog.filter((c) => c.needsAiProcessing === true);
-  console.log(`[process-pending] Found ${pending.length} cars with needsAiProcessing: true`);
+  // Find cars needing processing (two criteria)
+  const pending = catalog.filter(needsProcessing);
+  const byFlag = catalog.filter((c) => c.needsAiProcessing === true).length;
+  const byPrice = catalog.filter((c) => c.price === 0 && !c.priceRub && !c.needsAiProcessing).length;
+  console.log(`[process-pending] Found ${pending.length} cars needing processing:`);
+  console.log(`[process-pending]   - needsAiProcessing: true → ${byFlag}`);
+  console.log(`[process-pending]   - price=0 && no priceRub  → ${byPrice}`);
+
+  for (const car of pending) {
+    console.log(`[process-pending]   - ${car.id}: price=${car.price}, priceRub=${car.priceRub ?? "N/A"}, needsAi=${car.needsAiProcessing ?? false}`);
+  }
 
   if (pending.length === 0) {
     console.log("[process-pending] Nothing to process. Exiting.");
@@ -125,10 +235,12 @@ async function main(): Promise<void> {
   let errorCount = 0;
 
   for (const car of pending) {
-    console.log(`\n[process-pending] === Processing: ${car.id} (folder: "${car.folderName}") ===`);
-    console.log(`[process-pending]   Before: brand="${car.brand}", model="${car.model}", year=${car.year}, price=${car.price}`);
+    console.log(`\n[process-pending] === Processing: ${car.id} ===`);
+    console.log(`[process-pending]   folderName: "${car.folderName}"`);
+    console.log(`[process-pending]   Before: brand="${car.brand}", model="${car.model}", year=${car.year}, price=${car.price} ${car.currency}`);
+    console.log(`[process-pending]   photos: ${car.photos?.length ?? 0} (first: "${car.photos?.[0] ?? "none"}")`);
 
-    const screenshot = findScreenshot(car.id);
+    const screenshot = findScreenshot(car);
     if (!screenshot) {
       console.warn(`[process-pending]   SKIP: no screenshot found for ${car.id}`);
       errorCount++;
@@ -141,11 +253,16 @@ async function main(): Promise<void> {
       try {
         console.log("[process-pending]   Calling Claude Vision API (attempt 1)...");
         parsed = await parseCarScreenshot(screenshot.buffer, car.folderName, false, screenshot.mimeType);
+        console.log("[process-pending]   API call succeeded (attempt 1)");
       } catch (firstErr) {
         console.warn(`[process-pending]   First attempt failed: ${firstErr instanceof Error ? firstErr.message : firstErr}`);
+        if (firstErr instanceof Error && firstErr.stack) {
+          console.warn(`[process-pending]   Stack: ${firstErr.stack}`);
+        }
         console.warn("[process-pending]   Retrying in 2s with simplified prompt...");
         await new Promise((r) => setTimeout(r, 2000));
         parsed = await parseCarScreenshot(screenshot.buffer, car.folderName, true, screenshot.mimeType);
+        console.log("[process-pending]   API call succeeded (attempt 2)");
       }
 
       if (parsed.needsAiProcessing) {
@@ -188,21 +305,23 @@ async function main(): Promise<void> {
       car.needsAiProcessing = undefined;
       processedCount++;
 
-      console.log(`[process-pending]   After: brand="${car.brand}", model="${car.model}", year=${car.year}, price=${car.price}, engineVolume=${car.engineVolume}`);
+      console.log(`[process-pending]   After: brand="${car.brand}", model="${car.model}", year=${car.year}, price=${car.price}, engineVolume=${car.engineVolume}, power=${car.power}`);
     } catch (err) {
       console.error(`[process-pending]   ERROR processing ${car.id}:`, err instanceof Error ? err.message : err);
+      if (err instanceof Error && err.stack) {
+        console.error(`[process-pending]   Stack: ${err.stack}`);
+      }
       errorCount++;
     }
   }
 
-  // 3. Calculate prices for all processed cars
+  // 3. Calculate prices for all processed cars + any missing priceRub
   console.log("\n[process-pending] Fetching CBR rates...");
   const rates = await fetchCBRRates();
-  console.log(`[process-pending] Rates: CNY=${rates.CNY}, EUR=${rates.EUR}, date=${rates.date}`);
+  console.log(`[process-pending] Rates: CNY=${rates.CNY}, EUR=${rates.EUR}, KRW=${rates.KRW}, JPY=${rates.JPY}, date=${rates.date}`);
 
   let priceCount = 0;
   for (const car of catalog) {
-    // Recalculate for cars that were just processed, or any car missing priceRub
     const needsPrice = !car.needsAiProcessing && car.price > 0 && car.year > 0 && car.engineVolume > 0 && !car.priceRub;
     if (needsPrice) {
       try {
@@ -226,15 +345,21 @@ async function main(): Promise<void> {
   console.log("[process-pending] Saved.");
 
   // Summary
+  const stillPending = catalog.filter(needsProcessing);
   console.log("\n[process-pending] === Summary ===");
   console.log(`  AI processed: ${processedCount}`);
   console.log(`  Prices calculated: ${priceCount}`);
   console.log(`  Errors: ${errorCount}`);
-  console.log(`  Still pending: ${catalog.filter((c) => c.needsAiProcessing).length}`);
+  console.log(`  Still needing processing: ${stillPending.length}`);
+  if (stillPending.length > 0) {
+    for (const c of stillPending) {
+      console.warn(`  - ${c.id}: price=${c.price}, priceRub=${c.priceRub ?? "N/A"}`);
+    }
+  }
 
   if (errorCount > 0) {
-    console.warn("\n[process-pending] Finished with errors.");
-    process.exit(1);
+    console.warn("\n[process-pending] Finished with errors (non-fatal, catalog saved).");
+    // Don't exit(1) — partial progress is still valuable
   }
 
   console.log("\n[process-pending] Done.");
@@ -242,6 +367,10 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   console.error("[process-pending] Fatal error:");
-  console.error(err instanceof Error ? err.stack : err);
+  if (err instanceof Error) {
+    console.error(err.stack || err.message);
+  } else {
+    console.error(err);
+  }
   process.exit(1);
 });
