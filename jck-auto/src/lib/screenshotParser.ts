@@ -59,7 +59,7 @@ Do NOT include "Used" in brand or model.`;
  */
 function isBlockedOrNetworkError(err: unknown): boolean {
   const apiErr = err as { status?: number; code?: string; message?: string };
-  if (apiErr.status === 403 || apiErr.status === 401) return true;
+  if (apiErr.status === 403) return true;
   if (apiErr.code === "ECONNREFUSED" || apiErr.code === "ENOTFOUND") return true;
   if (apiErr.code === "ETIMEDOUT" || apiErr.code === "ECONNRESET") return true;
   const msg = apiErr.message?.toLowerCase() || "";
@@ -183,13 +183,21 @@ export async function parseCarScreenshot(
       console.error("[screenshotParser] Response body:", JSON.stringify(apiErr.body).slice(0, 500));
     }
 
+    if (apiErr.status === 401) {
+      throw new Error(
+        `[screenshotParser] Invalid API key (authentication_error). Check ANTHROPIC_API_KEY. Status: 401`,
+      );
+    }
+
     if (isBlockedOrNetworkError(err)) {
-      console.warn("[screenshotParser] Anthropic API blocked from this IP. Falling back to folder name parsing.");
+      console.warn("[screenshotParser] Anthropic API blocked from this IP (403). Falling back to folder name parsing.");
       console.warn("[screenshotParser] AI processing skipped, will retry from unblocked IP later.");
       return { ...parseFromFolderName(folderName), needsAiProcessing: true };
     }
 
-    throw err;
+    throw new Error(
+      `[screenshotParser] Unexpected API error for "${folderName}": status=${apiErr.status ?? "unknown"}, message=${apiErr.message ?? "none"}`,
+    );
   }
 
   console.log(`[screenshotParser] Anthropic API responded. stop_reason=${response.stop_reason}, usage: input=${response.usage.input_tokens} output=${response.usage.output_tokens}`);
