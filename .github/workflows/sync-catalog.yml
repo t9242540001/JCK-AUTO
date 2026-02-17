@@ -40,7 +40,6 @@ jobs:
           username: root
           key: ${{ secrets.VDS_SSH_KEY }}
           command_timeout: 10m
-          envs: GOOGLE_SERVICE_ACCOUNT_KEY,GOOGLE_DRIVE_FOLDER_ID,ANTHROPIC_API_KEY
           script: |
             cd /var/www/jckauto/app/jck-auto
             echo "=== Current branch ==="
@@ -48,7 +47,7 @@ jobs:
             echo "=== Fetching ==="
             git fetch origin
             git checkout claude/review-project-structure-RtYyX
-            git pull
+            git pull origin claude/review-project-structure-RtYyX
             echo "=== Installing deps ==="
             npm install
             npm install -g tsx tsconfig-paths
