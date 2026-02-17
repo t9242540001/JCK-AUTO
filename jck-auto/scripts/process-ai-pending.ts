@@ -357,9 +357,11 @@ async function main(): Promise<void> {
     }
   }
 
-  if (errorCount > 0) {
-    console.warn("\n[process-pending] Finished with errors (non-fatal, catalog saved).");
-    // Don't exit(1) — partial progress is still valuable
+  if (processedCount === 0 && errorCount > 0) {
+    console.error("\n[process-pending] FATAL: All cars failed AI processing. Exiting with error.");
+    process.exit(1);
+  } else if (errorCount > 0) {
+    console.warn("\n[process-pending] Finished with partial success (catalog saved).");
   }
 
   console.log("\n[process-pending] Done.");
