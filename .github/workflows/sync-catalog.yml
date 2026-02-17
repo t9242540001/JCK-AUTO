@@ -17,24 +17,25 @@ jobs:
           host: ${{ secrets.VDS_HOST }}
           username: root
           key: ${{ secrets.VDS_SSH_KEY }}
+          envs: GOOGLE_SERVICE_ACCOUNT_KEY,GOOGLE_DRIVE_FOLDER_ID,ANTHROPIC_API_KEY
           command_timeout: 20m
           script: |
             cd /var/www/jckauto/app/jck-auto
+            echo "=== Current branch ==="
+            git branch --show-current
+            echo "=== Fetching all ==="
+            git fetch origin
+            echo "=== Checking out correct branch ==="
+            git checkout claude/review-project-structure-RtYyX || echo "Already on branch"
             git pull
+            echo "=== Installing deps ==="
             npm install
-            echo "=== Node version ==="
-            node -v
-            echo "=== npm version ==="
-            npm -v
-            echo "=== tsx check ==="
-            ls -la node_modules/.bin/tsx || echo "tsx NOT found in node_modules"
-            echo "=== PATH ==="
-            echo $PATH
+            echo "=== Installing tsx globally ==="
+            npm install -g tsx tsconfig-paths
+            echo "=== Verifying tsx ==="
+            which tsx
+            tsx --version
             echo "=== package.json sync-catalog ==="
             cat package.json | grep sync-catalog
             echo "=== Starting sync ==="
-            export PATH="$PATH:$(pwd)/node_modules/.bin"
-            GOOGLE_SERVICE_ACCOUNT_KEY='${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' \
-            GOOGLE_DRIVE_FOLDER_ID='${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}' \
-            ANTHROPIC_API_KEY='${{ secrets.ANTHROPIC_API_KEY }}' \
             npm run sync-catalog
