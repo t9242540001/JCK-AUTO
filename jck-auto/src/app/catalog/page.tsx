@@ -3,6 +3,8 @@ import { mockCars } from "@/data/mockCars";
 import CatalogClient from "@/components/catalog/CatalogClient";
 import SocialFollow from "@/components/sections/SocialFollow";
 
+export const revalidate = 3600;
+
 export default async function CatalogPage() {
   // Try Blob first, fall back to mock data
   let cars = await readCatalogJson();

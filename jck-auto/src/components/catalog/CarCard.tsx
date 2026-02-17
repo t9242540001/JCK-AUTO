@@ -70,10 +70,14 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
             <p className="mt-3 font-heading text-xl font-bold text-primary">
               ≈ {car.priceRub.toLocaleString("ru-RU")} ₽
             </p>
-          ) : (
+          ) : car.price > 0 ? (
             <p className="mt-3 font-heading text-xl font-bold text-primary">
               {formatPrice(car.price, car.currency)}
             </p>
+          ) : (
+            <span className="mt-3 inline-block font-heading text-lg font-semibold text-secondary">
+              Узнать цену →
+            </span>
           )}
 
           <span className="mt-3 inline-block text-sm font-medium text-secondary transition-colors group-hover:text-secondary-hover">

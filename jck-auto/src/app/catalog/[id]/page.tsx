@@ -131,10 +131,25 @@ export default async function CarDetailPage({ params }: PageProps) {
                   ≈ {car.priceRub.toLocaleString("ru-RU")} ₽<sup className="text-xs text-gray-400 ml-0.5">*</sup>
                 </p>
               </div>
-            ) : (
+            ) : car.price > 0 ? (
               <p className="mt-4 font-heading text-3xl font-bold text-primary sm:text-4xl">
                 {formatPrice(car.price, car.currency)}
               </p>
+            ) : (
+              <div className="mt-4">
+                <p className="font-heading text-2xl font-bold text-text sm:text-3xl">
+                  Цена по запросу
+                </p>
+                <a
+                  href={CONTACTS.telegram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-secondary-hover"
+                >
+                  <Send className="h-4 w-4" />
+                  Узнать цену
+                </a>
+              </div>
             )}
 
             {car.description && (

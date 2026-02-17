@@ -35,9 +35,10 @@ export default function CatalogClient({ cars }: CatalogClientProps) {
       if (filters.brand !== "all" && car.brand !== filters.brand) return false;
       if (filters.bodyType !== "Все" && car.bodyType !== filters.bodyType)
         return false;
-      if (filters.priceFrom && car.price < Number(filters.priceFrom))
+      if (filters.priceFrom && car.priceRub && car.priceRub < Number(filters.priceFrom))
         return false;
-      if (filters.priceTo && car.price > Number(filters.priceTo)) return false;
+      if (filters.priceTo && car.priceRub && car.priceRub > Number(filters.priceTo))
+        return false;
       return true;
     });
   }, [cars, filters]);
