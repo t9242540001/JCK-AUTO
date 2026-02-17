@@ -123,18 +123,23 @@ jobs:
               continue
             fi
 
-            # Find first image file
-            FIRST_IMG=$(ssh root@${{ secrets.VDS_HOST }} "ls /var/www/jckauto/storage/catalog/$CAR_ID/ 2>/dev/null | grep -iE '\.(jpe?g|png|webp)$' | head -1" || true)
+            # Find all image files in the car's directory
+            ALL_IMGS=$(ssh root@${{ secrets.VDS_HOST }} "ls /var/www/jckauto/storage/catalog/$CAR_ID/ 2>/dev/null | grep -iE '\.(jpe?g|png|webp)$'" || true)
 
-            if [ -z "$FIRST_IMG" ]; then
+            if [ -z "$ALL_IMGS" ]; then
               echo "  WARNING: No image files found in VDS directory for $CAR_ID"
               continue
             fi
 
-            echo "  Downloading: $FIRST_IMG"
-            scp "$VDS_STORAGE/$CAR_ID/$FIRST_IMG" "screenshots/$CAR_ID/" && \
-              echo "  OK: screenshots/$CAR_ID/$FIRST_IMG" || \
-              echo "  ERROR: Failed to download $FIRST_IMG for $CAR_ID"
+            IMG_COUNT=$(echo "$ALL_IMGS" | wc -l)
+            echo "  Found $IMG_COUNT image(s): $(echo $ALL_IMGS | tr '\n' ' ')"
+
+            for IMG in $ALL_IMGS; do
+              echo "  Downloading: $IMG"
+              scp "$VDS_STORAGE/$CAR_ID/$IMG" "screenshots/$CAR_ID/" && \
+                echo "  OK: screenshots/$CAR_ID/$IMG" || \
+                echo "  ERROR: Failed to download $IMG for $CAR_ID"
+            done
           done
 
           echo ""

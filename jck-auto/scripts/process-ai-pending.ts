@@ -126,10 +126,28 @@ function findImageInDir(dir: string): { buffer: Buffer; mimeType: string } | nul
       console.warn(`[process-pending]   No image files in ${dir}`);
       return null;
     }
-    const file = files[0];
+
+    // Priority 1: file starting with "2" (marketplace listing screenshot with price/specs)
+    let file = files.find((f) => /^2\./i.test(f));
+    let reason: string;
+    if (file) {
+      reason = "marketplace listing screenshot";
+    } else {
+      // Priority 2: file named "screenshot.*"
+      file = files.find((f) => /^screenshot\./i.test(f));
+      if (file) {
+        reason = "named screenshot";
+      } else {
+        // Priority 3: fallback to first file
+        file = files[0];
+        reason = `fallback (no '2.*' or 'screenshot.*' found)`;
+      }
+    }
+
     const filePath = join(dir, file);
     const buffer = readFileSync(filePath);
-    console.log(`[process-pending]   Using screenshot: ${filePath} (${buffer.length} bytes)`);
+    console.log(`[process-pending]   Using screenshot '${file}' (${reason}) — ${filePath} (${buffer.length} bytes)`);
+    console.log(`[process-pending]   Available files in dir: ${files.join(", ")}`);
     return { buffer, mimeType: getMimeType(file) };
   } catch (err) {
     console.error(`[process-pending]   Error reading dir ${dir}:`, err instanceof Error ? err.message : err);
