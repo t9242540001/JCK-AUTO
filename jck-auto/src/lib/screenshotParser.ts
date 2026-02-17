@@ -107,6 +107,178 @@ export function parseFromFolderName(folderName: string): Partial<Car> {
     isNativeMileage: false, hasInspectionReport: false, condition: "", features: [],
   };
 }
+const MULTI_IMAGE_SYSTEM_PROMPT = `You are an expert at extracting car data from Chinese car marketplace images.
+You will receive MULTIPLE images of the same car. Some are photos of the car, some may be marketplace listing screenshots.
+Look through ALL images to find the one with price, mileage, and specs — this is usually a marketplace listing screenshot (from 瓜子二手车, 懂车帝, 二手车之家, 优信).
+The listing screenshot typically shows: price in 万 (wàn), mileage in 万公里, specs table, location.
+Car photos show the exterior/interior of the car — use these to identify color and body type.
+
+PRICE FORMAT: Chinese prices use 万 (wàn = 10,000). Examples:
+  * "11.28万" = 112800 yuan
+  * "7.28万" = 72800 yuan
+  * "5.6万" = 56000 yuan
+  ALWAYS convert 万 to full yuan: multiply by 10000 and return as INTEGER.
+
+MILEAGE FORMAT: "2.9万公里" = 29000 km. Return as INTEGER in km.
+
+Combine data from ALL images and return ONLY valid JSON (no markdown, no \`\`\`json\`\`\`, no explanations):
+{
+  "brand": "Honda",
+  "model": "Crider",
+  "fullName": "Honda Crider 2019 180TURBO Luxury",
+  "year": 2019,
+  "price": 62000,
+  "currency": "CNY",
+  "mileage": 29000,
+  "engineVolume": 1.0,
+  "transmission": "AT",
+  "drivetrain": "2WD",
+  "fuelType": "Бензин",
+  "color": "Белый",
+  "power": 122,
+  "powerKw": 90,
+  "bodyType": "Седан",
+  "location": "heilongjiang / haerbin",
+  "isNativeMileage": true,
+  "hasInspectionReport": false,
+  "condition": "",
+  "features": []
+}
+CRITICAL RULES:
+- price MUST be an INTEGER in full yuan (NOT in 万). "7.28万" → 72800
+- mileage MUST be in km. "2.9万公里" → 29000
+- engineVolume is in LITERS as a DECIMAL number
+- year is a 4-digit integer
+- Do NOT include "Used" or "二手" in brand or model
+- If a value is not visible in ANY image, use null
+- NEVER return price as null if you can see ANY price number in ANY of the images`;
+
+/**
+ * Send multiple images to Claude Vision in a single request.
+ * Used when there's no clear "2.jpg" marketplace screenshot —
+ * Claude will find the listing screenshot among all images.
+ */
+export async function parseCarMultipleScreenshots(
+  images: { buffer: Buffer; mimeType: string; fileName: string }[],
+  folderName: string,
+): Promise<Partial<Car> & { needsAiProcessing?: boolean }> {
+  // Limit to 5 images to avoid hitting token limits (sorted by size desc — larger files more likely to be screenshots)
+  const sorted = [...images].sort((a, b) => b.buffer.length - a.buffer.length);
+  const selected = sorted.slice(0, 5);
+
+  const client = new Anthropic({ apiKey: getAnthropicApiKey() });
+  const allowedMime = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+  const imageContent: Anthropic.Messages.ImageBlockParam[] = selected.map((img) => ({
+    type: "image" as const,
+    source: {
+      type: "base64" as const,
+      media_type: (allowedMime.includes(img.mimeType) ? img.mimeType : "image/jpeg") as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+      data: img.buffer.toString("base64"),
+    },
+  }));
+
+  console.log(`[screenshotParser] Multi-image call for "${folderName}": sending ${selected.length} images (${selected.map(i => `${i.fileName}:${i.buffer.length}b`).join(", ")})`);
+
+  let response;
+  try {
+    response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2048,
+      system: MULTI_IMAGE_SYSTEM_PROMPT,
+      messages: [{
+        role: "user",
+        content: [
+          ...imageContent,
+          { type: "text", text: `Extract car data from these ${selected.length} images. The folder name is "${folderName}". One of the images should be a marketplace listing with price and specs. Return ONLY a JSON object.` },
+        ],
+      }],
+    });
+  } catch (err: unknown) {
+    const apiErr = err as { status?: number; message?: string; body?: unknown; code?: string };
+    console.error(`[screenshotParser] Multi-image API error for "${folderName}":`, `status=${apiErr.status ?? "unknown"}`, `code=${apiErr.code ?? "none"}`);
+    if (apiErr.status === 401) throw new Error(`[screenshotParser] Invalid API key. Status: 401`);
+    if (isBlockedOrNetworkError(err)) {
+      return { ...parseFromFolderName(folderName), needsAiProcessing: true };
+    }
+    throw err;
+  }
+
+  console.log(`[screenshotParser] Multi-image response: stop_reason=${response.stop_reason}, usage: input=${response.usage.input_tokens} output=${response.usage.output_tokens}`);
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    return { ...parseFromFolderName(folderName), needsAiProcessing: true };
+  }
+
+  console.log(`[screenshotParser] Multi-image raw response for "${folderName}":\n${textBlock.text.slice(0, 500)}`);
+  const jsonStr = extractJson(textBlock.text);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    console.error(`[screenshotParser] Multi-image JSON parse failed for "${folderName}".`);
+    return { ...parseFromFolderName(folderName), needsAiProcessing: true };
+  }
+
+  // Reuse the same post-processing as single-image
+  return postProcessParsed(parsed, folderName);
+}
+
+/** Shared post-processing for both single and multi-image parsing */
+function postProcessParsed(
+  parsed: Record<string, unknown>,
+  folderName: string,
+): Partial<Car> & { needsAiProcessing?: boolean } {
+  const folderData = parseFromFolderName(folderName);
+  const pick = <T>(aiVal: T | undefined | null, fallbackVal: T | undefined | null, defaultVal: T): T => {
+    if (aiVal !== undefined && aiVal !== null && aiVal !== "" && aiVal !== 0) return aiVal;
+    if (fallbackVal !== undefined && fallbackVal !== null && fallbackVal !== "" && fallbackVal !== 0) return fallbackVal;
+    return defaultVal;
+  };
+  const brand = cleanCarName(pick(parsed.brand as string, folderData.brand, ""));
+  const model = cleanCarName(pick(parsed.model as string, folderData.model, ""));
+  const year = pick(parsed.year as number, folderData.year, 0);
+  let price = (parsed.price as number) ?? 0;
+  if (price > 0 && price < 500) {
+    console.log(`[screenshotParser] Price ${price} looks like 万 units, converting: ${Math.round(price * 10000)}`);
+    price = Math.round(price * 10000);
+  }
+  const engineVolume = pick(parsed.engineVolume as number, folderData.engineVolume, 0);
+  const mileage = (parsed.mileage as number) ?? 0;
+  let safeMileage = mileage;
+  if (mileage > 0 && mileage < 100) {
+    console.log(`[screenshotParser] Mileage ${mileage} looks like 万km, converting: ${Math.round(mileage * 10000)}`);
+    safeMileage = Math.round(mileage * 10000);
+  }
+  const hasMinimumData = brand.length > 0 && model.length > 0;
+  const hasGoodData = hasMinimumData && price > 0 && year > 0;
+  if (!hasMinimumData) {
+    console.warn(`[screenshotParser] Could not extract brand+model for "${folderName}". Falling back.`);
+    return { ...folderData, needsAiProcessing: true };
+  }
+  console.log(`[screenshotParser] OK "${folderName}": brand="${brand}", model="${model}", year=${year}, price=${price}, engineVolume=${engineVolume}, needsAi=${!hasGoodData}`);
+  return {
+    brand, model,
+    folderName: (parsed.fullName as string) || folderName,
+    year, price,
+    currency: (parsed.currency as Car["currency"]) || "CNY",
+    mileage: safeMileage,
+    engineVolume,
+    transmission: (parsed.transmission as Car["transmission"]) || "AT",
+    drivetrain: (parsed.drivetrain as string) || "2WD",
+    fuelType: (parsed.fuelType as string) || "Бензин",
+    color: (parsed.color as string) || "",
+    power: (parsed.power as number) ?? 0,
+    bodyType: (parsed.bodyType as string) || "",
+    location: (parsed.location as string) || "",
+    isNativeMileage: (parsed.isNativeMileage as boolean) ?? false,
+    hasInspectionReport: (parsed.hasInspectionReport as boolean) ?? false,
+    condition: (parsed.condition as string) || "",
+    features: (parsed.features as string[]) || [],
+    needsAiProcessing: !hasGoodData,
+  };
+}
+
 export async function parseCarScreenshot(
   imageBuffer: Buffer, folderName: string, retry = false, mimeType = "image/jpeg",
 ): Promise<Partial<Car> & { needsAiProcessing?: boolean }> {
@@ -160,55 +332,5 @@ export async function parseCarScreenshot(
     return { ...parseFromFolderName(folderName), needsAiProcessing: true };
   }
   console.log(`[screenshotParser] Parsed JSON for "${folderName}": ${JSON.stringify(parsed).slice(0, 400)}`);
-  // MERGE with folder name fallback instead of throwing
-  const folderData = parseFromFolderName(folderName);
-  const pick = <T>(aiVal: T | undefined | null, fallbackVal: T | undefined | null, defaultVal: T): T => {
-    if (aiVal !== undefined && aiVal !== null && aiVal !== "" && aiVal !== 0) return aiVal;
-    if (fallbackVal !== undefined && fallbackVal !== null && fallbackVal !== "" && fallbackVal !== 0) return fallbackVal;
-    return defaultVal;
-  };
-  const brand = cleanCarName(pick(parsed.brand as string, folderData.brand, ""));
-  const model = cleanCarName(pick(parsed.model as string, folderData.model, ""));
-  const year = pick(parsed.year as number, folderData.year, 0);
-  let price = (parsed.price as number) ?? 0;
-  // Safety: if model returned price in 万 units (e.g. 7.28 instead of 72800), convert
-  if (price > 0 && price < 500) {
-    console.log(`[screenshotParser] Price ${price} looks like 万 units, converting to yuan: ${Math.round(price * 10000)}`);
-    price = Math.round(price * 10000);
-  }
-  const engineVolume = pick(parsed.engineVolume as number, folderData.engineVolume, 0);
-  const mileage = (parsed.mileage as number) ?? 0;
-  // Safety: if model returned mileage in 万公里 units (e.g. 2.9 instead of 29000), convert
-  let safeMileage = mileage;
-  if (mileage > 0 && mileage < 100) {
-    console.log(`[screenshotParser] Mileage ${mileage} looks like 万km, converting: ${Math.round(mileage * 10000)}`);
-    safeMileage = Math.round(mileage * 10000);
-  }
-  const hasMinimumData = brand.length > 0 && model.length > 0;
-  const hasGoodData = hasMinimumData && price > 0 && year > 0;
-  if (!hasMinimumData) {
-    console.warn(`[screenshotParser] Could not extract brand+model for "${folderName}". Falling back.`);
-    return { ...folderData, needsAiProcessing: true };
-  }
-  console.log(`[screenshotParser] OK "${folderName}": brand="${brand}", model="${model}", year=${year}, price=${price}, engineVolume=${engineVolume}, needsAi=${!hasGoodData}`);
-  return {
-    brand, model,
-    folderName: (parsed.fullName as string) || folderName,
-    year, price,
-    currency: (parsed.currency as Car["currency"]) || "CNY",
-    mileage: safeMileage,
-    engineVolume,
-    transmission: (parsed.transmission as Car["transmission"]) || "AT",
-    drivetrain: (parsed.drivetrain as string) || "2WD",
-    fuelType: (parsed.fuelType as string) || "Бензин",
-    color: (parsed.color as string) || "",
-    power: (parsed.power as number) ?? 0,
-    bodyType: (parsed.bodyType as string) || "",
-    location: (parsed.location as string) || "",
-    isNativeMileage: (parsed.isNativeMileage as boolean) ?? false,
-    hasInspectionReport: (parsed.hasInspectionReport as boolean) ?? false,
-    condition: (parsed.condition as string) || "",
-    features: (parsed.features as string[]) || [],
-    needsAiProcessing: !hasGoodData,
-  };
+  return postProcessParsed(parsed, folderName);
 }

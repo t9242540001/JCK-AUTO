@@ -55,7 +55,7 @@ if (existsSync(envLocalPath)) {
 }
 
 import type { Car } from "@/types/car";
-import { parseCarScreenshot } from "@/lib/screenshotParser";
+import { parseCarScreenshot, parseCarMultipleScreenshots } from "@/lib/screenshotParser";
 import { generateCarDescription } from "@/lib/descriptionGenerator";
 import { fetchCBRRates } from "@/lib/currency";
 import { calculateFullPriceWithRates } from "@/lib/priceCalculator";
@@ -76,7 +76,7 @@ function getMimeType(fileName: string): string {
  * Find the first screenshot file in ./screenshots/{carId}/
  * Also tries extracting carId from photos[0] path as fallback.
  */
-function findScreenshot(car: Car): { buffer: Buffer; mimeType: string } | null {
+function findScreenshot(car: Car): ScreenshotResult | null {
   // Primary: look in ./screenshots/{carId}/
   const primaryDir = join(SCREENSHOTS_DIR, car.id);
   console.log(`[process-pending]   Looking for screenshot in: ${primaryDir}`);
@@ -117,7 +117,16 @@ function findScreenshot(car: Car): { buffer: Buffer; mimeType: string } | null {
   return null;
 }
 
-function findImageInDir(dir: string): { buffer: Buffer; mimeType: string } | null {
+type ScreenshotResult = {
+  buffer: Buffer;
+  mimeType: string;
+  isSingleScreenshot: true;
+} | {
+  images: { buffer: Buffer; mimeType: string; fileName: string }[];
+  isSingleScreenshot: false;
+};
+
+function findImageInDir(dir: string): ScreenshotResult | null {
   try {
     const files = readdirSync(dir).filter((f) =>
       /\.(jpe?g|png|webp|gif)$/i.test(f)
@@ -127,28 +136,34 @@ function findImageInDir(dir: string): { buffer: Buffer; mimeType: string } | nul
       return null;
     }
 
+    console.log(`[process-pending]   Available files in dir: ${files.join(", ")}`);
+
     // Priority 1: file starting with "2" (marketplace listing screenshot with price/specs)
     let file = files.find((f) => /^2\./i.test(f));
-    let reason: string;
     if (file) {
-      reason = "marketplace listing screenshot";
-    } else {
-      // Priority 2: file named "screenshot.*"
-      file = files.find((f) => /^screenshot\./i.test(f));
-      if (file) {
-        reason = "named screenshot";
-      } else {
-        // Priority 3: fallback to first file
-        file = files[0];
-        reason = `fallback (no '2.*' or 'screenshot.*' found)`;
-      }
+      const filePath = join(dir, file);
+      const buffer = readFileSync(filePath);
+      console.log(`[process-pending]   Using screenshot '${file}' (marketplace listing screenshot) — ${filePath} (${buffer.length} bytes)`);
+      return { buffer, mimeType: getMimeType(file), isSingleScreenshot: true };
     }
 
-    const filePath = join(dir, file);
-    const buffer = readFileSync(filePath);
-    console.log(`[process-pending]   Using screenshot '${file}' (${reason}) — ${filePath} (${buffer.length} bytes)`);
-    console.log(`[process-pending]   Available files in dir: ${files.join(", ")}`);
-    return { buffer, mimeType: getMimeType(file) };
+    // Priority 2: file named "screenshot.*"
+    file = files.find((f) => /^screenshot\./i.test(f));
+    if (file) {
+      const filePath = join(dir, file);
+      const buffer = readFileSync(filePath);
+      console.log(`[process-pending]   Using screenshot '${file}' (named screenshot) — ${filePath} (${buffer.length} bytes)`);
+      return { buffer, mimeType: getMimeType(file), isSingleScreenshot: true };
+    }
+
+    // Priority 3: no clear screenshot — send ALL images for multi-image analysis
+    console.log(`[process-pending]   No '2.*' or 'screenshot.*' found — using multi-image mode with ${files.length} images`);
+    const images = files.map((f) => ({
+      buffer: readFileSync(join(dir, f)),
+      mimeType: getMimeType(f),
+      fileName: f,
+    }));
+    return { images, isSingleScreenshot: false };
   } catch (err) {
     console.error(`[process-pending]   Error reading dir ${dir}:`, err instanceof Error ? err.message : err);
     return null;
@@ -269,8 +284,15 @@ async function main(): Promise<void> {
     try {
       let parsed: Partial<Car> & { needsAiProcessing?: boolean };
       try {
-        console.log("[process-pending]   Calling Claude Vision API (attempt 1)...");
-        parsed = await parseCarScreenshot(screenshot.buffer, car.folderName, false, screenshot.mimeType);
+        if (screenshot.isSingleScreenshot) {
+          // Single identified screenshot (2.jpg or screenshot.*)
+          console.log("[process-pending]   Calling Claude Vision API — single image mode (attempt 1)...");
+          parsed = await parseCarScreenshot(screenshot.buffer, car.folderName, false, screenshot.mimeType);
+        } else {
+          // Multiple images — let Claude find the listing among them
+          console.log(`[process-pending]   Calling Claude Vision API — multi-image mode (${screenshot.images.length} images)...`);
+          parsed = await parseCarMultipleScreenshots(screenshot.images, car.folderName);
+        }
         console.log("[process-pending]   API call succeeded (attempt 1)");
       } catch (firstErr) {
         console.warn(`[process-pending]   First attempt failed: ${firstErr instanceof Error ? firstErr.message : firstErr}`);
@@ -279,7 +301,12 @@ async function main(): Promise<void> {
         }
         console.warn("[process-pending]   Retrying in 2s with simplified prompt...");
         await new Promise((r) => setTimeout(r, 2000));
-        parsed = await parseCarScreenshot(screenshot.buffer, car.folderName, true, screenshot.mimeType);
+        if (screenshot.isSingleScreenshot) {
+          parsed = await parseCarScreenshot(screenshot.buffer, car.folderName, true, screenshot.mimeType);
+        } else {
+          // Retry multi-image (same function, no separate retry mode needed)
+          parsed = await parseCarMultipleScreenshots(screenshot.images, car.folderName);
+        }
         console.log("[process-pending]   API call succeeded (attempt 2)");
       }
 
