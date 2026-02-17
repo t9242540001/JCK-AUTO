@@ -57,7 +57,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     openGraph: {
       title: `${brand} ${car.model} ${car.year} — купить из ${countryGen} | JCK AUTO`,
       description: `${brand} ${car.model} ${car.year}, ${car.engineVolume} ${car.transmission}, ${car.mileage > 0 ? `${car.mileage.toLocaleString("ru-RU")} км` : "новый"}. Цена ${priceStr}. Доставка из ${countryGen} под ключ с гарантией до 2 лет.`,
-      images: car.photos.length > 0 ? [car.photos[0]] : [],
+      images: car.photos.length > 0
+        ? [{ url: car.photos[0], width: 800, height: 600, alt: `${brand} ${car.model} ${car.year}` }]
+        : [{ url: "/images/og-image.jpg", width: 1200, height: 630, alt: "JCK AUTO" }],
+    },
+    alternates: {
+      canonical: `https://jckauto.ru/catalog/${id}`,
     },
   };
 }
@@ -82,8 +87,32 @@ export default async function CarDetailPage({ params }: PageProps) {
     japan: "bg-japan",
   };
 
+  const brand = cleanBrand(car.brand);
+  const countryGen = getCountryGenitive(car.country);
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: `${brand} ${car.model} ${car.year}`,
+    description: `${brand} ${car.model} ${car.year}, ${car.engineVolume}L ${car.transmission}`,
+    image: car.photos[0] || "",
+    brand: { "@type": "Brand", name: brand },
+    model: car.model,
+    vehicleModelDate: String(car.year),
+    offers: {
+      "@type": "Offer",
+      price: car.priceRub || car.price,
+      priceCurrency: car.priceRub ? "RUB" : "CNY",
+      availability: "https://schema.org/InStock",
+      seller: { "@type": "Organization", name: "JCK AUTO" },
+    },
+  };
+
   return (
     <div className="bg-white pb-12 pt-24 sm:pb-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
       <div className="mx-auto max-w-7xl px-4">
         {/* Breadcrumbs */}
         <nav className="flex items-center gap-1 text-sm text-text-muted">

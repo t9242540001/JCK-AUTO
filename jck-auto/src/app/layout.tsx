@@ -8,8 +8,6 @@ import YandexMetrika from "@/components/layout/YandexMetrika";
 import Footer from "@/components/layout/Footer";
 import FloatingCTA from "@/components/layout/FloatingCTA";
 
-/* TODO: Add og-image.jpg 1200x630 to public/images/ */
-
 export const metadata: Metadata = {
   metadataBase: new URL("https://jckauto.ru"),
   verification: { yandex: "388e8da3dab7e5fb" },
