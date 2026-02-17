@@ -311,12 +311,12 @@ async function main(): Promise<void> {
       }
 
       if (parsed.needsAiProcessing) {
-        console.error(`[process-pending]   AI still blocked for ${car.id} — this should not happen on runner!`);
-        errorCount++;
-        continue;
+        // needsAiProcessing=true means: API responded but couldn't extract price+year.
+        // Still update other fields that were extracted (brand, model, color, etc.)
+        console.warn(`[process-pending]   Incomplete data for ${car.id}: price=${parsed.price ?? 0}, year=${parsed.year ?? 0}. Will keep needsAiProcessing=true.`);
       }
 
-      // Update car fields from AI response
+      // Update car fields from AI response (even if incomplete — partial data is better than none)
       if (parsed.brand) car.brand = parsed.brand;
       if (parsed.model) car.model = parsed.model;
       if (parsed.year) car.year = parsed.year;
@@ -346,8 +346,10 @@ async function main(): Promise<void> {
         console.log(`[process-pending]   Description: "${car.description.slice(0, 80)}..."`);
       }
 
-      // Clear the flag
-      car.needsAiProcessing = undefined;
+      // Clear the flag only if we got complete data (price + year)
+      if (!parsed.needsAiProcessing) {
+        car.needsAiProcessing = undefined;
+      }
       processedCount++;
 
       console.log(`[process-pending]   After: brand="${car.brand}", model="${car.model}", year=${car.year}, price=${car.price}, engineVolume=${car.engineVolume}, power=${car.power}`);
@@ -367,8 +369,10 @@ async function main(): Promise<void> {
 
   let priceCount = 0;
   for (const car of catalog) {
-    const needsPrice = !car.needsAiProcessing && car.price > 0 && car.year > 0 && car.engineVolume > 0 && !car.priceRub;
-    if (needsPrice) {
+    // (Re)calculate priceRub for every car that has a real CNY price and required fields.
+    // Previous sync may have set priceRub with price=0 (only fees, no car cost).
+    const hasRequiredFields = !car.needsAiProcessing && car.price > 0 && car.year > 0 && car.engineVolume > 0;
+    if (hasRequiredFields) {
       try {
         const priceResult = calculateFullPriceWithRates(car, rates);
         car.priceRub = priceResult.totalRub;

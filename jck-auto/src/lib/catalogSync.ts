@@ -324,6 +324,9 @@ export async function syncCatalog(): Promise<SyncResult> {
   let recalcCount = 0;
   if (rates) {
     for (const car of remainingCars) {
+      // Only recalculate if car has a real price (not 0 — needs AI processing first)
+      if (car.price <= 0) continue;
+
       const needsRecalc =
         !car.priceRub ||
         !car.priceCalculatedAt ||
