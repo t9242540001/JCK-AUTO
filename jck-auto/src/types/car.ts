@@ -22,6 +22,7 @@ export interface Car {
   isNativeMileage: boolean;
   hasInspectionReport: boolean;
   description?: string;
+  needsAiProcessing?: boolean;
   priceRub?: number;
   exchangeRate?: number;
   priceCalculatedAt?: string;

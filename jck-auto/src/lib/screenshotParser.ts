@@ -53,18 +53,99 @@ const RETRY_PROMPT = `Extract car data from this screenshot as JSON. Return ONLY
 {"brand":"","model":"","fullName":"","year":0,"price":0,"currency":"CNY","mileage":0,"engineVolume":0,"transmission":"AT","drivetrain":"2WD","fuelType":"","color":"","power":0,"bodyType":"","location":"","isNativeMileage":false,"hasInspectionReport":false,"condition":"","features":[]}
 Do NOT include "Used" in brand or model.`;
 
+/**
+ * Check if an error is a network/access issue (403, network timeout, etc.)
+ * that means the API is unreachable from the current IP.
+ */
+function isBlockedOrNetworkError(err: unknown): boolean {
+  const apiErr = err as { status?: number; code?: string; message?: string };
+  if (apiErr.status === 403 || apiErr.status === 401) return true;
+  if (apiErr.code === "ECONNREFUSED" || apiErr.code === "ENOTFOUND") return true;
+  if (apiErr.code === "ETIMEDOUT" || apiErr.code === "ECONNRESET") return true;
+  const msg = apiErr.message?.toLowerCase() || "";
+  if (msg.includes("forbidden") || msg.includes("blocked") || msg.includes("network")) return true;
+  return false;
+}
+
+/**
+ * Parse car data from folder name as a fallback when Anthropic API is unavailable.
+ * Expected formats:
+ *   "Kia K3 2021 1.5L Stylish Edition"
+ *   "Hyundai Elantra 2022"
+ *   "Audi Q3 2021 35TFSI"
+ *   "Used Lexus RX 350 2020"
+ */
+export function parseFromFolderName(folderName: string): Partial<Car> {
+  const cleaned = folderName.replace(/^Used\s+/i, "").trim();
+  const parts = cleaned.split(/\s+/);
+
+  const brand = parts[0] || "";
+
+  // Find year: first 4-digit number between 2000-2099
+  let year = 0;
+  let yearIdx = -1;
+  for (let i = 1; i < parts.length; i++) {
+    const match = parts[i].match(/^(20\d{2})$/);
+    if (match) {
+      year = parseInt(match[1], 10);
+      yearIdx = i;
+      break;
+    }
+  }
+
+  // Model: everything between brand and year
+  const modelParts = yearIdx > 1 ? parts.slice(1, yearIdx) : parts.slice(1, 2);
+  const model = modelParts.join(" ") || "";
+
+  // Engine volume: look for patterns like "1.5L", "2.0T", "1.4"
+  let engineVolume = 0;
+  for (const part of parts) {
+    const evMatch = part.match(/^(\d+\.\d+)[LlTt]?$/);
+    if (evMatch) {
+      engineVolume = parseFloat(evMatch[1]);
+      break;
+    }
+  }
+
+  console.log(`[screenshotParser] Parsed from folder name: brand="${brand}", model="${model}", year=${year}, engineVolume=${engineVolume}`);
+
+  return {
+    brand,
+    model,
+    folderName: cleaned,
+    year,
+    price: 0,
+    currency: "CNY",
+    mileage: 0,
+    engineVolume,
+    transmission: "AT",
+    drivetrain: "2WD",
+    fuelType: "Бензин",
+    color: "",
+    power: 0,
+    bodyType: "",
+    location: "",
+    isNativeMileage: false,
+    hasInspectionReport: false,
+    condition: "",
+    features: [],
+  };
+}
+
 export async function parseCarScreenshot(
   imageBuffer: Buffer,
   folderName: string,
   retry = false,
   mimeType = "image/jpeg",
-): Promise<Partial<Car>> {
+): Promise<Partial<Car> & { needsAiProcessing?: boolean }> {
   const client = new Anthropic({ apiKey: getAnthropicApiKey() });
   const base64 = imageBuffer.toString("base64");
 
   // Normalize MIME type to a value accepted by the Anthropic API
   const allowedMime = ["image/jpeg", "image/png", "image/webp", "image/gif"];
   const normalizedMime = allowedMime.includes(mimeType) ? mimeType : "image/jpeg";
+
+  console.log(`[screenshotParser] Calling Anthropic Vision API for "${folderName}" (base64 size: ${base64.length}, mime: ${normalizedMime}, retry: ${retry})`);
 
   let response;
   try {
@@ -91,14 +172,27 @@ export async function parseCarScreenshot(
       ],
     });
   } catch (err: unknown) {
-    const apiErr = err as { status?: number; message?: string; body?: unknown };
+    const apiErr = err as { status?: number; message?: string; body?: unknown; code?: string };
     console.error(
-      `Screenshot parse error for ${folderName}:`,
-      apiErr.status ?? "unknown",
-      apiErr.body ?? apiErr.message ?? err,
+      `[screenshotParser] Anthropic API error for "${folderName}":`,
+      `status=${apiErr.status ?? "unknown"}`,
+      `code=${apiErr.code ?? "none"}`,
+      `message=${apiErr.message ?? "none"}`,
     );
+    if (apiErr.body) {
+      console.error("[screenshotParser] Response body:", JSON.stringify(apiErr.body).slice(0, 500));
+    }
+
+    if (isBlockedOrNetworkError(err)) {
+      console.warn("[screenshotParser] Anthropic API blocked from this IP. Falling back to folder name parsing.");
+      console.warn("[screenshotParser] AI processing skipped, will retry from unblocked IP later.");
+      return { ...parseFromFolderName(folderName), needsAiProcessing: true };
+    }
+
     throw err;
   }
+
+  console.log(`[screenshotParser] Anthropic API responded. stop_reason=${response.stop_reason}, usage: input=${response.usage.input_tokens} output=${response.usage.output_tokens}`);
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
