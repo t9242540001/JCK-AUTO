@@ -11,34 +11,146 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Sync catalog on VDS
+      # 0. Checkout repo & setup Node (needed for process-ai-pending.ts)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: claude/review-project-structure-RtYyX
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: jck-auto
+        run: npm ci
+
+      # 1. SSH: run sync-catalog on VDS (Google Drive → photos + catalog.json)
+      #    This downloads new car folders, saves photos, creates entries with
+      #    needsAiProcessing: true when Anthropic API is blocked from Russian IP.
+      #    Build is NOT run here — it happens after AI processing.
+      - name: Run sync-catalog on VDS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VDS_HOST }}
           username: root
           key: ${{ secrets.VDS_SSH_KEY }}
           command_timeout: 10m
-          envs: ANTHROPIC_API_KEY,GOOGLE_SERVICE_ACCOUNT_KEY,GOOGLE_DRIVE_FOLDER_ID
+          envs: GOOGLE_SERVICE_ACCOUNT_KEY,GOOGLE_DRIVE_FOLDER_ID,ANTHROPIC_API_KEY
           script: |
             cd /var/www/jckauto/app/jck-auto
             echo "=== Current branch ==="
             git branch --show-current
-            echo "=== Fetching all ==="
+            echo "=== Fetching ==="
             git fetch origin
-            echo "=== Checking out correct branch ==="
             git checkout claude/review-project-structure-RtYyX
             git pull
             echo "=== Installing deps ==="
             npm install
-            echo "=== Installing tsx globally ==="
             npm install -g tsx tsconfig-paths
-            echo "=== Verifying tsx ==="
-            which tsx && tsx --version
-            node -v
-            echo "=== package.json sync-catalog ==="
-            grep sync-catalog package.json
             echo "=== Sync starting at $(date) ==="
-            npm run sync-catalog 2>&1
-            SYNC_EXIT=$?
-            echo "=== Sync finished at $(date) with exit code $SYNC_EXIT ==="
-            exit $SYNC_EXIT
+            npx tsx -r tsconfig-paths/register scripts/sync-catalog.ts 2>&1 || true
+            echo "=== Sync finished at $(date) ==="
+
+      # 2. SCP: download catalog.json + screenshots of pending cars from VDS
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VDS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VDS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Download catalog.json from VDS
+        run: |
+          scp root@${{ secrets.VDS_HOST }}:/var/www/jckauto/storage/catalog/catalog.json ./jck-auto/catalog.json
+          echo "Downloaded catalog.json ($(wc -c < ./jck-auto/catalog.json) bytes)"
+
+      - name: Download screenshots for pending cars
+        run: |
+          cd jck-auto
+          mkdir -p screenshots
+
+          # Extract car IDs that need AI processing
+          PENDING_IDS=$(node -e "
+            const cars = JSON.parse(require('fs').readFileSync('catalog.json','utf-8'));
+            const pending = cars.filter(c => c.needsAiProcessing === true);
+            pending.forEach(c => console.log(c.id));
+          ")
+
+          if [ -z "$PENDING_IDS" ]; then
+            echo "No cars need AI processing"
+            exit 0
+          fi
+
+          echo "Cars needing AI processing:"
+          echo "$PENDING_IDS"
+
+          # Download first photo for each pending car
+          for CAR_ID in $PENDING_IDS; do
+            echo "Downloading screenshots for $CAR_ID..."
+            mkdir -p "screenshots/$CAR_ID"
+            # Get list of files in car directory on VDS
+            FILES=$(ssh root@${{ secrets.VDS_HOST }} "ls /var/www/jckauto/storage/catalog/$CAR_ID/ 2>/dev/null | head -3" || true)
+            if [ -n "$FILES" ]; then
+              FIRST_IMG=$(echo "$FILES" | grep -iE '\.(jpe?g|png|webp)$' | head -1)
+              if [ -n "$FIRST_IMG" ]; then
+                scp "root@${{ secrets.VDS_HOST }}:/var/www/jckauto/storage/catalog/$CAR_ID/$FIRST_IMG" "screenshots/$CAR_ID/" || true
+                echo "  Downloaded: $FIRST_IMG"
+              else
+                echo "  No image files found for $CAR_ID"
+              fi
+            else
+              echo "  No directory found for $CAR_ID on VDS"
+            fi
+          done
+
+          echo "Screenshot download complete"
+          ls -la screenshots/ || true
+
+      # 3. AI processing on runner (Anthropic API accessible from non-Russian IP)
+      - name: Process AI-pending cars
+        working-directory: jck-auto
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Check if there are pending cars
+          PENDING_COUNT=$(node -e "
+            const cars = JSON.parse(require('fs').readFileSync('catalog.json','utf-8'));
+            console.log(cars.filter(c => c.needsAiProcessing === true).length);
+          ")
+
+          if [ "$PENDING_COUNT" = "0" ]; then
+            echo "No cars need AI processing, skipping"
+            exit 0
+          fi
+
+          echo "Processing $PENDING_COUNT cars with AI..."
+          npx tsx -r tsconfig-paths/register scripts/process-ai-pending.ts ./catalog.json
+
+      # 4. SCP: upload updated catalog.json back to VDS
+      - name: Upload catalog.json to VDS
+        run: |
+          scp ./jck-auto/catalog.json root@${{ secrets.VDS_HOST }}:/var/www/jckauto/storage/catalog/catalog.json
+          echo "Uploaded catalog.json to VDS"
+
+      # 5. SSH: build Next.js and restart PM2 on VDS
+      - name: Build and restart on VDS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: root
+          key: ${{ secrets.VDS_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            cd /var/www/jckauto/app/jck-auto
+            echo "=== Building at $(date) ==="
+            npm run build
+            echo "=== Restarting PM2 ==="
+            pm2 restart jckauto || pm2 start npm --name jckauto -- start
+            echo "=== Done at $(date) ==="
+
+      # Cleanup SSH key
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/id_rsa
