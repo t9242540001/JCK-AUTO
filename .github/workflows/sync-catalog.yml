@@ -52,7 +52,7 @@ jobs:
             npm install
             npm install -g tsx tsconfig-paths
             echo "=== Sync starting at $(date) ==="
-            npx tsx -r tsconfig-paths/register scripts/sync-catalog.ts 2>&1 || true
+            SKIP_BUILD=true npx tsx -r tsconfig-paths/register scripts/sync-catalog.ts 2>&1 || true
             echo "=== Sync finished at $(date) ==="
 
       # 2. SCP: download catalog.json + screenshots of pending cars from VDS

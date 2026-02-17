@@ -125,7 +125,9 @@ async function main(): Promise<void> {
   }
 
   // Rebuild the site if there were any changes (even partial)
-  if (hasChanges || !syncSucceeded) {
+  if (process.env.SKIP_BUILD === "true") {
+    console.log("\n[sync-catalog] SKIP_BUILD=true, skipping build.");
+  } else if (hasChanges || !syncSucceeded) {
     console.log("\n[sync-catalog] Running npm run build...\n");
     try {
       execSync("npm run build", { stdio: "inherit", cwd: process.cwd() });
