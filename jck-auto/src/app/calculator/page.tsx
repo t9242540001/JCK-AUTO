@@ -1,53 +1,33 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Calculator as CalcIcon, Check, Phone, Loader2, Send } from "lucide-react";
+import { motion } from "framer-motion";
+import { Calculator as CalcIcon, Phone, Loader2, Send } from "lucide-react";
 import {
-  calculateTotal,
-  formatPrice,
-  type CalcInput,
-  type CalcResult,
-  type CarAge,
-  type BuyerType,
-} from "@/lib/calculator";
-import { fetchCBRRates, type CBRRates, COUNTRY_CURRENCY } from "@/lib/currency";
-import { CONTACTS, type Country } from "@/lib/constants";
+  calculatePriceFromParams,
+  type PriceParams,
+  type PriceResult,
+} from "@/lib/priceCalculator";
+import { fetchCBRRates, type CBRRates } from "@/lib/currency";
+import { CONTACTS } from "@/lib/constants";
 
-const countryOptions: { value: Country; label: string }[] = [
-  { value: "china", label: "Китай 🇨🇳" },
-  { value: "korea", label: "Южная Корея 🇰🇷" },
-  { value: "japan", label: "Япония 🇯🇵" },
+function formatPrice(value: number): string {
+  return value.toLocaleString("ru-RU") + " \u20BD";
+}
+
+const ageOptions = [
+  { value: 2, label: "До 3 лет" },
+  { value: 4, label: "3\u20135 лет" },
+  { value: 6, label: "Старше 5 лет" },
 ];
-
-const ageOptions: { value: CarAge; label: string }[] = [
-  { value: "under3", label: "Новый (до 3 лет)" },
-  { value: "3to5", label: "3–5 лет" },
-  { value: "5to7", label: "5–7 лет" },
-  { value: "over7", label: "Старше 7 лет" },
-];
-
-const buyerOptions: { value: BuyerType; label: string }[] = [
-  { value: "individual", label: "Физическое лицо" },
-  { value: "company", label: "Юридическое лицо (ИП)" },
-];
-
-const pricePlaceholder: Record<Country, string> = {
-  china: "Цена в юанях (¥)",
-  korea: "Цена в вонах (₩)",
-  japan: "Цена в иенах (¥)",
-};
 
 export default function CalculatorPage() {
   const [rates, setRates] = useState<CBRRates | null>(null);
-  const [country, setCountry] = useState<Country>("china");
   const [price, setPrice] = useState("");
   const [volume, setVolume] = useState("");
   const [power, setPower] = useState("");
-  const [age, setAge] = useState<CarAge>("under3");
-  const [buyerType, setBuyerType] = useState<BuyerType>("individual");
-  const [personalUse, setPersonalUse] = useState(true);
-  const [result, setResult] = useState<CalcResult | null>(null);
+  const [age, setAge] = useState(4);
+  const [result, setResult] = useState<PriceResult | null>(null);
 
   useEffect(() => {
     fetchCBRRates().then(setRates);
@@ -60,21 +40,17 @@ export default function CalculatorPage() {
     const hp = Number(power);
     if (!p || !v || !hp) return;
 
-    const input: CalcInput = {
-      country,
-      priceInCurrency: p,
-      engineVolume: v,
-      enginePower: hp,
-      carAge: age,
-      buyerType,
-      personalUse: buyerType === "individual" ? personalUse : false,
+    const params: PriceParams = {
+      priceYuan: p,
+      engineVolumeLiters: v,
+      horsePower: hp,
+      carAgeYears: age,
     };
-    setResult(calculateTotal(input, rates));
+    setResult(calculatePriceFromParams(params, rates));
   };
 
-  const selectClass =
+  const inputClass =
     "mt-1 w-full rounded-xl border border-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary";
-  const inputClass = selectClass;
 
   return (
     <div className="min-h-screen bg-white pb-20 pt-28">
@@ -87,10 +63,10 @@ export default function CalculatorPage() {
           Калькулятор стоимости
         </p>
         <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
-          Сколько стоит привезти автомобиль?
+          Сколько стоит привезти авто из Китая?
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
-          Введите параметры и получите расчёт всех расходов &laquo;под ключ&raquo;: таможня, утильсбор, доставка, оформление
+          Введите параметры и получите расчёт всех расходов &laquo;под ключ&raquo;
         </p>
       </motion.div>
 
@@ -115,98 +91,62 @@ export default function CalculatorPage() {
                 </h3>
 
                 <div>
-                  <label className="text-sm font-medium text-text">Страна</label>
-                  <select
-                    value={country}
-                    onChange={(e) => { setCountry(e.target.value as Country); setResult(null); }}
-                    className={selectClass}
-                  >
-                    {countryOptions.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-text">Цена автомобиля {country === "china" ? "в Китае" : country === "korea" ? "в Южной Корее" : "в Японии"}</label>
+                  <label className="text-sm font-medium text-text">
+                    Цена автомобиля в Китае
+                  </label>
                   <input
                     type="number"
                     value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    placeholder={pricePlaceholder[country]}
+                    onChange={(e) => { setPrice(e.target.value); setResult(null); }}
+                    placeholder="Цена в юанях (\u00A5), например 82000"
                     className={inputClass}
                   />
                   <p className="mt-1 text-xs text-text-muted">
-                    1 {COUNTRY_CURRENCY[country].code} = {rates[COUNTRY_CURRENCY[country].code].toFixed(2)} ₽
+                    Курс ЦБ: 1 CNY = {rates.CNY.toFixed(2)} \u20BD (расчёт по {(rates.CNY * 1.02).toFixed(2)} \u20BD)
                   </p>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-text">Объём двигателя</label>
+                  <label className="text-sm font-medium text-text">
+                    Объём двигателя (л)
+                  </label>
                   <input
                     type="number"
+                    step="0.1"
                     value={volume}
-                    onChange={(e) => setVolume(e.target.value)}
-                    placeholder="см³, например 1500"
+                    onChange={(e) => { setVolume(e.target.value); setResult(null); }}
+                    placeholder="Например 1.5"
                     className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-text">Мощность двигателя</label>
+                  <label className="text-sm font-medium text-text">
+                    Мощность (л.с.)
+                  </label>
                   <input
                     type="number"
                     value={power}
-                    onChange={(e) => setPower(e.target.value)}
-                    placeholder="л.с., например 150"
+                    onChange={(e) => { setPower(e.target.value); setResult(null); }}
+                    placeholder="Например 115"
                     className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-text">Возраст автомобиля</label>
+                  <label className="text-sm font-medium text-text">
+                    Возраст автомобиля
+                  </label>
                   <select
                     value={age}
-                    onChange={(e) => setAge(e.target.value as CarAge)}
-                    className={selectClass}
+                    onChange={(e) => { setAge(Number(e.target.value)); setResult(null); }}
+                    className={inputClass}
                   >
                     {ageOptions.map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="text-sm font-medium text-text">Тип покупателя</label>
-                  <select
-                    value={buyerType}
-                    onChange={(e) => setBuyerType(e.target.value as BuyerType)}
-                    className={selectClass}
-                  >
-                    {buyerOptions.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <AnimatePresence>
-                  {buyerType === "individual" && (
-                    <motion.label
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="flex cursor-pointer items-center gap-3 overflow-hidden"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={personalUse}
-                        onChange={(e) => setPersonalUse(e.target.checked)}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                      />
-                      <span className="text-sm text-text">Для личного пользования</span>
-                    </motion.label>
-                  )}
-                </AnimatePresence>
 
                 <button
                   onClick={handleCalculate}
@@ -229,26 +169,71 @@ export default function CalculatorPage() {
                         {formatPrice(result.totalRub)}
                       </p>
                       <p className="mt-1 text-sm text-text-muted">
-                        Доставка до {result.deliveryCity}
+                        Доставка до Уссурийска
                       </p>
                     </div>
 
-                    <div className="mt-6 space-y-2.5">
-                      <p className="text-sm font-medium text-text">В стоимость включено:</p>
-                      {result.breakdown.map((item) => (
-                        <div key={item.label} className="flex items-start gap-2">
-                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                            <Check className="h-3 w-3 text-primary" />
+                    {/* Breakdown */}
+                    <div className="mt-6 space-y-3">
+                      <p className="text-sm font-medium text-text">Разбивка стоимости:</p>
+
+                      {/* Car value */}
+                      <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                        <span className="text-sm text-text-muted">Стоимость авто в \u20BD</span>
+                        <span className="text-sm font-medium text-text">
+                          {formatPrice(result.breakdown.carPriceRub)}
+                        </span>
+                      </div>
+
+                      {/* Customs group */}
+                      <div className="border-b border-border/50 pb-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-text-muted">Таможенные платежи</span>
+                          <span className="text-sm font-medium text-text">
+                            {formatPrice(
+                              result.breakdown.customsFee +
+                              result.breakdown.customsDuty +
+                              result.breakdown.recyclingFee
+                            )}
                           </span>
-                          <span className="text-sm text-text-muted">{item.label}</span>
                         </div>
-                      ))}
+                        <div className="mt-1 space-y-0.5 pl-3">
+                          <div className="flex justify-between text-xs text-text-muted">
+                            <span>Таможенное оформление</span>
+                            <span>{formatPrice(result.breakdown.customsFee)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-text-muted">
+                            <span>Единая таможенная ставка (ЕТС)</span>
+                            <span>{formatPrice(result.breakdown.customsDuty)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-text-muted">
+                            <span>Утилизационный сбор</span>
+                            <span>{formatPrice(result.breakdown.recyclingFee)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Russia expenses */}
+                      <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                        <span className="text-sm text-text-muted">Расходы в РФ (СБКТС, СВХ, брокер, логистика)</span>
+                        <span className="text-sm font-medium text-text">
+                          {formatPrice(result.breakdown.deliveryCost)}
+                        </span>
+                      </div>
+
+                      {/* Commission */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-text-muted">Комиссия JCK AUTO</span>
+                        <span className="text-sm font-medium text-text">
+                          {formatPrice(result.breakdown.serviceFee)}
+                        </span>
+                      </div>
                     </div>
 
-                    <p className="mt-4 break-words text-xs text-text-muted">
-                      Курс ЦБ РФ на {result.currencyRate.date}:{" "}
-                      1 EUR = {result.currencyRate.eurRate.toFixed(2)} ₽ |{" "}
-                      1 {result.currencyRate.code} = {result.currencyRate.rate.toFixed(result.currencyRate.code === "KRW" ? 4 : 2)} ₽
+                    <p className="mt-4 text-xs text-text-muted">
+                      Курс ЦБ РФ на {result.date}:{" "}
+                      1 CNY = {rates.CNY.toFixed(2)} \u20BD |{" "}
+                      1 EUR = {rates.EUR.toFixed(2)} \u20BD
                     </p>
 
                     <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -266,15 +251,14 @@ export default function CalculatorPage() {
                         className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
                       >
                         <Phone className="h-4 w-4" />
-                        Позвонить специалисту
+                        Позвонить
                       </a>
                     </div>
 
                     <p className="mt-6 text-xs leading-relaxed text-text-muted">
                       * Расчёт носит информационный характер. Итоговая стоимость может
-                      отличаться в меньшую или большую сторону в зависимости от курса
-                      валют и других факторов на дату оформления. Для точного расчёта
-                      свяжитесь с менеджером.
+                      отличаться в зависимости от курса валют на дату оформления. Для
+                      точного расчёта свяжитесь с менеджером.
                     </p>
                   </div>
                 ) : (
@@ -282,7 +266,6 @@ export default function CalculatorPage() {
                     <CalcIcon className="mx-auto h-12 w-12 text-border" />
                     <p className="mt-4">
                       Заполните данные и нажмите &laquo;Рассчитать стоимость&raquo;
-                      для получения стоимости &laquo;под ключ&raquo;
                     </p>
                   </div>
                 )}
