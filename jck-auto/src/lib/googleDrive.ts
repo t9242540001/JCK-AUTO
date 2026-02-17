@@ -123,5 +123,21 @@ export async function downloadFile(fileId: string): Promise<Buffer> {
     { responseType: "arraybuffer" }
   );
 
-  return Buffer.from(res.data as ArrayBuffer);
+  const data = res.data;
+
+  // googleapis (gaxios) may return different types depending on Node.js version
+  // and response headers. Handle all cases to guarantee a proper Buffer.
+  if (Buffer.isBuffer(data)) {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    return Buffer.from(data);
+  }
+  if (typeof data === "string") {
+    // gaxios sometimes returns a string even with responseType: "arraybuffer".
+    // Use "latin1" encoding to preserve raw byte values (each char maps 1:1 to a byte).
+    return Buffer.from(data, "latin1");
+  }
+  // Fallback for ArrayBuffer-like objects (e.g. Uint8Array)
+  return Buffer.from(data as ArrayBuffer);
 }

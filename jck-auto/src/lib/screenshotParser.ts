@@ -57,9 +57,14 @@ export async function parseCarScreenshot(
   imageBuffer: Buffer,
   folderName: string,
   retry = false,
+  mimeType = "image/jpeg",
 ): Promise<Partial<Car>> {
   const client = new Anthropic({ apiKey: getAnthropicApiKey() });
   const base64 = imageBuffer.toString("base64");
+
+  // Normalize MIME type to a value accepted by the Anthropic API
+  const allowedMime = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  const normalizedMime = allowedMime.includes(mimeType) ? mimeType : "image/jpeg";
 
   let response;
   try {
@@ -73,7 +78,7 @@ export async function parseCarScreenshot(
           content: [
             {
               type: "image",
-              source: { type: "base64", media_type: "image/png", data: base64 },
+              source: { type: "base64", media_type: normalizedMime as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: base64 },
             },
             {
               type: "text",
