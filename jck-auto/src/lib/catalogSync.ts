@@ -121,8 +121,10 @@ export async function syncCatalog(): Promise<SyncResult> {
         throw new Error("No image files found in folder");
       }
 
-      // 4b. Find screenshot
+      // 4b. Find screenshot — prefer "2.*" (marketplace listing with price/specs)
+      const allImages = [...files.screenshots, ...files.photos];
       const screenshot =
+        allImages.find((f) => /^2\./i.test(f.name)) ||
         files.screenshots[0] ||
         files.photos.find((f) =>
           f.mimeType.toLowerCase().includes("png")
@@ -195,7 +197,19 @@ export async function syncCatalog(): Promise<SyncResult> {
       const description = await generateCarDescription(partialCar);
       console.log(`[sync]   Description: "${description.slice(0, 80)}..."`);
 
-      // 4f. Upload photos (cover photo first, then alphabetical)
+      // 4f. Save screenshot files to disk (so process-ai-pending.ts can find them later)
+      for (const scr of files.screenshots) {
+        try {
+          console.log(`[sync]   Saving screenshot to disk: "${scr.name}"...`);
+          const scrBuffer = await downloadFile(scr.id);
+          await uploadCarPhoto(slug, scr.name, scrBuffer, scr.mimeType);
+          console.log(`[sync]   Screenshot saved: ${scr.name} (${scrBuffer.length} bytes)`);
+        } catch (scrErr) {
+          console.error(`[sync]   Failed to save screenshot "${scr.name}":`, scrErr instanceof Error ? scrErr.message : scrErr);
+        }
+      }
+
+      // 4g. Upload photos (cover photo first, then alphabetical)
       console.log(
         `[sync]   Uploading ${files.photos.length} photos...`
       );
@@ -232,14 +246,14 @@ export async function syncCatalog(): Promise<SyncResult> {
         }
       }
 
-      // 4g. Assemble final Car object
+      // 4h. Assemble final Car object
       const car: Car = {
         ...partialCar,
         photos: photoUrls.length > 0 ? photoUrls : ["/images/cars/placeholder.jpg"],
         description,
       };
 
-      // 4h. Calculate price in rubles
+      // 4i. Calculate price in rubles
       if (rates && car.price > 0) {
         try {
           console.log("[sync]   Calculating price in rubles...");

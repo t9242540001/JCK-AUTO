@@ -42,6 +42,11 @@ const IMAGE_MIME_TYPES = [
 
 function isScreenshot(name: string): boolean {
   const lower = name.toLowerCase();
+  const baseName = lower.replace(/\.[^.]+$/, "");
+
+  // Convention: file "2.*" = marketplace listing screenshot (price, specs)
+  if (baseName === "2") return true;
+
   return (
     lower.includes("скрин") ||
     lower.includes("screen") ||
