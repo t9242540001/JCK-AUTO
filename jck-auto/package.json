@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "sync-catalog": "tsx -r tsconfig-paths/register scripts/sync-catalog.ts"
+    "sync-catalog": "tsx -r tsconfig-paths/register scripts/sync-catalog.ts",
+    "fix-pending": "tsx -r tsconfig-paths/register scripts/fix-ai-pending.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
