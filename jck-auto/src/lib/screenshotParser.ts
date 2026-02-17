@@ -3,18 +3,25 @@ import type { Car } from "@/types/car";
 import { getAnthropicApiKey } from "./config";
 const SYSTEM_PROMPT = `You are an expert at extracting car data from Chinese car marketplace screenshots.
 Analyze the screenshot and return ONLY valid JSON (no markdown, no \`\`\`json\`\`\`, no explanations).
-The screenshot is from a Chinese used car platform. Look for:
-- Price in ¥ (yuan) — the LARGEST number with ¥ symbol is the car price
+The screenshot is from a Chinese used car platform (e.g. 瓜子二手车, 懂车帝, 二手车之家, 优信). Look for:
+- Price — VERY IMPORTANT! Chinese car prices use 万 (wàn = 10,000). Examples:
+  * "11.28万" = 112800 yuan
+  * "7.28万" = 72800 yuan
+  * "21.38万" = 213800 yuan
+  * "5.6万" = 56000 yuan
+  * "¥11.28万" = 112800 yuan
+  The price is usually the LARGEST prominent number on the page, often in red/orange.
+  ALWAYS convert 万 to full yuan: multiply by 10000 and return as INTEGER.
 - Brand and model name
-- Year/date of manufacture
-- Engine volume (in liters, e.g. "1.0" means 1.0L)
-- Mileage (km)
-- Transmission type (AT/MT)
+- Year/date of manufacture (上牌 = registration date, 年款 = model year)
+- Engine volume (in liters, e.g. "1.0" means 1.0L, "1.5T" means 1.5L turbo)
+- Mileage (万公里 means x10000 km, e.g. "2.9万公里" = 29000 km)
+- Transmission type (AT/MT/CVT/DCT)
 - Drive type (2WD/4WD/AWD)
 - Fuel type
 - Power (kW and hp/л.с.)
 - Color
-- Location
+- Location (city/province)
 Return this exact JSON structure:
 {
   "brand": "Honda",
@@ -39,12 +46,15 @@ Return this exact JSON structure:
   "features": []
 }
 CRITICAL RULES:
-- price is the MAIN price in yuan (the biggest ¥ number on the page), as an INTEGER (e.g. 62000, not "¥62000")
+- price MUST be an INTEGER in full yuan (NOT in 万). "7.28万" → 72800, "11.28万" → 112800
+- If you see a number like 7.28 or 11.28 next to 万, multiply by 10000
+- mileage MUST be in km. "2.9万公里" → 29000
 - engineVolume is in LITERS as a DECIMAL number (e.g. 1.0, 1.4, 2.0)
 - year is a 4-digit integer (e.g. 2021)
-- Do NOT include "Used" in brand or model
-- If a value is not visible, use null
-- All number fields must be numbers, not strings`;
+- Do NOT include "Used" or "二手" in brand or model
+- If a value is not visible on the screenshot, use null
+- All number fields must be numbers, not strings
+- NEVER return price as null if you can see ANY price number on the screenshot`;
 function cleanCarName(value: string): string {
   return value.replace(/^Used\s+/i, "").trim();
 }
@@ -56,8 +66,10 @@ function extractJson(text: string): string {
   return text.trim();
 }
 const RETRY_PROMPT = `Extract car data from this Chinese car marketplace screenshot. Return ONLY a JSON object.
-The largest ¥ number is the car price. Engine volume is in liters (1.0 = 1.0L).
-Format: {"brand":"","model":"","fullName":"","year":0,"price":0,"currency":"CNY","mileage":0,"engineVolume":0,"transmission":"AT","drivetrain":"2WD","fuelType":"","color":"","power":0,"bodyType":"","location":""}
+PRICE: Chinese prices use 万 (=10000). "7.28万" = 72800, "11.28万" = 112800. Return price as INTEGER in full yuan.
+MILEAGE: "2.9万公里" = 29000 km. Return as INTEGER in km.
+Engine volume is in liters (1.0 = 1.0L, 1.5T = 1.5L turbo).
+Format: {"brand":"","model":"","fullName":"","year":0,"price":72800,"currency":"CNY","mileage":29000,"engineVolume":1.5,"transmission":"AT","drivetrain":"2WD","fuelType":"","color":"","power":0,"bodyType":"","location":""}
 Do NOT include "Used" in brand or model. All numbers must be integers or decimals, not strings.`;
 function isBlockedOrNetworkError(err: unknown): boolean {
   const apiErr = err as { status?: number; code?: string; message?: string };
@@ -158,10 +170,22 @@ export async function parseCarScreenshot(
   const brand = cleanCarName(pick(parsed.brand as string, folderData.brand, ""));
   const model = cleanCarName(pick(parsed.model as string, folderData.model, ""));
   const year = pick(parsed.year as number, folderData.year, 0);
-  const price = (parsed.price as number) ?? 0;
+  let price = (parsed.price as number) ?? 0;
+  // Safety: if model returned price in 万 units (e.g. 7.28 instead of 72800), convert
+  if (price > 0 && price < 500) {
+    console.log(`[screenshotParser] Price ${price} looks like 万 units, converting to yuan: ${Math.round(price * 10000)}`);
+    price = Math.round(price * 10000);
+  }
   const engineVolume = pick(parsed.engineVolume as number, folderData.engineVolume, 0);
+  const mileage = (parsed.mileage as number) ?? 0;
+  // Safety: if model returned mileage in 万公里 units (e.g. 2.9 instead of 29000), convert
+  let safeMileage = mileage;
+  if (mileage > 0 && mileage < 100) {
+    console.log(`[screenshotParser] Mileage ${mileage} looks like 万km, converting: ${Math.round(mileage * 10000)}`);
+    safeMileage = Math.round(mileage * 10000);
+  }
   const hasMinimumData = brand.length > 0 && model.length > 0;
-  const hasGoodData = hasMinimumData && (price > 0 || year > 0);
+  const hasGoodData = hasMinimumData && price > 0 && year > 0;
   if (!hasMinimumData) {
     console.warn(`[screenshotParser] Could not extract brand+model for "${folderName}". Falling back.`);
     return { ...folderData, needsAiProcessing: true };
@@ -172,7 +196,7 @@ export async function parseCarScreenshot(
     folderName: (parsed.fullName as string) || folderName,
     year, price,
     currency: (parsed.currency as Car["currency"]) || "CNY",
-    mileage: (parsed.mileage as number) ?? 0,
+    mileage: safeMileage,
     engineVolume,
     transmission: (parsed.transmission as Car["transmission"]) || "AT",
     drivetrain: (parsed.drivetrain as string) || "2WD",
