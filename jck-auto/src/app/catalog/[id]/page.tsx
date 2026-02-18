@@ -185,11 +185,9 @@ export default async function CarDetailPage({ params }: PageProps) {
             {car.description && car.description.length > 100 && (
               <div className="mt-4 rounded-xl bg-gray-50 p-4">
                 <p className="mb-1 text-sm font-medium text-gray-900">Описание</p>
-                <div className="text-sm leading-relaxed text-text-muted break-words [overflow-wrap:anywhere]">
-                  {car.description.split("\n").map((line, i) => (
-                    <p key={i} className={line.trim() === "" ? "mt-2" : "mt-1"}>
-                      {line}
-                    </p>
+                <div className="space-y-3 text-sm leading-relaxed text-text-muted break-words [overflow-wrap:anywhere]">
+                  {car.description.split("\n\n").map((paragraph, i) => (
+                    <p key={i}>{paragraph}</p>
                   ))}
                 </div>
               </div>
