@@ -151,7 +151,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               {getCountryFlag(car.country)} {getCountryLabel(car.country)}
             </span>
 
-            <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl break-words" style={{ overflowWrap: "break-word" }}>
+            <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl break-words [overflow-wrap:anywhere]">
               {car.folderName.replace(/^Used\s+/i, "")}
             </h1>
 
@@ -185,7 +185,7 @@ export default async function CarDetailPage({ params }: PageProps) {
             {car.description && car.description.length > 100 && (
               <div className="mt-4 rounded-xl bg-gray-50 p-4">
                 <p className="mb-1 text-sm font-medium text-gray-900">Описание</p>
-                <div className="text-sm leading-relaxed text-text-muted">
+                <div className="text-sm leading-relaxed text-text-muted break-words [overflow-wrap:anywhere]">
                   {car.description.split("\n").map((line, i) => (
                     <p key={i} className={line.trim() === "" ? "mt-2" : "mt-1"}>
                       {line}
@@ -196,11 +196,11 @@ export default async function CarDetailPage({ params }: PageProps) {
             )}
 
             {car.description && car.description.length <= 100 && (
-              <p className="mt-4 text-text-muted">{car.description}</p>
+              <p className="mt-4 text-text-muted break-words [overflow-wrap:anywhere]">{car.description}</p>
             )}
 
             {car.condition && (
-              <div className="mt-4 inline-block rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 text-sm text-gray-600">
+              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 pr-14 text-sm text-gray-600 break-words [overflow-wrap:anywhere]">
                 Отметки: {car.condition}
               </div>
             )}
@@ -239,7 +239,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               </ul>
             </div>
 
-            <p className="mt-4 text-xs text-gray-400 leading-relaxed">
+            <p className="mt-4 text-xs text-gray-400 leading-relaxed break-words">
               * Цена может измениться как в меньшую, так и в большую сторону в зависимости от курса валют и других факторов. Точную стоимость уточняйте у менеджера.
             </p>
 
