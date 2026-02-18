@@ -7,6 +7,7 @@ import Header from "@/components/layout/Header";
 import YandexMetrika from "@/components/layout/YandexMetrika";
 import Footer from "@/components/layout/Footer";
 import FloatingCTA from "@/components/layout/FloatingCTA";
+import TelegramWidget from "@/components/layout/TelegramWidget";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://jckauto.ru"),
@@ -65,6 +66,7 @@ export default function RootLayout({
         <main>{children}</main>
         <Footer />
         <FloatingCTA />
+        <TelegramWidget />
       </body>
     </html>
   );

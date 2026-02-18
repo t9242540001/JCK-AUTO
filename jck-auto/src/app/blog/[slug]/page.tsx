@@ -116,7 +116,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </div>
         )}
 
-        <div className="prose mt-8 max-w-none sm:prose-lg prose-headings:font-heading prose-headings:text-text prose-p:text-text-muted prose-a:text-primary prose-strong:text-text prose-li:text-text-muted">
+        <div className="prose mt-8 max-w-none sm:prose-lg prose-headings:font-heading">
           <MDXRemote source={post.content} />
         </div>
 
@@ -170,18 +170,18 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
         {relatedPosts.length > 0 && (
           <section className="mt-16 border-t border-border pt-12">
-            <h2 className="mb-8 font-heading text-xl font-bold text-text sm:text-2xl">
+            <h2 className="mb-8 font-heading text-xl font-semibold text-text sm:text-2xl">
               Читайте также
             </h2>
-            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {relatedPosts.map((related) => (
                 <Link
                   href={`/blog/${related.slug}`}
                   key={related.slug}
-                  className="group"
+                  className="group overflow-hidden rounded-2xl border border-border bg-white shadow-sm transition-shadow duration-200 hover:shadow-md"
                 >
                   {related.image && (
-                    <div className="relative mb-3 aspect-[2/1] overflow-hidden rounded-xl">
+                    <div className="relative aspect-[2/1] overflow-hidden">
                       <Image
                         src={related.image}
                         alt={related.title}
@@ -190,12 +190,14 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                       />
                     </div>
                   )}
-                  <h3 className="line-clamp-2 font-heading font-semibold text-text transition-colors group-hover:text-primary">
-                    {related.title}
-                  </h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-text-muted">
-                    {related.description}
-                  </p>
+                  <div className="p-4">
+                    <h3 className="line-clamp-2 font-heading font-semibold text-text transition-colors group-hover:text-primary">
+                      {related.title}
+                    </h3>
+                    <p className="mt-1.5 line-clamp-2 text-sm text-text-muted">
+                      {related.description}
+                    </p>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -203,7 +205,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         )}
       </article>
 
-      <SocialFollow />
+      <div className="mt-16">
+        <SocialFollow />
+      </div>
     </div>
   );
 }
