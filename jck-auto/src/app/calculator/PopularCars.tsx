@@ -1,36 +1,37 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
 const popularCars = [
   {
     name: "Haval Jolion",
-    specs: "1.5T \u2022 150 л.с.",
-    priceRange: "от 2.1 млн \u20BD",
+    specs: "1.5T • 150 л.с.",
+    priceRange: "от 2.1 млн ₽",
     country: "Китай",
-    image: "\uD83C\uDDE8\uD83C\uDDF3",
+    image: "/images/cars/china.jpg",
   },
   {
     name: "Chery Tiggo 7 Pro",
-    specs: "1.5T \u2022 147 л.с.",
-    priceRange: "от 2.0 млн \u20BD",
+    specs: "1.5T • 147 л.с.",
+    priceRange: "от 2.0 млн ₽",
     country: "Китай",
-    image: "\uD83C\uDDE8\uD83C\uDDF3",
+    image: "/images/cars/china.jpg",
   },
   {
     name: "Hyundai Tucson",
-    specs: "2.0 \u2022 156 л.с.",
-    priceRange: "от 1.8 млн \u20BD",
+    specs: "2.0 • 156 л.с.",
+    priceRange: "от 1.8 млн ₽",
     country: "Корея",
-    image: "\uD83C\uDDF0\uD83C\uDDF7",
+    image: "/images/cars/korea.jpg",
   },
   {
     name: "Toyota Corolla",
-    specs: "1.2T \u2022 116 л.с.",
-    priceRange: "от 1.5 млн \u20BD",
+    specs: "1.2T • 116 л.с.",
+    priceRange: "от 1.5 млн ₽",
     country: "Китай",
-    image: "\uD83C\uDDE8\uD83C\uDDF3",
+    image: "/images/cars/china.jpg",
   },
 ];
 
@@ -60,13 +61,23 @@ export function PopularCars() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.08 }}
-              className="rounded-xl border border-border p-4"
+              className="overflow-hidden rounded-xl border border-border"
             >
-              <div className="mb-2 text-3xl">{car.image}</div>
-              <h3 className="font-bold text-text">{car.name}</h3>
-              <p className="text-sm text-text-muted">{car.specs}</p>
-              <p className="mt-1 text-sm text-text-muted">{car.country}</p>
-              <p className="mt-2 font-bold text-primary">{car.priceRange}</p>
+              <div className="relative aspect-[4/3]">
+                <Image
+                  src={car.image}
+                  alt={car.name}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                />
+              </div>
+              <div className="p-4">
+                <h3 className="font-bold text-text">{car.name}</h3>
+                <p className="text-sm text-text-muted">{car.specs}</p>
+                <p className="mt-1 text-sm text-text-muted">{car.country}</p>
+                <p className="mt-2 font-bold text-primary">{car.priceRange}</p>
+              </div>
             </motion.div>
           ))}
         </div>
