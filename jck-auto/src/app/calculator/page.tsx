@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import CalculatorClient from "./CalculatorClient";
 import { CONTACTS } from "@/lib/constants";
+import { readCatalogJson } from "@/lib/blobStorage";
+import CarCard from "@/components/catalog/CarCard";
 import { HowToUse } from "./HowToUse";
-import { PopularCars } from "./PopularCars";
 import { CalculatorFAQ } from "./CalculatorFAQ";
 import { CalculatorCTA } from "./CalculatorCTA";
 import { SocialSubscribe } from "./SocialSubscribe";
@@ -92,7 +93,10 @@ const webAppJsonLd = {
   },
 };
 
-export default function CalculatorPage() {
+export default async function CalculatorPage() {
+  const cars = await readCatalogJson();
+  const popularCars = cars.filter((c) => c.priceRub && c.priceRub > 0).slice(0, 4);
+
   return (
     <>
       <script
@@ -107,7 +111,30 @@ export default function CalculatorPage() {
       <CalculatorClient />
 
       <HowToUse />
-      <PopularCars />
+
+      {popularCars.length > 0 && (
+        <section className="bg-white py-16">
+          <div className="mx-auto max-w-7xl px-4">
+            <h2 className="text-center font-heading text-2xl font-bold text-text sm:text-3xl">
+              Автомобили в нашем каталоге
+            </h2>
+            <p className="mt-2 text-center text-text-muted">
+              Цены рассчитаны тем же калькулятором — убедитесь сами
+            </p>
+            <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {popularCars.map((car, i) => (
+                <CarCard key={car.id} car={car} index={i} />
+              ))}
+            </div>
+            <div className="mt-6 text-center">
+              <a href="/catalog" className="font-medium text-primary hover:underline">
+                Смотреть весь каталог →
+              </a>
+            </div>
+          </div>
+        </section>
+      )}
+
       <CalculatorFAQ items={faqItems} />
       <CalculatorCTA contacts={CONTACTS} />
       <SocialSubscribe contacts={CONTACTS} />
