@@ -14,12 +14,21 @@ import SocialFollow from "@/components/sections/SocialFollow";
 export const metadata: Metadata = {
   title: {
     absolute:
-      "JCK AUTO — импорт автомобилей из Китая, Кореи и Японии под ключ",
+      "JCK AUTO — импорт авто из Китая, Кореи и Японии под ключ",
   },
   description:
     "Привезём автомобиль из Китая, Кореи или Японии под ключ. Подбор, проверка, доставка, таможенное оформление. Гарантия ВСК до 2 лет. Рассчитайте стоимость онлайн.",
   keywords:
     "купить авто из Китая, автомобиль из Кореи, машина из Японии, импорт авто, авто под заказ, JCK AUTO, растаможка авто",
+  openGraph: {
+    title: "JCK AUTO — импорт авто из Китая, Кореи и Японии под ключ",
+    description:
+      "Привезём автомобиль из Китая, Кореи или Японии под ключ. Подбор, проверка, доставка, гарантия ВСК до 2 лет.",
+    url: "https://jckauto.ru",
+  },
+  alternates: {
+    canonical: "https://jckauto.ru",
+  },
 };
 
 export default function Home() {

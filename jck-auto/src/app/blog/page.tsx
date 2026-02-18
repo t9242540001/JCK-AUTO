@@ -5,13 +5,21 @@ import { getAllPosts } from "@/lib/blog";
 
 export const metadata: Metadata = {
   title: {
-    absolute:
-      "Блог JCK AUTO — гайды по импорту авто из Китая, Кореи и Японии",
+    absolute: "Блог JCK AUTO — гайды по импорту авто из Азии",
   },
   description:
     "Полезные статьи об импорте автомобилей из Китая, Кореи и Японии: растаможка, выбор авто, обзоры моделей, изменения законодательства, советы покупателям.",
   keywords:
     "блог импорт авто, статьи растаможка, обзоры китайских авто, как привезти авто из Японии, импорт автомобилей гайд",
+  openGraph: {
+    title: "Блог JCK AUTO — гайды по импорту авто из Азии",
+    description:
+      "Полезные статьи об импорте автомобилей из Китая, Кореи и Японии.",
+    url: "https://jckauto.ru/blog",
+  },
+  alternates: {
+    canonical: "https://jckauto.ru/blog",
+  },
 };
 
 const countryBadge: Record<string, { label: string; className: string }> = {

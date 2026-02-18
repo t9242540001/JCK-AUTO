@@ -15,25 +15,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: "https://jckauto.ru/catalog",
       lastModified: new Date(),
       changeFrequency: "daily",
-      priority: 0.9,
+      priority: 0.8,
     },
     {
       url: "https://jckauto.ru/calculator",
       lastModified: new Date(),
-      changeFrequency: "monthly",
+      changeFrequency: "weekly",
       priority: 0.8,
     },
     {
       url: "https://jckauto.ru/about",
       lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.7,
+      changeFrequency: "weekly",
+      priority: 0.6,
     },
     {
       url: "https://jckauto.ru/blog",
       lastModified: new Date(),
       changeFrequency: "weekly",
-      priority: 0.7,
+      priority: 0.6,
     },
     {
       url: "https://jckauto.ru/privacy",
@@ -57,15 +57,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const catalogPages: MetadataRoute.Sitemap = cars.map((car) => ({
     url: `https://jckauto.ru/catalog/${car.id}`,
     lastModified: new Date(car.createdAt),
-    changeFrequency: "weekly" as const,
+    changeFrequency: "daily" as const,
     priority: 0.6,
   }));
 
   const blogPages: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
     url: `https://jckauto.ru/blog/${post.slug}`,
     lastModified: new Date(post.date),
-    changeFrequency: "monthly",
-    priority: 0.5,
+    changeFrequency: "weekly",
+    priority: 0.6,
   }));
 
   return [...staticPages, ...catalogPages, ...blogPages];

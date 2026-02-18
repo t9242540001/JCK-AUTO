@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
+@plugin "@tailwindcss/typography";
 
 @theme inline {
   --color-background: #FFFFFF;
@@ -51,4 +52,128 @@ body {
   color: var(--color-text);
   font-family: "Inter Variable", system-ui, sans-serif;
   overflow-x: hidden;
+}
+
+/* MDX prose overrides */
+.prose h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  color: #1E3A5F;
+}
+
+.prose h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  color: #1E3A5F;
+}
+
+.prose p {
+  margin-bottom: 1rem;
+  line-height: 1.75;
+  color: #374151;
+}
+
+.prose ul,
+.prose ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose li {
+  margin-bottom: 0.25rem;
+  color: #374151;
+}
+
+.prose blockquote {
+  border-left: 4px solid #C9A84C;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  font-style: italic;
+  background-color: #f9fafb;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.prose blockquote p {
+  margin-bottom: 0;
+}
+
+.prose code:not(pre code) {
+  background-color: #f3f4f6;
+  border-radius: 0.375rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.875em;
+}
+
+.prose pre {
+  background-color: #1f2937;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  color: #e5e7eb;
+}
+
+.prose img {
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.prose a {
+  color: #1E3A5F;
+  text-decoration: underline;
+  transition: color 0.15s;
+}
+
+.prose a:hover {
+  color: #C9A84C;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid #e5e7eb;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+}
+
+.prose th {
+  background-color: #f3f4f6;
+  font-weight: 600;
+}
+
+.prose tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.prose strong {
+  color: #111827;
+}
+
+.prose hr {
+  border-color: #e5e7eb;
+  margin: 2rem 0;
 }

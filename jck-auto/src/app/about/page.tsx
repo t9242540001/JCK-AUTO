@@ -19,12 +19,21 @@ import SocialFollow from "@/components/sections/SocialFollow";
 export const metadata: Metadata = {
   title: {
     absolute:
-      "О компании JCK AUTO — импорт авто из Китая, Кореи и Японии",
+      "О компании JCK AUTO — надёжный импорт автомобилей из Азии",
   },
   description:
     "JCK AUTO — импорт автомобилей из Китая, Кореи и Японии с полным сопровождением. Проверка перед покупкой, доставка, таможня, гарантия ВСК до 2 лет. Работаем под заказ.",
   keywords:
     "JCK AUTO, импорт авто из Китая Кореи Японии, компания по ввозу автомобилей, авто из Китая компания, гарантия ВСК автомобиль",
+  openGraph: {
+    title: "О компании JCK AUTO — надёжный импорт автомобилей из Азии",
+    description:
+      "JCK AUTO — импорт автомобилей из Китая, Кореи и Японии с полным сопровождением.",
+    url: "https://jckauto.ru/about",
+  },
+  alternates: {
+    canonical: "https://jckauto.ru/about",
+  },
 };
 
 const values = [
@@ -105,9 +114,25 @@ const miniStats = [
   { value: "2 года", label: "гарантия" },
 ];
 
+const aboutPageJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  name: "О компании JCK AUTO",
+  description: "Импорт автомобилей из Китая, Кореи и Японии под ключ",
+  url: "https://jckauto.ru/about",
+  mainEntity: {
+    "@type": "Organization",
+    name: "JCK AUTO",
+  },
+};
+
 export default function AboutPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutPageJsonLd) }}
+      />
       {/* Block 1 — Hero */}
       <section className="bg-white pb-10 pt-28 sm:pb-16">
         <div className="mx-auto max-w-3xl px-4 text-center">

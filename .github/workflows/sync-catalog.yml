@@ -11,19 +11,204 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Sync catalog on VDS
+      # 0. Checkout repo & setup Node (needed for process-ai-pending.ts on runner)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: claude/review-project-structure-RtYyX
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: jck-auto
+        run: |
+          echo "=== Installing npm dependencies ==="
+          npm ci
+          echo "=== Dependencies installed ==="
+
+      # 1. SSH: run sync-catalog on VDS (Google Drive → photos + catalog.json)
+      #    Downloads new car folders, saves photos. New cars may get
+      #    needsAiProcessing: true when Anthropic API is blocked from Russian IP.
+      #    Build is NOT run here — it happens in step 5 after AI processing.
+      - name: Run sync-catalog on VDS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VDS_HOST }}
           username: root
           key: ${{ secrets.VDS_SSH_KEY }}
-          script_stop: true
-          command_timeout: 20m
+          command_timeout: 10m
           script: |
             cd /var/www/jckauto/app/jck-auto
-            git pull origin main
-            npm install --production=false
-            GOOGLE_SERVICE_ACCOUNT_KEY='${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' \
-            GOOGLE_DRIVE_FOLDER_ID='${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}' \
-            ANTHROPIC_API_KEY='${{ secrets.ANTHROPIC_API_KEY }}' \
-            npm run sync-catalog
+            echo "=== Current branch ==="
+            git branch --show-current
+            echo "=== Fetching ==="
+            git fetch origin
+            git checkout claude/review-project-structure-RtYyX
+            git pull origin claude/review-project-structure-RtYyX
+            echo "=== Installing deps ==="
+            npm install
+            npm install -g tsx tsconfig-paths
+            echo "=== Sync starting at $(date) ==="
+            SKIP_BUILD=true npx tsx -r tsconfig-paths/register scripts/sync-catalog.ts 2>&1 || true
+            echo "=== Sync finished at $(date) ==="
+
+      # 2. SCP: download catalog.json + screenshots of pending cars from VDS
+      - name: Setup SSH key for SCP
+        run: |
+          echo "=== Setting up SSH key ==="
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VDS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VDS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          echo "=== SSH key configured ==="
+
+      - name: Download catalog.json from VDS
+        run: |
+          echo "=== Downloading catalog.json ==="
+          scp root@${{ secrets.VDS_HOST }}:/var/www/jckauto/storage/catalog/catalog.json ./jck-auto/catalog.json
+          FILESIZE=$(wc -c < ./jck-auto/catalog.json)
+          echo "=== Downloaded catalog.json ($FILESIZE bytes) ==="
+
+          echo "=== Catalog summary ==="
+          node -e "
+            const cars = JSON.parse(require('fs').readFileSync('./jck-auto/catalog.json','utf-8'));
+            console.log('Total cars: ' + cars.length);
+            const ai = cars.filter(c => c.needsAiProcessing === true);
+            console.log('needsAiProcessing: true → ' + ai.length);
+            ai.forEach(c => console.log('  - ' + c.id + ' (price=' + c.price + ', priceRub=' + (c.priceRub || 'N/A') + ')'));
+            const noPrice = cars.filter(c => c.price === 0 && !c.priceRub && !c.needsAiProcessing);
+            console.log('price=0 && no priceRub → ' + noPrice.length);
+            noPrice.forEach(c => console.log('  - ' + c.id));
+          "
+
+      - name: Download screenshots for pending cars
+        run: |
+          echo "=== Starting screenshot download ==="
+          cd jck-auto
+          mkdir -p screenshots
+
+          # Extract car IDs needing processing (both criteria)
+          PENDING_IDS=$(node -e "
+            const cars = JSON.parse(require('fs').readFileSync('catalog.json','utf-8'));
+            const pending = cars.filter(c => c.needsAiProcessing === true || (c.price === 0 && !c.priceRub));
+            pending.forEach(c => console.log(c.id));
+          ")
+
+          if [ -z "$PENDING_IDS" ]; then
+            echo "No cars need AI processing — skipping screenshot download"
+            exit 0
+          fi
+
+          echo "Cars needing screenshots:"
+          echo "$PENDING_IDS"
+          echo ""
+
+          VDS_STORAGE="root@${{ secrets.VDS_HOST }}:/var/www/jckauto/storage/catalog"
+
+          for CAR_ID in $PENDING_IDS; do
+            echo "--- Downloading screenshot for: $CAR_ID ---"
+            mkdir -p "screenshots/$CAR_ID"
+
+            # List image files in the car's directory on VDS
+            echo "  Listing files on VDS: /var/www/jckauto/storage/catalog/$CAR_ID/"
+            FILES=$(ssh root@${{ secrets.VDS_HOST }} "ls -la /var/www/jckauto/storage/catalog/$CAR_ID/ 2>/dev/null" || echo "DIR_NOT_FOUND")
+            echo "  VDS directory listing:"
+            echo "$FILES" | head -10
+
+            if echo "$FILES" | grep -q "DIR_NOT_FOUND"; then
+              echo "  WARNING: Directory not found on VDS for $CAR_ID"
+              continue
+            fi
+
+            # Find all image files in the car's directory
+            ALL_IMGS=$(ssh root@${{ secrets.VDS_HOST }} "ls /var/www/jckauto/storage/catalog/$CAR_ID/ 2>/dev/null | grep -iE '\.(jpe?g|png|webp)$'" || true)
+
+            if [ -z "$ALL_IMGS" ]; then
+              echo "  WARNING: No image files found in VDS directory for $CAR_ID"
+              continue
+            fi
+
+            IMG_COUNT=$(echo "$ALL_IMGS" | wc -l)
+            echo "  Found $IMG_COUNT image(s): $(echo $ALL_IMGS | tr '\n' ' ')"
+
+            for IMG in $ALL_IMGS; do
+              echo "  Downloading: $IMG"
+              scp "$VDS_STORAGE/$CAR_ID/$IMG" "screenshots/$CAR_ID/" && \
+                echo "  OK: screenshots/$CAR_ID/$IMG" || \
+                echo "  ERROR: Failed to download $IMG for $CAR_ID"
+            done
+          done
+
+          echo ""
+          echo "=== Screenshot download complete ==="
+          echo "Screenshots directory structure:"
+          find screenshots -type f 2>/dev/null || echo "(no files downloaded)"
+
+      # 3. AI processing on runner (Anthropic API accessible from non-Russian IP)
+      - name: Process AI-pending cars on runner
+        working-directory: jck-auto
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "=== Starting AI processing ==="
+          echo "CWD: $(pwd)"
+          echo "catalog.json exists: $(test -f catalog.json && echo 'yes' || echo 'NO')"
+          echo "screenshots/ exists: $(test -d screenshots && echo 'yes' || echo 'NO')"
+          echo "ANTHROPIC_API_KEY length: ${#ANTHROPIC_API_KEY}"
+
+          # Check if there are pending cars (both criteria)
+          PENDING_COUNT=$(node -e "
+            const cars = JSON.parse(require('fs').readFileSync('catalog.json','utf-8'));
+            const pending = cars.filter(c => c.needsAiProcessing === true || (c.price === 0 && !c.priceRub));
+            console.log(pending.length);
+          ")
+
+          if [ "$PENDING_COUNT" = "0" ]; then
+            echo "No cars need AI processing, skipping"
+            exit 0
+          fi
+
+          echo "Processing $PENDING_COUNT cars with AI..."
+          echo ""
+          npx tsx -r tsconfig-paths/register scripts/process-ai-pending.ts ./catalog.json
+          echo ""
+          echo "=== AI processing complete ==="
+
+      # 4. SCP: upload updated catalog.json back to VDS
+      - name: Upload catalog.json to VDS
+        run: |
+          echo "=== Uploading updated catalog.json to VDS ==="
+          FILESIZE=$(wc -c < ./jck-auto/catalog.json)
+          echo "File size: $FILESIZE bytes"
+          scp ./jck-auto/catalog.json root@${{ secrets.VDS_HOST }}:/var/www/jckauto/storage/catalog/catalog.json
+          echo "=== Upload complete ==="
+
+      # 5. SSH: build Next.js and restart PM2 on VDS
+      - name: Build and restart on VDS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: root
+          key: ${{ secrets.VDS_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            cd /var/www/jckauto/app/jck-auto
+            echo "=== Building at $(date) ==="
+            npm run build
+            BUILD_EXIT=$?
+            echo "=== Build finished with exit code $BUILD_EXIT ==="
+            if [ $BUILD_EXIT -ne 0 ]; then
+              echo "ERROR: Build failed!"
+              exit 1
+            fi
+            echo "=== Restarting PM2 ==="
+            pm2 restart jckauto || pm2 start npm --name jckauto -- start
+            echo "=== Done at $(date) ==="
+
+      # Cleanup SSH key from runner
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_rsa

@@ -7,8 +7,7 @@ import Header from "@/components/layout/Header";
 import YandexMetrika from "@/components/layout/YandexMetrika";
 import Footer from "@/components/layout/Footer";
 import FloatingCTA from "@/components/layout/FloatingCTA";
-
-/* TODO: Add og-image.jpg 1200x630 to public/images/ */
+import TelegramWidget from "@/components/layout/TelegramWidget";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://jckauto.ru"),
@@ -37,12 +36,21 @@ export const metadata: Metadata = {
     title: "JCK AUTO — импорт автомобилей из Китая, Кореи и Японии",
     description:
       "Привезём автомобиль из Китая, Кореи или Японии под ключ. Подбор, проверка, доставка, гарантия.",
+    images: [
+      {
+        url: "https://jckauto.ru/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "JCK AUTO — импорт автомобилей из Китая, Кореи и Японии",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "JCK AUTO — импорт авто из Китая, Кореи и Японии",
     description:
       "Привезём автомобиль из Китая, Кореи или Японии под ключ.",
+    images: ["https://jckauto.ru/og-image.jpg"],
   },
   robots: {
     index: true,
@@ -67,6 +75,7 @@ export default function RootLayout({
         <main>{children}</main>
         <Footer />
         <FloatingCTA />
+        <TelegramWidget />
       </body>
     </html>
   );

@@ -29,17 +29,23 @@ export default function CatalogClient({ cars }: CatalogClientProps) {
   }, [cars]);
 
   const filteredCars = useMemo(() => {
-    return cars.filter((car) => {
-      if (filters.country !== "all" && car.country !== filters.country)
-        return false;
-      if (filters.brand !== "all" && car.brand !== filters.brand) return false;
-      if (filters.bodyType !== "Все" && car.bodyType !== filters.bodyType)
-        return false;
-      if (filters.priceFrom && car.price < Number(filters.priceFrom))
-        return false;
-      if (filters.priceTo && car.price > Number(filters.priceTo)) return false;
-      return true;
-    });
+    return cars
+      .filter((car) => {
+        if (filters.country !== "all" && car.country !== filters.country)
+          return false;
+        if (filters.brand !== "all" && car.brand !== filters.brand) return false;
+        if (filters.bodyType !== "Все" && car.bodyType !== filters.bodyType)
+          return false;
+        if (filters.priceFrom && car.priceRub && car.priceRub < Number(filters.priceFrom))
+          return false;
+        if (filters.priceTo && car.priceRub && car.priceRub > Number(filters.priceTo))
+          return false;
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
   }, [cars, filters]);
 
   if (cars.length === 0) {
