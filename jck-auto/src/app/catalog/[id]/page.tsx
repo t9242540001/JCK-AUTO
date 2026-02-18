@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Send, Calculator, ChevronRight } from "lucide-react";
+import MessengerButtons from "@/components/MessengerButtons";
 import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import { CONTACTS } from "@/lib/constants";
@@ -150,7 +151,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               {getCountryFlag(car.country)} {getCountryLabel(car.country)}
             </span>
 
-            <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl">
+            <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl break-words" style={{ overflowWrap: "break-word" }}>
               {car.folderName.replace(/^Used\s+/i, "")}
             </h1>
 
@@ -181,7 +182,20 @@ export default async function CarDetailPage({ params }: PageProps) {
               </div>
             )}
 
-            {car.description && (
+            {car.description && car.description.length > 100 && (
+              <div className="mt-4 rounded-xl bg-gray-50 p-4">
+                <p className="mb-1 text-sm font-medium text-gray-900">Описание</p>
+                <div className="text-sm leading-relaxed text-text-muted">
+                  {car.description.split("\n").map((line, i) => (
+                    <p key={i} className={line.trim() === "" ? "mt-2" : "mt-1"}>
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {car.description && car.description.length <= 100 && (
               <p className="mt-4 text-text-muted">{car.description}</p>
             )}
 
@@ -229,15 +243,9 @@ export default async function CarDetailPage({ params }: PageProps) {
               * Цена может измениться как в меньшую, так и в большую сторону в зависимости от курса валют и других факторов. Точную стоимость уточняйте у менеджера.
             </p>
 
-            <a
-              href={CONTACTS.telegram}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-6 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
-            >
-              <Send className="h-5 w-5" />
-              Написать в Telegram
-            </a>
+            <div className="mt-6">
+              <MessengerButtons carName={`${brand} ${car.model} ${car.year}`} />
+            </div>
 
             <p className="mt-3 text-center text-sm text-text-muted">
               Или позвоните:{" "}
@@ -293,16 +301,8 @@ export default async function CarDetailPage({ params }: PageProps) {
           <p className="mx-auto mt-2 max-w-lg text-base text-white/80 sm:text-lg">
             Напишите нам — рассчитаем точную стоимость доставки под ключ
           </p>
-          <div className="mt-6 flex flex-col justify-center gap-4 sm:flex-row">
-            <a
-              href={CONTACTS.telegram}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
-            >
-              <Send className="h-5 w-5" />
-              Написать в Telegram
-            </a>
+          <div className="mt-6 space-y-4">
+            <MessengerButtons carName={`${brand} ${car.model} ${car.year}`} />
             <Link
               href="/calculator"
               className="flex items-center justify-center gap-2 rounded-xl border-2 border-white/30 px-8 py-4 font-medium text-white transition-colors hover:bg-white/10"
