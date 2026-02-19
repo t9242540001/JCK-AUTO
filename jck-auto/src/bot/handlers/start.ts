@@ -53,7 +53,7 @@ export function registerStartHandler(bot: TelegramBot) {
     }
   });
 
-  bot.onText(/\u{1F3E0} Главное меню/, async (msg) => {
+  bot.onText(/Главное меню/, async (msg) => {
     if (msg.from) saveUser(msg.from);
     const chatId = msg.chat.id;
     try {
