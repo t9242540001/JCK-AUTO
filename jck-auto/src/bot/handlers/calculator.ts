@@ -130,7 +130,10 @@ export function registerCalculatorHandler(bot: TelegramBot) {
               { text: "Новый (до 3 лет)", callback_data: "calc_age_under3" },
               { text: "3\u20135 лет", callback_data: "calc_age_3to5" },
             ],
-            [{ text: "Старше 5 лет", callback_data: "calc_age_over5" }],
+            [
+              { text: "5\u20137 лет", callback_data: "calc_age_5to7" },
+              { text: "Старше 7 лет", callback_data: "calc_age_over7" },
+            ],
           ],
         },
       });

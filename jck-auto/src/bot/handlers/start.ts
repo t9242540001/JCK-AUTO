@@ -1,4 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
+import { handleCatalogCommand } from "./catalog";
+import { handleContactCommand } from "./contact";
 
 export function registerStartHandler(bot: TelegramBot) {
   bot.onText(/\/start/, (msg) => {
@@ -38,10 +40,10 @@ export function registerStartHandler(bot: TelegramBot) {
 
     if (query.data === "catalog") {
       bot.answerCallbackQuery(query.id);
-      bot.emit("text", { ...query.message, chat: { ...query.message.chat, id: chatId }, text: "/catalog" });
+      handleCatalogCommand(bot, chatId);
     } else if (query.data === "contact") {
       bot.answerCallbackQuery(query.id);
-      bot.emit("text", { ...query.message, chat: { ...query.message.chat, id: chatId }, text: "/contact" });
+      handleContactCommand(bot, chatId);
     }
   });
 }
