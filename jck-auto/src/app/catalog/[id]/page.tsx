@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Send, Calculator, ChevronRight } from "lucide-react";
-import MessengerButtons from "@/components/MessengerButtons";
 import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import { CONTACTS } from "@/lib/constants";
@@ -17,6 +16,8 @@ import CarGallery from "@/components/catalog/CarGallery";
 import CarSpecs from "@/components/catalog/CarSpecs";
 import CarTrustBlock from "@/components/catalog/CarTrustBlock";
 import CarCard from "@/components/catalog/CarCard";
+import CarSidebarActions from "@/components/catalog/CarSidebarActions";
+import CarCtaActions from "@/components/catalog/CarCtaActions";
 import SocialFollow from "@/components/sections/SocialFollow";
 
 const DELIVERY_CITY: Record<string, string> = {
@@ -241,19 +242,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               * Цена может измениться как в меньшую, так и в большую сторону в зависимости от курса валют и других факторов. Точную стоимость уточняйте у менеджера.
             </p>
 
-            <div className="mt-6">
-              <MessengerButtons carName={`${brand} ${car.model} ${car.year}`} />
-            </div>
-
-            <p className="mt-3 text-center text-sm text-text-muted">
-              Или позвоните:{" "}
-              <a
-                href={`tel:${CONTACTS.phoneRaw}`}
-                className="font-medium text-text transition-colors hover:text-primary"
-              >
-                {CONTACTS.phone}
-              </a>
-            </p>
+            <CarSidebarActions carName={`${brand} ${car.model} ${car.year}`} />
           </div>
         </div>
 
@@ -300,7 +289,6 @@ export default async function CarDetailPage({ params }: PageProps) {
             Напишите нам — рассчитаем точную стоимость доставки под ключ
           </p>
           <div className="mt-6 space-y-4">
-            <MessengerButtons carName={`${brand} ${car.model} ${car.year}`} />
             <Link
               href="/calculator"
               className="flex items-center justify-center gap-2 rounded-xl border-2 border-white/30 px-8 py-4 font-medium text-white transition-colors hover:bg-white/10"
@@ -308,6 +296,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               <Calculator className="h-5 w-5" />
               Рассчитать на калькуляторе
             </Link>
+            <CarCtaActions carName={`${brand} ${car.model} ${car.year}`} />
           </div>
         </section>
 

@@ -18,18 +18,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
 function MaxIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <circle cx="12" cy="12" r="11" fill="currentColor" />
-      <text
-        x="12"
-        y="16.5"
-        textAnchor="middle"
-        fill="white"
-        fontSize="14"
-        fontWeight="bold"
-        fontFamily="Arial, sans-serif"
-      >
-        M
-      </text>
+      <path d="M12 2C6.48 2 2 5.92 2 10.66c0 2.94 1.72 5.56 4.38 7.17L5 22l4.05-2.14c.94.23 1.93.35 2.95.35 5.52 0 10-3.92 10-8.66S17.52 2 12 2z"/>
     </svg>
   );
 }
