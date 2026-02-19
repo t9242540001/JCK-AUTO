@@ -177,7 +177,7 @@ async function finishCalc(bot: TelegramBot, chatId: number, state: CalcState) {
     );
     lines.push("");
     lines.push(
-      "\u26A0\uFE0F Расчёт ориентировочный. Точную стоимость уточняйте у менеджера.",
+      "* Цена может измениться как в меньшую, так и в большую сторону в зависимости от курса валют и других факторов. Точную стоимость уточняйте у менеджера.",
     );
 
     bot.sendMessage(chatId, lines.join("\n"), {
