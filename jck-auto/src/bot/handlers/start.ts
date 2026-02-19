@@ -3,8 +3,8 @@ import { handleCatalogCommand } from "./catalog";
 import { handleContactCommand } from "./contact";
 import { saveUser } from "../store/users";
 
-function sendStartMessage(bot: TelegramBot, chatId: number) {
-  bot.sendMessage(
+async function sendStartMessage(bot: TelegramBot, chatId: number) {
+  await bot.sendMessage(
     chatId,
     [
       "\u{1F697} Добро пожаловать в JCK AUTO!",
@@ -31,7 +31,7 @@ function sendStartMessage(bot: TelegramBot, chatId: number) {
     },
   );
 
-  bot.sendMessage(chatId, "Выберите действие \u{1F447}", {
+  await bot.sendMessage(chatId, "Выберите действие \u{1F447}", {
     reply_markup: {
       keyboard: [[{ text: "\u{1F3E0} Главное меню" }]],
       resize_keyboard: true,
@@ -41,14 +41,28 @@ function sendStartMessage(bot: TelegramBot, chatId: number) {
 }
 
 export function registerStartHandler(bot: TelegramBot) {
-  bot.onText(/\/start/, (msg) => {
+  bot.onText(/\/start/, async (msg) => {
     if (msg.from) saveUser(msg.from);
-    sendStartMessage(bot, msg.chat.id);
+    const chatId = msg.chat.id;
+    try {
+      bot.sendChatAction(chatId, "typing");
+      await sendStartMessage(bot, chatId);
+    } catch (err) {
+      console.error("Start command error:", err);
+      bot.sendMessage(chatId, "Произошла ошибка. Попробуйте /start");
+    }
   });
 
-  bot.onText(/\u{1F3E0} Главное меню/, (msg) => {
+  bot.onText(/\u{1F3E0} Главное меню/, async (msg) => {
     if (msg.from) saveUser(msg.from);
-    sendStartMessage(bot, msg.chat.id);
+    const chatId = msg.chat.id;
+    try {
+      bot.sendChatAction(chatId, "typing");
+      await sendStartMessage(bot, chatId);
+    } catch (err) {
+      console.error("Main menu error:", err);
+      bot.sendMessage(chatId, "Произошла ошибка. Попробуйте /start");
+    }
   });
 
   bot.on("callback_query", (query) => {
