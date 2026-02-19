@@ -22,7 +22,7 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 registerStartHandler(bot);
 registerCalculatorHandler(bot);
-registerCatalogHandler(bot);
+registerCatalogHandler(bot, GROUP_CHAT_ID);
 registerContactHandler(bot);
 registerRequestHandler(bot, GROUP_CHAT_ID);
 

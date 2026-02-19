@@ -1,5 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { readCatalogJson } from "../../lib/blobStorage";
+import { pendingCar, handleRequestCommand } from "./request";
 
 export async function handleCatalogCommand(bot: TelegramBot, chatId: number): Promise<void> {
   try {
@@ -21,7 +22,10 @@ export async function handleCatalogCommand(bot: TelegramBot, chatId: number): Pr
       ].join("\n");
 
       const buttons: TelegramBot.InlineKeyboardButton[][] = [
-        [{ text: "Подробнее на сайте", url: `https://jckauto.ru/catalog/${car.id}` }],
+        [
+          { text: "Подробнее на сайте", url: `https://jckauto.ru/catalog/${car.id}` },
+          { text: "\u{1F697} Заказать", callback_data: `order_${car.id}` },
+        ],
       ];
 
       if (car.photos.length > 0) {
@@ -49,8 +53,23 @@ export async function handleCatalogCommand(bot: TelegramBot, chatId: number): Pr
   }
 }
 
-export function registerCatalogHandler(bot: TelegramBot) {
+export function registerCatalogHandler(bot: TelegramBot, groupChatId: string) {
   bot.onText(/\/catalog/, async (msg) => {
     await handleCatalogCommand(bot, msg.chat.id);
+  });
+
+  bot.on("callback_query", async (query) => {
+    if (!query.data?.startsWith("order_") || !query.message) return;
+
+    bot.answerCallbackQuery(query.id);
+    const chatId = query.message.chat.id;
+    const carId = query.data.replace("order_", "");
+
+    const cars = await readCatalogJson();
+    const car = cars.find((c) => c.id === carId);
+    const carName = car ? `${car.brand} ${car.model} ${car.year}` : carId;
+
+    pendingCar.set(chatId, carName);
+    handleRequestCommand(bot, chatId, groupChatId);
   });
 }

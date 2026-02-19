@@ -1,88 +1,106 @@
 import TelegramBot from "node-telegram-bot-api";
+import { getUser, savePhone, type BotUser } from "../store/users";
 
-interface RequestState {
-  step: "name" | "phone" | "car";
-  name?: string;
-  phone?: string;
+export const pendingCar = new Map<number, string>();
+
+function finishRequest(bot: TelegramBot, groupChatId: string, user: BotUser, carName?: string) {
+  const username = user.username ? `@${user.username}` : "не указан";
+
+  const text = [
+    "\u{1F697} Новая заявка!",
+    "",
+    `\u{1F464} Имя: ${user.firstName}${user.lastName ? ` ${user.lastName}` : ""}`,
+    `\u{1F4E8} Username: ${username}`,
+    `\u{1F4F1} Телефон: ${user.phone || "не указан"}`,
+    `\u{1F698} Автомобиль: ${carName || "не указан"}`,
+    "",
+    "Источник: Telegram-бот",
+  ].join("\n");
+
+  bot.sendMessage(groupChatId, text).catch((err) => {
+    console.error("Failed to send lead to group:", err);
+  });
 }
 
-const sessions = new Map<number, RequestState>();
+export function handleRequestCommand(bot: TelegramBot, chatId: number, groupChatId: string) {
+  const user = getUser(chatId);
 
-export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
-  function startRequest(chatId: number) {
-    sessions.set(chatId, { step: "name" });
-    bot.sendMessage(chatId, "Как вас зовут?");
+  if (!user) {
+    bot.sendMessage(chatId, "Нажмите /start чтобы начать.");
+    return;
   }
 
+  // If phone is already known — finish immediately
+  if (user.phone) {
+    const carName = pendingCar.get(chatId);
+    pendingCar.delete(chatId);
+    finishRequest(bot, groupChatId, user, carName);
+    bot.sendMessage(chatId, "\u2705 Заявка принята! Менеджер свяжется с вами.", {
+      reply_markup: {
+        keyboard: [[{ text: "\u{1F3E0} Главное меню" }]],
+        resize_keyboard: true,
+        persistent: true,
+      },
+    });
+    return;
+  }
+
+  // Ask for phone via contact sharing
+  bot.sendMessage(
+    chatId,
+    `${user.firstName}, чтобы менеджер связался с вами — поделитесь номером телефона:`,
+    {
+      reply_markup: {
+        keyboard: [
+          [{ text: "\u{1F4F1} Поделиться номером", request_contact: true }],
+          [{ text: "\u2B05\uFE0F Отмена" }],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      },
+    },
+  );
+}
+
+export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
   bot.on("callback_query", (query) => {
     if (!query.data || !query.message) return;
     if (query.data !== "request_start") return;
 
     bot.answerCallbackQuery(query.id);
-    startRequest(query.message.chat.id);
+    handleRequestCommand(bot, query.message.chat.id, groupChatId);
   });
 
-  bot.on("message", (msg) => {
-    if (!msg.text || msg.text.startsWith("/")) return;
+  bot.on("contact", (msg) => {
+    if (!msg.contact || !msg.from) return;
     const chatId = msg.chat.id;
-    const state = sessions.get(chatId);
-    if (!state) return;
+    const phone = msg.contact.phone_number;
+    savePhone(msg.from.id, phone);
 
-    if (state.step === "name") {
-      state.name = msg.text.trim();
-      state.step = "phone";
-      bot.sendMessage(chatId, "Ваш телефон для связи?");
-      return;
-    }
+    const user = getUser(msg.from.id);
+    if (!user) return;
 
-    if (state.step === "phone") {
-      state.phone = msg.text.trim();
-      state.step = "car";
-      bot.sendMessage(chatId, "Какой автомобиль интересует?");
-      return;
-    }
+    const carName = pendingCar.get(chatId);
+    pendingCar.delete(chatId);
+    finishRequest(bot, groupChatId, user, carName);
 
-    if (state.step === "car") {
-      const carInterest = msg.text.trim();
-      sessions.delete(chatId);
-
-      const username = msg.from?.username ? `@${msg.from.username}` : "не указан";
-
-      // Send to manager group
-      const groupMessage = [
-        "\u{1F514} Новая заявка с Telegram-бота!",
-        "",
-        `\u{1F464} Имя: ${state.name}`,
-        `\u{1F4F1} Телефон: ${state.phone}`,
-        `\u{1F697} Интересует: ${carInterest}`,
-        `\u{1F4E8} Telegram: ${username}`,
-        "",
-        "Источник: Telegram-бот",
-      ].join("\n");
-
-      bot.sendMessage(groupChatId, groupMessage).catch((err) => {
-        console.error("Failed to send lead to group:", err);
-      });
-
-      bot.sendMessage(
-        chatId,
-        "Спасибо! Ваша заявка отправлена. Менеджер свяжется с вами в ближайшее время.",
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "На главную", callback_data: "back_to_start" }],
-            ],
-          },
-        },
-      );
-      return;
-    }
+    bot.sendMessage(chatId, "\u2705 Заявка принята! Менеджер свяжется с вами.", {
+      reply_markup: {
+        keyboard: [[{ text: "\u{1F3E0} Главное меню" }]],
+        resize_keyboard: true,
+        persistent: true,
+      },
+    });
   });
 
-  bot.on("callback_query", (query) => {
-    if (query.data !== "back_to_start" || !query.message) return;
-    bot.answerCallbackQuery(query.id);
-    const chatId = query.message.chat.id;
-    bot.emit("text", { ...query.message, chat: { ...query.message.chat, id: chatId }, text: "/start" });
+  bot.onText(/\u2B05\uFE0F Отмена/, (msg) => {
+    pendingCar.delete(msg.chat.id);
+    bot.sendMessage(msg.chat.id, "Заявка отменена.", {
+      reply_markup: {
+        keyboard: [[{ text: "\u{1F3E0} Главное меню" }]],
+        resize_keyboard: true,
+        persistent: true,
+      },
+    });
   });
 }
