@@ -4,6 +4,7 @@ import { registerCalculatorHandler } from "./handlers/calculator";
 import { registerCatalogHandler } from "./handlers/catalog";
 import { registerContactHandler } from "./handlers/contact";
 import { registerRequestHandler } from "./handlers/request";
+import { registerAdminHandler } from "./handlers/admin";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GROUP_CHAT_ID = process.env.TELEGRAM_GROUP_CHAT_ID;
@@ -25,5 +26,6 @@ registerCalculatorHandler(bot);
 registerCatalogHandler(bot, GROUP_CHAT_ID);
 registerContactHandler(bot);
 registerRequestHandler(bot, GROUP_CHAT_ID);
+registerAdminHandler(bot);
 
 console.log("JCK AUTO Bot started");

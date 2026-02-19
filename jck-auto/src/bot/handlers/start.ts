@@ -2,8 +2,9 @@ import TelegramBot from "node-telegram-bot-api";
 import { handleCatalogCommand } from "./catalog";
 import { handleContactCommand } from "./contact";
 import { saveUser } from "../store/users";
+import { ADMIN_IDS } from "../config";
 
-async function sendStartMessage(bot: TelegramBot, chatId: number) {
+async function sendStartMessage(bot: TelegramBot, chatId: number, userId?: number) {
   await bot.sendMessage(
     chatId,
     [
@@ -31,9 +32,12 @@ async function sendStartMessage(bot: TelegramBot, chatId: number) {
     },
   );
 
-  await bot.sendMessage(chatId, "Выберите действие \u{1F447}", {
+  const isAdmin = userId ? ADMIN_IDS.includes(userId) : false;
+  const keyboard: { text: string }[][] = [[{ text: "🏠 Главное меню" }]];
+  if (isAdmin) keyboard.push([{ text: "📊 Статистика" }]);
+  await bot.sendMessage(chatId, "Выберите действие 👇", {
     reply_markup: {
-      keyboard: [[{ text: "\u{1F3E0} Главное меню" }]],
+      keyboard,
       resize_keyboard: true,
       persistent: true,
     },
@@ -42,11 +46,11 @@ async function sendStartMessage(bot: TelegramBot, chatId: number) {
 
 export function registerStartHandler(bot: TelegramBot) {
   bot.onText(/\/start/, async (msg) => {
-    if (msg.from) saveUser(msg.from);
+    if (msg.from) await saveUser(msg.from);
     const chatId = msg.chat.id;
     try {
       bot.sendChatAction(chatId, "typing");
-      await sendStartMessage(bot, chatId);
+      await sendStartMessage(bot, chatId, msg.from?.id);
     } catch (err) {
       console.error("Start command error:", err);
       bot.sendMessage(chatId, "Произошла ошибка. Попробуйте /start");
@@ -54,11 +58,11 @@ export function registerStartHandler(bot: TelegramBot) {
   });
 
   bot.onText(/Главное меню/, async (msg) => {
-    if (msg.from) saveUser(msg.from);
+    if (msg.from) await saveUser(msg.from);
     const chatId = msg.chat.id;
     try {
       bot.sendChatAction(chatId, "typing");
-      await sendStartMessage(bot, chatId);
+      await sendStartMessage(bot, chatId, msg.from?.id);
     } catch (err) {
       console.error("Main menu error:", err);
       bot.sendMessage(chatId, "Произошла ошибка. Попробуйте /start");
