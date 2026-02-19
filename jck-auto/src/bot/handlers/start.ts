@@ -60,6 +60,7 @@ export function registerStartHandler(bot: TelegramBot) {
     const chatId = msg.chat.id;
     try {
       bot.sendChatAction(chatId, "typing");
+      console.log("Calling sendStartMessage for", chatId);
       await sendStartMessage(bot, chatId);
     } catch (err) {
       console.error("Main menu error:", err);
