@@ -42,7 +42,7 @@ export default function LeadFormModal({ isOpen, onClose, carName }: LeadFormModa
           name: data.name,
           phone: data.phone,
           message: data.comment || `Интересует ${carName}`,
-          source: "catalog",
+          source: carName,
         }),
       });
       if (!res.ok) throw new Error("Failed");
