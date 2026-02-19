@@ -42,6 +42,7 @@ async function sendStartMessage(bot: TelegramBot, chatId: number) {
 
 export function registerStartHandler(bot: TelegramBot) {
   bot.onText(/\/start/, async (msg) => {
+    console.log("Received /start from", msg.from?.id, msg.from?.first_name);
     if (msg.from) saveUser(msg.from);
     const chatId = msg.chat.id;
     try {
@@ -54,6 +55,7 @@ export function registerStartHandler(bot: TelegramBot) {
   });
 
   bot.onText(/Главное меню/, async (msg) => {
+    console.log("Received Главное меню from", msg.from?.id);
     if (msg.from) saveUser(msg.from);
     const chatId = msg.chat.id;
     try {
