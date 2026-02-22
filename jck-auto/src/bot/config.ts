@@ -1,2 +1,2 @@
 // Admin Telegram IDs
-export const ADMIN_IDS = [1664298688];
+export const ADMIN_IDS = [1664298688, 355285735];
