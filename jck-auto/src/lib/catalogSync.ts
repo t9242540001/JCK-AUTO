@@ -209,23 +209,28 @@ export async function syncCatalog(): Promise<SyncResult> {
         }
       }
 
+      // @section: cover-selection
       // 4g. Upload photos (cover photo first, then alphabetical)
+      // Exclude the screenshot file from photos to prevent it appearing in gallery
+      const galleryPhotos = screenshot
+        ? files.photos.filter((f) => f.id !== screenshot.id)
+        : files.photos;
       console.log(
-        `[sync]   Uploading ${files.photos.length} photos...`
+        `[sync]   Uploading ${galleryPhotos.length} photos (excluded ${files.photos.length - galleryPhotos.length} screenshot)...`
       );
       const photoUrls: string[] = [];
 
-      const coverIdx = findCoverPhotoIndex(files.photos);
-      let orderedPhotos: typeof files.photos;
+      const coverIdx = findCoverPhotoIndex(galleryPhotos);
+      let orderedPhotos: typeof galleryPhotos;
       if (coverIdx >= 0) {
-        const cover = files.photos[coverIdx];
-        const rest = files.photos
+        const cover = galleryPhotos[coverIdx];
+        const rest = galleryPhotos
           .filter((_, i) => i !== coverIdx)
           .sort((a, b) => a.name.localeCompare(b.name));
         orderedPhotos = [cover, ...rest];
         console.log(`[sync]   Cover photo: "${cover.name}"`);
       } else {
-        orderedPhotos = [...files.photos];
+        orderedPhotos = [...galleryPhotos];
       }
 
       for (const photo of orderedPhotos) {
