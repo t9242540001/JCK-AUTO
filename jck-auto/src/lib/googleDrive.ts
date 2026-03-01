@@ -26,6 +26,7 @@ export interface DriveFile {
   id: string;
   name: string;
   mimeType: string;
+  size?: number;
 }
 
 export interface DriveCarFiles {
@@ -86,7 +87,8 @@ export async function listFolderFiles(
 
   const res = await drive.files.list({
     q: `'${folderId}' in parents and trashed = false`,
-    fields: "files(id, name, mimeType)",
+    fields: "files(id, name, mimeType, size)",
+    orderBy: "name",
     pageSize: 1000,
   });
 
@@ -94,20 +96,32 @@ export async function listFolderFiles(
     id: f.id!,
     name: f.name!,
     mimeType: f.mimeType!,
+    size: f.size ? Number(f.size) : undefined,
   }));
 
   const images = allFiles.filter((f) =>
     IMAGE_MIME_TYPES.includes(f.mimeType.toLowerCase())
   );
 
+  // @section: screenshot-detection
   let screenshots = images.filter((f) => isScreenshot(f.name));
   let photos = images.filter((f) => !isScreenshot(f.name));
 
-  // Fallback: if no screenshot detected, treat the first image as screenshot
+  // Fallback: if no screenshot detected, pick the largest image by file size
+  // (marketplace listing screenshots are typically heavier than car photos)
   if (screenshots.length === 0 && images.length > 0) {
-    screenshots = [images[0]];
-    photos = images.slice(1);
-    console.log(`[drive] Screenshot fallback (first image): ${images[0].name}`);
+    const hasSize = images.some((f) => f.size != null && f.size > 0);
+    let fallback: typeof images[0];
+    if (hasSize) {
+      fallback = images.reduce((a, b) => ((a.size ?? 0) >= (b.size ?? 0) ? a : b));
+      console.log(`[drive] Screenshot fallback (largest by size): ${fallback.name} (${fallback.size} bytes)`);
+    } else {
+      // @todo: size unavailable — falling back to first image (alphabetical due to orderBy)
+      fallback = images[0];
+      console.log(`[drive] Screenshot fallback (first image, no size): ${fallback.name}`);
+    }
+    screenshots = [fallback];
+    photos = images.filter((f) => f.id !== fallback.id);
   } else {
     for (const s of screenshots) {
       console.log(`[drive] Screenshot detected: ${s.name}`);
