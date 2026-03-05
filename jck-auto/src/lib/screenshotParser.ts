@@ -226,7 +226,7 @@ export async function parseCarMultipleScreenshots(
 function postProcessParsed(
   parsed: Record<string, unknown>,
   folderName: string,
-): Partial<Car> & { needsAiProcessing?: boolean } {
+): Partial<Car> & { needsAiProcessing?: boolean; priceWarning?: string } {
   const folderData = parseFromFolderName(folderName);
   const pick = <T>(aiVal: T | undefined | null, fallbackVal: T | undefined | null, defaultVal: T): T => {
     if (aiVal !== undefined && aiVal !== null && aiVal !== "" && aiVal !== 0) return aiVal;
@@ -240,6 +240,16 @@ function postProcessParsed(
   if (price > 0 && price < 500) {
     console.log(`[screenshotParser] Price ${price} looks like 万 units, converting: ${Math.round(price * 10000)}`);
     price = Math.round(price * 10000);
+  }
+  // @section: price-validation — reject prices outside 30k-500k yuan range
+  const MIN_PRICE_YUAN = 30_000;
+  const MAX_PRICE_YUAN = 500_000;
+  let priceWarning: string | undefined;
+  if (price > 0 && (price < MIN_PRICE_YUAN || price > MAX_PRICE_YUAN)) {
+    const slug = folderName || "unknown";
+    console.warn(`[WARNING] Suspicious price for ${slug}: ¥${price} — skipped`);
+    priceWarning = `Цена вне допустимого диапазона: ¥${price}`;
+    price = 0;
   }
   const engineVolume = pick(parsed.engineVolume as number, folderData.engineVolume, 0);
   const mileage = (parsed.mileage as number) ?? 0;
@@ -274,6 +284,7 @@ function postProcessParsed(
     condition: (parsed.condition as string) || "",
     features: (parsed.features as string[]) || [],
     needsAiProcessing: !hasGoodData,
+    ...(priceWarning ? { priceWarning } : {}),
   };
 }
 
