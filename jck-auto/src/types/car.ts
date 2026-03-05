@@ -25,6 +25,7 @@ export interface Car {
   needsAiProcessing?: boolean;
   priceRub?: number;
   exchangeRate?: number;
+  priceWarning?: string;
   priceCalculatedAt?: string;
   priceBreakdown?: {
     carPriceRub: number;
