@@ -16,6 +16,8 @@ import CarGallery from "@/components/catalog/CarGallery";
 import CarSpecs from "@/components/catalog/CarSpecs";
 import CarTrustBlock from "@/components/catalog/CarTrustBlock";
 import CarCard from "@/components/catalog/CarCard";
+import CarSidebarActions from "@/components/catalog/CarSidebarActions";
+import CarCtaActions from "@/components/catalog/CarCtaActions";
 import SocialFollow from "@/components/sections/SocialFollow";
 
 const DELIVERY_CITY: Record<string, string> = {
@@ -150,7 +152,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               {getCountryFlag(car.country)} {getCountryLabel(car.country)}
             </span>
 
-            <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl">
+            <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl break-words [overflow-wrap:anywhere]">
               {car.folderName.replace(/^Used\s+/i, "")}
             </h1>
 
@@ -181,12 +183,23 @@ export default async function CarDetailPage({ params }: PageProps) {
               </div>
             )}
 
-            {car.description && (
-              <p className="mt-4 text-text-muted">{car.description}</p>
+            {car.description && car.description.length > 100 && (
+              <div className="mt-4 rounded-xl bg-gray-50 p-4">
+                <p className="mb-1 text-sm font-medium text-gray-900">Описание</p>
+                <div className="space-y-3 text-sm leading-relaxed text-text-muted break-words [overflow-wrap:anywhere]">
+                  {car.description.split("\n\n").map((paragraph, i) => (
+                    <p key={i}>{paragraph}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {car.description && car.description.length <= 100 && (
+              <p className="mt-4 text-text-muted break-words [overflow-wrap:anywhere]">{car.description}</p>
             )}
 
             {car.condition && (
-              <div className="mt-4 inline-block rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 text-sm text-gray-600">
+              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 pr-14 text-sm text-gray-600 break-words [overflow-wrap:anywhere]">
                 Отметки: {car.condition}
               </div>
             )}
@@ -225,29 +238,11 @@ export default async function CarDetailPage({ params }: PageProps) {
               </ul>
             </div>
 
-            <p className="mt-4 text-xs text-gray-400 leading-relaxed">
+            <p className="mt-4 text-xs text-gray-400 leading-relaxed break-words">
               * Цена может измениться как в меньшую, так и в большую сторону в зависимости от курса валют и других факторов. Точную стоимость уточняйте у менеджера.
             </p>
 
-            <a
-              href={CONTACTS.telegram}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-6 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
-            >
-              <Send className="h-5 w-5" />
-              Написать в Telegram
-            </a>
-
-            <p className="mt-3 text-center text-sm text-text-muted">
-              Или позвоните:{" "}
-              <a
-                href={`tel:${CONTACTS.phoneRaw}`}
-                className="font-medium text-text transition-colors hover:text-primary"
-              >
-                {CONTACTS.phone}
-              </a>
-            </p>
+            <CarSidebarActions carName={`${brand} ${car.model} ${car.year}`} />
           </div>
         </div>
 
@@ -293,16 +288,7 @@ export default async function CarDetailPage({ params }: PageProps) {
           <p className="mx-auto mt-2 max-w-lg text-base text-white/80 sm:text-lg">
             Напишите нам — рассчитаем точную стоимость доставки под ключ
           </p>
-          <div className="mt-6 flex flex-col justify-center gap-4 sm:flex-row">
-            <a
-              href={CONTACTS.telegram}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
-            >
-              <Send className="h-5 w-5" />
-              Написать в Telegram
-            </a>
+          <div className="mt-6 space-y-4">
             <Link
               href="/calculator"
               className="flex items-center justify-center gap-2 rounded-xl border-2 border-white/30 px-8 py-4 font-medium text-white transition-colors hover:bg-white/10"
@@ -310,6 +296,7 @@ export default async function CarDetailPage({ params }: PageProps) {
               <Calculator className="h-5 w-5" />
               Рассчитать на калькуляторе
             </Link>
+            <CarCtaActions carName={`${brand} ${car.model} ${car.year}`} />
           </div>
         </section>
 

@@ -9,7 +9,9 @@
     "lint": "eslint",
     "sync-catalog": "tsx -r tsconfig-paths/register scripts/sync-catalog.ts",
     "fix-pending": "tsx -r tsconfig-paths/register scripts/fix-ai-pending.ts",
-    "process-pending": "tsx -r tsconfig-paths/register scripts/process-ai-pending.ts"
+    "process-pending": "tsx -r tsconfig-paths/register scripts/process-ai-pending.ts",
+    "bot": "tsx scripts/start-bot.ts",
+    "bot:dev": "tsx watch scripts/start-bot.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
@@ -32,6 +34,7 @@
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "next-mdx-remote": "^6.0.0",
+    "node-telegram-bot-api": "^0.67.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
@@ -43,6 +46,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/node-telegram-bot-api": "^0.64.13",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

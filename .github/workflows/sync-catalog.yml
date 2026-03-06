@@ -177,6 +177,18 @@ jobs:
           echo ""
           echo "=== AI processing complete ==="
 
+      # 3.5. Generate descriptions for cars that lack them
+      - name: "Step 3.5: Generate descriptions for cars without them"
+        if: success()
+        working-directory: jck-auto
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CATALOG_PATH: ./catalog.json
+        run: |
+          echo "=== Generating descriptions ==="
+          npx tsx scripts/generate-descriptions.ts
+          echo "=== Descriptions complete ==="
+
       # 4. SCP: upload updated catalog.json back to VDS
       - name: Upload catalog.json to VDS
         run: |
