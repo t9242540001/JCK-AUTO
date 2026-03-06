@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { readCatalogJson } from "../../lib/blobStorage";
-import { pendingCar, handleRequestCommand } from "./request";
+import { pendingSource, handleRequestCommand } from "./request";
 
 export async function handleCatalogCommand(bot: TelegramBot, chatId: number): Promise<void> {
   try {
@@ -69,7 +69,7 @@ export function registerCatalogHandler(bot: TelegramBot, groupChatId: string) {
     const car = cars.find((c) => c.id === carId);
     const carName = car ? `${car.brand} ${car.model} ${car.year}` : carId;
 
-    pendingCar.set(chatId, carName);
+    pendingSource.set(chatId, `https://jckauto.ru/catalog/${carId}`);
     handleRequestCommand(bot, chatId, groupChatId);
   });
 }
