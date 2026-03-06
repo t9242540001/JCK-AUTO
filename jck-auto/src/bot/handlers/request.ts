@@ -2,6 +2,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { getUser, savePhone, type BotUser } from "../store/users";
 
 export const pendingSource = new Map<number, string>();
+export const pendingPhone = new Set<number>();
 
 function finishRequest(bot: TelegramBot, groupChatId: string, user: BotUser, source?: string) {
   const username = user.username ? `@${user.username}` : "не указан";
@@ -45,7 +46,8 @@ export function handleRequestCommand(bot: TelegramBot, chatId: number, groupChat
     return;
   }
 
-  // Ask for phone via contact sharing
+  // Ask for phone
+  pendingPhone.add(chatId);
   bot.sendMessage(
     chatId,
     `${user.firstName}, чтобы менеджер связался с вами — поделитесь номером телефона:`,
@@ -74,15 +76,16 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
   bot.on("contact", async (msg) => {
     if (!msg.contact || !msg.from) return;
     const chatId = msg.chat.id;
+    pendingPhone.delete(chatId);
     const phone = msg.contact.phone_number;
     await savePhone(msg.from.id, phone);
 
     const user = getUser(msg.from.id);
     if (!user) return;
 
-    const carName = pendingSource.get(chatId);
+    const source = pendingSource.get(chatId);
     pendingSource.delete(chatId);
-    finishRequest(bot, groupChatId, user, carName);
+    finishRequest(bot, groupChatId, user, source);
 
     bot.sendMessage(chatId, "\u2705 Заявка принята! Менеджер свяжется с вами.", {
       reply_markup: {
@@ -93,8 +96,35 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
     });
   });
 
+  bot.on("message", async (msg) => {
+    if (!msg.text || !msg.from) return;
+    const chatId = msg.chat.id;
+    if (!pendingPhone.has(chatId)) return;
+    // Проверить что текст похож на номер телефона (7+ цифр)
+    const digits = msg.text.replace(/\D/g, "");
+    if (digits.length < 7) {
+      bot.sendMessage(chatId, "Пожалуйста, нажмите кнопку «📱 Поделиться номером».");
+      return;
+    }
+    pendingPhone.delete(chatId);
+    await savePhone(msg.from.id, digits);
+    const user = getUser(msg.from.id);
+    if (!user) return;
+    const source = pendingSource.get(chatId) || "Telegram-бот (прямая заявка)";
+    pendingSource.delete(chatId);
+    finishRequest(bot, groupChatId, user, source);
+    bot.sendMessage(chatId, "✅ Заявка принята! Менеджер свяжется с вами.", {
+      reply_markup: {
+        keyboard: [[{ text: "🏠 Главное меню" }]],
+        resize_keyboard: true,
+        persistent: true,
+      },
+    });
+  });
+
   bot.onText(/\u2B05\uFE0F Отмена/, (msg) => {
     pendingSource.delete(msg.chat.id);
+    pendingPhone.delete(msg.chat.id);
     bot.sendMessage(msg.chat.id, "Заявка отменена.", {
       reply_markup: {
         keyboard: [[{ text: "\u{1F3E0} Главное меню" }]],
