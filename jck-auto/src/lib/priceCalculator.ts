@@ -53,7 +53,7 @@ export interface PriceParams {
 
 function getAgeCategory(years: number): AgeCategory {
   if (years < 3) return "under3";
-  if (years < 5) return "3to5";
+  if (years <= 5) return "3to5"; // @important: 5 лет включительно → 3to5, только >5 → over5
   return "over5";
 }
 
