@@ -1,6 +1,7 @@
 /**
  * @file reset-price-2021.ts
- * @description Сбрасывает priceCalculatedAt для авто 2021 года чтобы workflow пересчитал цены после фикса границы возраста ЕТС
+ * @description Сбрасывает priceCalculatedAt/priceRub/priceBreakdown для авто 2021 года,
+ *              чтобы workflow пересчитал цены после фикса границы возраста ЕТС (years<=5)
  * @runs VDS
  * @triggers пользователь (однократно после деплоя фикса)
  * @input /var/www/jckauto/storage/catalog/catalog.json
@@ -8,7 +9,6 @@
  */
 
 import * as fs from "fs";
-import * as path from "path";
 
 const CATALOG_PATH =
   process.env.CATALOG_PATH ||
