@@ -234,6 +234,93 @@ const directResult = calculatePriceFromParams(
 );
 assertEqual(carResult.totalRub, directResult.totalRub, "Car wrapper matches direct call");
 
+/* ── Test 6: Age boundary tests ──────────────────── @section: age-boundary-tests */
+
+console.log("\n=== Test 6: Age boundary (getAgeCategory via calculatePriceFromParams) ===");
+
+// All tests use same params: 1.5L (1500cc), 130hp, ¥80000
+// ETS rates: under3 = price-based, 3to5 = 1.7 EUR/cc, over5 = 3.2 EUR/cc
+// So 3to5 ETS = round(1500 * 1.7 * 91.25) = 232_688
+// And over5 ETS = round(1500 * 3.2 * 91.25) = 438_000
+const ets3to5_1500 = Math.round(1500 * 1.7 * eur);
+const etsOver5_1500 = Math.round(1500 * 3.2 * eur);
+
+function ageBoundaryResult(age: number) {
+  return calculatePriceFromParams(
+    { priceYuan: 80_000, engineVolumeLiters: 1.5, horsePower: 130, carAgeYears: age },
+    TEST_RATES,
+  );
+}
+
+// 0 лет → under3 (ETS по цене, не фиксированная ставка)
+const age0 = ageBoundaryResult(0);
+assert(
+  age0.breakdown.customsDuty !== ets3to5_1500 && age0.breakdown.customsDuty !== etsOver5_1500,
+  "Age 0 → under3 (ETS price-based, not volume-rate)",
+);
+
+// 2 года → under3
+const age2 = ageBoundaryResult(2);
+assertEqual(age2.breakdown.customsDuty, age0.breakdown.customsDuty, "Age 2 → under3 (same ETS as age 0)");
+
+// 3 года → 3to5 (не under3)
+const age3 = ageBoundaryResult(3);
+assertEqual(age3.breakdown.customsDuty, ets3to5_1500, "Age 3 → 3to5 (ETS = 1500 × 1.7 × EUR)");
+
+// 4 года → 3to5
+const age4 = ageBoundaryResult(4);
+assertEqual(age4.breakdown.customsDuty, ets3to5_1500, "Age 4 → 3to5");
+
+// 5 лет → 3to5 (КЛЮЧЕВОЙ КЕЙС — был баг years < 5 вместо years <= 5!)
+const age5 = ageBoundaryResult(5);
+assertEqual(age5.breakdown.customsDuty, ets3to5_1500, "Age 5 → 3to5 (KEY FIX: was bug, 5yr inclusive)");
+
+// 6 лет → over5
+const age6 = ageBoundaryResult(6);
+assertEqual(age6.breakdown.customsDuty, etsOver5_1500, "Age 6 → over5 (ETS = 1500 × 3.2 × EUR)");
+
+// 10 лет → over5 (средний возраст)
+const age10 = ageBoundaryResult(10);
+assertEqual(age10.breakdown.customsDuty, etsOver5_1500, "Age 10 → over5");
+
+// 20 лет → over5 (очень старое авто)
+const age20 = ageBoundaryResult(20);
+assertEqual(age20.breakdown.customsDuty, etsOver5_1500, "Age 20 → over5 (very old, no crash)");
+
+/* ── Test 7: ETS bracket boundary tests ─────────── @section: ets-bracket-tests */
+
+console.log("\n=== Test 7: ETS bracket boundaries (3to5 table) ===");
+
+// 1500cc, age=4 → rate 1.7 (верхняя граница брекета ≤1500 включительно)
+assertEqual(getETS(1500, "3to5", eur), Math.round(1500 * 1.7 * eur), "ETS 1500cc age=4 → 1.7 (boundary inclusive)");
+
+// 1501cc, age=4 → rate 2.5 (следующий брекет ≤1800)
+assertEqual(getETS(1501, "3to5", eur), Math.round(1501 * 2.5 * eur), "ETS 1501cc age=4 → 2.5 (next bracket)");
+
+// 1800cc, age=4 → rate 2.5 (верхняя граница ≤1800 включительно)
+assertEqual(getETS(1800, "3to5", eur), Math.round(1800 * 2.5 * eur), "ETS 1800cc age=4 → 2.5 (boundary inclusive)");
+
+// 1801cc, age=4 → rate 2.7 (следующий брекет ≤2300)
+assertEqual(getETS(1801, "3to5", eur), Math.round(1801 * 2.7 * eur), "ETS 1801cc age=4 → 2.7 (next bracket)");
+
+/* ── Test 8: Recycling fee boundary tests ───────── @section: recycling-boundary-tests */
+
+console.log("\n=== Test 8: Recycling fee boundaries ===");
+
+// hp=160, volume=1.5L, age=5 → льготный, граница включительно → 5,200 ₽
+assertEqual(getRecyclingFee(160, 1.5, 5), Math.round(20_000 * 0.26), "Recycling hp=160 vol=1.5 age=5 → preferential 5,200 (hp boundary inclusive)");
+
+// hp=161, volume=1.5L, age=5 → коммерческий (hp > 160)
+const recycling161 = getRecyclingFee(161, 1.5, 5);
+assert(recycling161 > 1_000_000, `Recycling hp=161 vol=1.5 age=5 → commercial ${recycling161.toLocaleString("ru-RU")} > 1,000,000`);
+
+// hp=130, volume=3.0L, age=5 → льготный (граница объёма включительно)
+assertEqual(getRecyclingFee(130, 3.0, 5), Math.round(20_000 * 0.26), "Recycling hp=130 vol=3.0 age=5 → preferential 5,200 (volume boundary inclusive)");
+
+// hp=130, volume=3.1L, age=5 → коммерческий (объём > 3000cc)
+const recycling31 = getRecyclingFee(130, 3.1, 5);
+assert(recycling31 > 1_000_000, `Recycling hp=130 vol=3.1 age=5 → commercial ${recycling31.toLocaleString("ru-RU")} > 1,000,000`);
+
 /* ── Summary ─────────────────────────────────────────────────────────── */
 
 console.log(`\n${"=".repeat(50)}`);
