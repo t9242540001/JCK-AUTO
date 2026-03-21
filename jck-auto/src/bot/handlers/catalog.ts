@@ -115,11 +115,9 @@ async function sendCarCard(
   brand: string,
   index: number,
 ): Promise<void> {
-  console.log(`[catalog] sendCarCard brand=${brand} index=${index}`);
   const available = await getAvailableCars();
   const groups = groupByBrand(available);
   const cars = groups.get(brand);
-  console.log(`[catalog] sendCarCard brand=${brand} found=${cars?.length ?? 0} keys=[${[...groups.keys()].join(",")}]`);
   if (!cars || cars.length === 0) return;
 
   const i = ((index % cars.length) + cars.length) % cars.length;
@@ -127,17 +125,22 @@ async function sendCarCard(
   const caption = formatCarCaption(car);
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
-  try {
-    if (car.photos.length > 0) {
+  if (car.photos.length > 0) {
+    try {
       await bot.sendPhoto(chatId, `https://jckauto.ru${car.photos[0]}`, {
         caption,
         reply_markup: { inline_keyboard: keyboard },
       });
-    } else {
-      await bot.sendMessage(chatId, caption, {
-        reply_markup: { inline_keyboard: keyboard },
-      });
+      return;
+    } catch (err: any) {
+      console.log(`[catalog] photo failed for ${car.id}, sending text`);
     }
+  }
+
+  try {
+    await bot.sendMessage(chatId, caption, {
+      reply_markup: { inline_keyboard: keyboard },
+    });
   } catch (err: any) {
     console.error("[catalog] sendCarCard error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
   }
@@ -150,7 +153,6 @@ async function editCarCard(
   brand: string,
   index: number,
 ): Promise<void> {
-  console.log(`[catalog] editCarCard brand=${brand} index=${index}`);
   const available = await getAvailableCars();
   const groups = groupByBrand(available);
   const cars = groups.get(brand);
@@ -184,6 +186,8 @@ async function editCarCard(
     }
   } catch (err: any) {
     console.error("[catalog] editCarCard error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    try { await bot.deleteMessage(chatId, messageId); } catch {}
+    await sendCarCard(bot, chatId, brand, i);
   }
 }
 
@@ -199,8 +203,6 @@ export function registerCatalogHandler(bot: TelegramBot, groupChatId: string) {
     const chatId = query.message.chat.id;
     const msgId = query.message.message_id;
     const data = query.data;
-
-    console.log(`[catalog] callback: ${data} chat: ${chatId}`);
 
     // noop — just dismiss spinner
     if (data === "noop") {
