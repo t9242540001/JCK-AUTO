@@ -33,6 +33,13 @@ if (customApiUrl) {
 
 const bot = new TelegramBot(BOT_TOKEN, botOptions);
 
+bot.on('message', (msg) => {
+  console.log(`[bot] message: ${msg.text?.slice(0, 30) || 'no text'} from ${msg.chat.id}`);
+});
+bot.on('callback_query', (query) => {
+  console.log(`[bot] callback: ${query.data} from ${query.message?.chat.id}`);
+});
+
 registerStartHandler(bot);
 registerCalculatorHandler(bot);
 registerCatalogHandler(bot, GROUP_CHAT_ID);
