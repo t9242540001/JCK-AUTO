@@ -115,9 +115,11 @@ async function sendCarCard(
   brand: string,
   index: number,
 ): Promise<void> {
+  console.log(`[catalog] sendCarCard brand=${brand} index=${index}`);
   const available = await getAvailableCars();
   const groups = groupByBrand(available);
   const cars = groups.get(brand);
+  console.log(`[catalog] sendCarCard brand=${brand} found=${cars?.length ?? 0} keys=[${[...groups.keys()].join(",")}]`);
   if (!cars || cars.length === 0) return;
 
   const i = ((index % cars.length) + cars.length) % cars.length;
@@ -136,8 +138,8 @@ async function sendCarCard(
         reply_markup: { inline_keyboard: keyboard },
       });
     }
-  } catch (err) {
-    console.error("sendCarCard error:", err);
+  } catch (err: any) {
+    console.error("[catalog] sendCarCard error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
   }
 }
 
@@ -148,6 +150,7 @@ async function editCarCard(
   brand: string,
   index: number,
 ): Promise<void> {
+  console.log(`[catalog] editCarCard brand=${brand} index=${index}`);
   const available = await getAvailableCars();
   const groups = groupByBrand(available);
   const cars = groups.get(brand);
@@ -179,8 +182,8 @@ async function editCarCard(
         reply_markup: { inline_keyboard: keyboard },
       });
     }
-  } catch (err) {
-    console.error("editCarCard error:", err);
+  } catch (err: any) {
+    console.error("[catalog] editCarCard error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
   }
 }
 
@@ -196,6 +199,8 @@ export function registerCatalogHandler(bot: TelegramBot, groupChatId: string) {
     const chatId = query.message.chat.id;
     const msgId = query.message.message_id;
     const data = query.data;
+
+    console.log(`[catalog] callback: ${data} chat: ${chatId}`);
 
     // noop — just dismiss spinner
     if (data === "noop") {
