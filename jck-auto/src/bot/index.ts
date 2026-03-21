@@ -19,7 +19,13 @@ if (!GROUP_CHAT_ID) {
   process.exit(1);
 }
 
-const botOptions: TelegramBot.ConstructorOptions = { polling: true };
+const botOptions: TelegramBot.ConstructorOptions = {
+  polling: {
+    params: {
+      timeout: 10,
+    },
+  },
+};
 const customApiUrl = process.env.TELEGRAM_API_BASE_URL;
 if (customApiUrl) {
   botOptions.baseApiUrl = customApiUrl;
