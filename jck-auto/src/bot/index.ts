@@ -19,7 +19,13 @@ if (!GROUP_CHAT_ID) {
   process.exit(1);
 }
 
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+const botOptions: TelegramBot.ConstructorOptions = { polling: true };
+const customApiUrl = process.env.TELEGRAM_API_BASE_URL;
+if (customApiUrl) {
+  botOptions.baseApiUrl = customApiUrl;
+}
+
+const bot = new TelegramBot(BOT_TOKEN, botOptions);
 
 registerStartHandler(bot);
 registerCalculatorHandler(bot);
@@ -28,4 +34,7 @@ registerContactHandler(bot);
 registerRequestHandler(bot, GROUP_CHAT_ID);
 registerAdminHandler(bot);
 
+if (customApiUrl) {
+  console.log(`Using custom Telegram API: ${customApiUrl}`);
+}
 console.log("JCK AUTO Bot started");
