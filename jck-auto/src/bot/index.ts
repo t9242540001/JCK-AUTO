@@ -19,11 +19,11 @@ if (!GROUP_CHAT_ID) {
   process.exit(1);
 }
 
+const WEBHOOK_PORT = parseInt(process.env.WEBHOOK_PORT || '8443', 10);
+
 const botOptions: TelegramBot.ConstructorOptions = {
-  polling: {
-    params: {
-      timeout: 10,
-    },
+  webHook: {
+    port: WEBHOOK_PORT,
   },
 };
 const customApiUrl = process.env.TELEGRAM_API_BASE_URL;
@@ -40,7 +40,15 @@ registerContactHandler(bot);
 registerRequestHandler(bot, GROUP_CHAT_ID);
 registerAdminHandler(bot);
 
+bot.on('webhook_error', (error: any) => {
+  console.error(`Webhook error: ${error?.message || error}`);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  console.error('Unhandled rejection:', reason?.message || reason);
+});
+
+console.log(`JCK AUTO Bot started (webhook mode, port ${WEBHOOK_PORT})`);
 if (customApiUrl) {
-  console.log(`Using custom Telegram API: ${customApiUrl}`);
+  console.log(`Outgoing API via: ${customApiUrl}`);
 }
-console.log("JCK AUTO Bot started");
