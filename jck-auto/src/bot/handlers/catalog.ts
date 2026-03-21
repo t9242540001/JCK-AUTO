@@ -126,14 +126,16 @@ async function sendCarCard(
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
   if (car.photos.length > 0) {
+    const photoUrl = `https://jckauto.ru${car.photos[0]}`;
     try {
-      await bot.sendPhoto(chatId, `https://jckauto.ru${car.photos[0]}`, {
+      await bot.sendPhoto(chatId, photoUrl, {
         caption,
         reply_markup: { inline_keyboard: keyboard },
       });
       return;
-    } catch (err: any) {
-      console.log(`[catalog] photo failed for ${car.id}, sending text`);
+    } catch (photoErr: any) {
+      console.error(`[catalog] sendPhoto FAILED car=${car.id} photo=${photoUrl} error=${photoErr?.message || photoErr}`);
+      console.log(`[catalog] fallback to text car=${car.id}`);
     }
   }
 
@@ -142,7 +144,7 @@ async function sendCarCard(
       reply_markup: { inline_keyboard: keyboard },
     });
   } catch (err: any) {
-    console.error("[catalog] sendCarCard error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    console.error(`[catalog] sendMessage FAILED car=${car.id} error=${err?.message || err}`);
   }
 }
 
@@ -163,29 +165,30 @@ async function editCarCard(
   const caption = formatCarCaption(car);
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
-  try {
-    if (car.photos.length > 0) {
+  if (car.photos.length > 0) {
+    const photoUrl = `https://jckauto.ru${car.photos[0]}`;
+    try {
       await bot.editMessageMedia(
-        {
-          type: "photo",
-          media: `https://jckauto.ru${car.photos[0]}`,
-          caption,
-        },
-        {
-          chat_id: chatId,
-          message_id: messageId,
-          reply_markup: { inline_keyboard: keyboard },
-        },
+        { type: "photo", media: photoUrl, caption },
+        { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: keyboard } },
       );
-    } else {
-      await bot.editMessageText(caption, {
-        chat_id: chatId,
-        message_id: messageId,
-        reply_markup: { inline_keyboard: keyboard },
-      });
+      return;
+    } catch (editErr: any) {
+      console.error(`[catalog] editMedia FAILED car=${car.id} photo=${photoUrl} error=${editErr?.message || editErr}`);
+      try { await bot.deleteMessage(chatId, messageId); } catch {}
+      await sendCarCard(bot, chatId, brand, i);
+      return;
     }
-  } catch (err: any) {
-    console.error("[catalog] editCarCard error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+  }
+
+  try {
+    await bot.editMessageText(caption, {
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: { inline_keyboard: keyboard },
+    });
+  } catch (editErr: any) {
+    console.error(`[catalog] editText FAILED car=${car.id} error=${editErr?.message || editErr}`);
     try { await bot.deleteMessage(chatId, messageId); } catch {}
     await sendCarCard(bot, chatId, brand, i);
   }
