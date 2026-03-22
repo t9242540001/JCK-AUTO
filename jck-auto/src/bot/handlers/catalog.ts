@@ -1,18 +1,47 @@
 import TelegramBot from "node-telegram-bot-api";
+import * as fs from "fs";
+import * as path from "path";
 import { readCatalogJson } from "../../lib/blobStorage";
 import { pendingSource, handleRequestCommand } from "./request";
 import type { Car } from "../../types/car";
 
 /* ── CONSTANTS ─────────────────────────────────────────────────────────── */
 
-const PHOTO_BASE = process.env.TELEGRAM_API_BASE_URL
-  ? `${process.env.TELEGRAM_API_BASE_URL}/photo`
-  : "https://jckauto.ru";
+const CATALOG_STORAGE_PATH = "/var/www/jckauto/storage/catalog";
+const PHOTO_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
 /* ── HELPERS ──────────────────────────────────────────────────────────── */
 
-function toJpgUrl(photoPath: string): string {
-  return photoPath.replace(/\.jpeg$/i, ".jpg");
+function logTs(level: "log" | "error", ...args: unknown[]): void {
+  const ts = new Date().toISOString();
+  if (level === "error") {
+    console.error(`[${ts}]`, ...args);
+  } else {
+    console.log(`[${ts}]`, ...args);
+  }
+}
+
+/**
+ * Resolve car.photos[0] (e.g. "/storage/catalog/slug/1.jpg") to an absolute
+ * path on disk. If the exact file doesn't exist, try alternative extensions.
+ * Returns null if no file found.
+ */
+function resolvePhotoPath(photoRelative: string): string | null {
+  // Strip leading "/storage/catalog/" to get "slug/filename.ext"
+  const stripped = photoRelative.replace(/^\/storage\/catalog\//, "");
+  const absolute = path.join(CATALOG_STORAGE_PATH, stripped);
+
+  if (fs.existsSync(absolute)) return absolute;
+
+  // Try alternative extensions
+  const parsed = path.parse(absolute);
+  for (const ext of PHOTO_EXTENSIONS) {
+    if (ext === parsed.ext) continue;
+    const alt = path.join(parsed.dir, parsed.name + ext);
+    if (fs.existsSync(alt)) return alt;
+  }
+
+  return null;
 }
 
 function toTitleCase(s: string): string {
@@ -114,7 +143,7 @@ export async function handleCatalogCommand(bot: TelegramBot, chatId: number): Pr
       reply_markup: { inline_keyboard: brandButtons(groups) },
     });
   } catch (err) {
-    console.error("Catalog error:", err);
+    logTs("error", "[catalog] handleCatalogCommand error:", err);
     bot.sendMessage(chatId, "Не удалось загрузить каталог. Попробуйте позже.");
   }
 }
@@ -136,16 +165,19 @@ async function sendCarCard(
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
   if (car.photos.length > 0) {
-    const photoUrl = `${PHOTO_BASE}${toJpgUrl(car.photos[0])}`;
-    try {
-      await bot.sendPhoto(chatId, photoUrl, {
-        caption,
-        reply_markup: { inline_keyboard: keyboard },
-      });
-      return;
-    } catch (photoErr: any) {
-      console.error(`[catalog] sendPhoto FAILED car=${car.id} photo=${photoUrl} error=${photoErr?.message || photoErr}`);
-      console.log(`[catalog] fallback to text car=${car.id}`);
+    const filePath = resolvePhotoPath(car.photos[0]);
+    if (filePath) {
+      try {
+        await bot.sendPhoto(chatId, fs.createReadStream(filePath), {
+          caption,
+          reply_markup: { inline_keyboard: keyboard },
+        });
+        return;
+      } catch (photoErr: any) {
+        logTs("error", `[catalog] sendPhoto FAILED car=${car.id} file=${filePath} error=${photoErr?.message || photoErr}`);
+      }
+    } else {
+      logTs("log", `[catalog] photo not found on disk car=${car.id} path=${car.photos[0]}`);
     }
   }
 
@@ -154,7 +186,7 @@ async function sendCarCard(
       reply_markup: { inline_keyboard: keyboard },
     });
   } catch (err: any) {
-    console.error(`[catalog] sendMessage FAILED car=${car.id} error=${err?.message || err}`);
+    logTs("error", `[catalog] sendMessage FAILED car=${car.id} error=${err?.message || err}`);
   }
 }
 
@@ -176,18 +208,28 @@ async function editCarCard(
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
   if (car.photos.length > 0) {
-    const photoUrl = `${PHOTO_BASE}${toJpgUrl(car.photos[0])}`;
-    try {
-      await bot.editMessageMedia(
-        { type: "photo", media: photoUrl, caption },
-        { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: keyboard } },
-      );
-      return;
-    } catch (editErr: any) {
-      console.error(`[catalog] editMedia FAILED car=${car.id} photo=${photoUrl} error=${editErr?.message || editErr}`);
-      try { await bot.deleteMessage(chatId, messageId); } catch {}
-      await sendCarCard(bot, chatId, brand, i);
-      return;
+    const filePath = resolvePhotoPath(car.photos[0]);
+    if (filePath) {
+      try {
+        const stream = fs.createReadStream(filePath);
+        await bot.editMessageMedia(
+          { type: "photo", media: "attach://photo", caption },
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: { inline_keyboard: keyboard },
+          },
+          { photo: stream } as any,
+        );
+        return;
+      } catch (editErr: any) {
+        logTs("error", `[catalog] editMedia FAILED car=${car.id} file=${filePath} error=${editErr?.message || editErr}`);
+        try { await bot.deleteMessage(chatId, messageId); } catch {}
+        await sendCarCard(bot, chatId, brand, i);
+        return;
+      }
+    } else {
+      logTs("log", `[catalog] photo not found on disk car=${car.id} path=${car.photos[0]}`);
     }
   }
 
@@ -198,7 +240,7 @@ async function editCarCard(
       reply_markup: { inline_keyboard: keyboard },
     });
   } catch (editErr: any) {
-    console.error(`[catalog] editText FAILED car=${car.id} error=${editErr?.message || editErr}`);
+    logTs("error", `[catalog] editText FAILED car=${car.id} error=${editErr?.message || editErr}`);
     try { await bot.deleteMessage(chatId, messageId); } catch {}
     await sendCarCard(bot, chatId, brand, i);
   }
@@ -229,7 +271,7 @@ export function registerCatalogHandler(bot: TelegramBot, groupChatId: string) {
       try {
         await bot.deleteMessage(chatId, msgId);
       } catch (err) {
-        console.error("deleteMessage error:", err);
+        logTs("error", "[catalog] deleteMessage error:", err);
       }
       await handleCatalogCommand(bot, chatId);
       return;
