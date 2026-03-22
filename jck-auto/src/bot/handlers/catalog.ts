@@ -11,6 +11,10 @@ const PHOTO_BASE = process.env.TELEGRAM_API_BASE_URL
 
 /* ── HELPERS ──────────────────────────────────────────────────────────── */
 
+function toJpgUrl(photoPath: string): string {
+  return photoPath.replace(/\.jpeg$/i, ".jpg");
+}
+
 function toTitleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
@@ -132,7 +136,7 @@ async function sendCarCard(
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
   if (car.photos.length > 0) {
-    const photoUrl = `${PHOTO_BASE}${car.photos[0]}`;
+    const photoUrl = `${PHOTO_BASE}${toJpgUrl(car.photos[0])}`;
     try {
       await bot.sendPhoto(chatId, photoUrl, {
         caption,
@@ -172,7 +176,7 @@ async function editCarCard(
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
   if (car.photos.length > 0) {
-    const photoUrl = `${PHOTO_BASE}${car.photos[0]}`;
+    const photoUrl = `${PHOTO_BASE}${toJpgUrl(car.photos[0])}`;
     try {
       await bot.editMessageMedia(
         { type: "photo", media: photoUrl, caption },
