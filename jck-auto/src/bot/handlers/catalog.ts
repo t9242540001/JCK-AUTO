@@ -3,6 +3,12 @@ import { readCatalogJson } from "../../lib/blobStorage";
 import { pendingSource, handleRequestCommand } from "./request";
 import type { Car } from "../../types/car";
 
+/* ── CONSTANTS ─────────────────────────────────────────────────────────── */
+
+const PHOTO_BASE = process.env.TELEGRAM_API_BASE_URL
+  ? `${process.env.TELEGRAM_API_BASE_URL}/photo`
+  : "https://jckauto.ru";
+
 /* ── HELPERS ──────────────────────────────────────────────────────────── */
 
 function toTitleCase(s: string): string {
@@ -126,7 +132,7 @@ async function sendCarCard(
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
   if (car.photos.length > 0) {
-    const photoUrl = `https://jckauto.ru${car.photos[0]}`;
+    const photoUrl = `${PHOTO_BASE}${car.photos[0]}`;
     try {
       await bot.sendPhoto(chatId, photoUrl, {
         caption,
@@ -166,7 +172,7 @@ async function editCarCard(
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
 
   if (car.photos.length > 0) {
-    const photoUrl = `https://jckauto.ru${car.photos[0]}`;
+    const photoUrl = `${PHOTO_BASE}${car.photos[0]}`;
     try {
       await bot.editMessageMedia(
         { type: "photo", media: photoUrl, caption },
