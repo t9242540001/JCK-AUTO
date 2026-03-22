@@ -18,9 +18,11 @@ export async function uploadCarPhoto(
 ): Promise<string> {
   const dir = path.join(CATALOG_DIR, carSlug);
   await fs.mkdir(dir, { recursive: true });
-  const filePath = path.join(dir, fileName);
+  // Normalize .jpeg → .jpg for consistency
+  const normalizedName = fileName.replace(/\.jpeg$/i, ".jpg");
+  const filePath = path.join(dir, normalizedName);
   await fs.writeFile(filePath, buffer);
-  return `/storage/catalog/${carSlug}/${fileName}`;
+  return `/storage/catalog/${carSlug}/${normalizedName}`;
 }
 
 /**
