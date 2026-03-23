@@ -307,7 +307,10 @@ async function main() {
     return;
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({
+    apiKey,
+    baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
+  });
 
   let processed = 0;
   let errors = 0;

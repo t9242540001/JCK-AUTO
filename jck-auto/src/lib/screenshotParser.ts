@@ -164,7 +164,7 @@ export async function parseCarMultipleScreenshots(
   const sorted = [...images].sort((a, b) => b.buffer.length - a.buffer.length);
   const selected = sorted.slice(0, 5);
 
-  const client = new Anthropic({ apiKey: getAnthropicApiKey() });
+  const client = new Anthropic({ apiKey: getAnthropicApiKey(), baseURL: process.env.ANTHROPIC_BASE_URL || undefined });
   const allowedMime = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
   const imageContent: Anthropic.Messages.ImageBlockParam[] = selected.map((img) => ({
@@ -291,7 +291,7 @@ function postProcessParsed(
 export async function parseCarScreenshot(
   imageBuffer: Buffer, folderName: string, retry = false, mimeType = "image/jpeg",
 ): Promise<Partial<Car> & { needsAiProcessing?: boolean }> {
-  const client = new Anthropic({ apiKey: getAnthropicApiKey() });
+  const client = new Anthropic({ apiKey: getAnthropicApiKey(), baseURL: process.env.ANTHROPIC_BASE_URL || undefined });
   const base64 = imageBuffer.toString("base64");
   const allowedMime = ["image/jpeg", "image/png", "image/webp", "image/gif"];
   const normalizedMime = allowedMime.includes(mimeType) ? mimeType : "image/jpeg";
