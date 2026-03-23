@@ -5,6 +5,7 @@ import { registerCatalogHandler } from "./handlers/catalog";
 import { registerContactHandler } from "./handlers/contact";
 import { registerRequestHandler } from "./handlers/request";
 import { registerAdminHandler } from "./handlers/admin";
+import { loadCache } from "./fileIdCache";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GROUP_CHAT_ID = process.env.TELEGRAM_GROUP_CHAT_ID;
@@ -32,6 +33,10 @@ if (customApiUrl) {
 }
 
 const bot = new TelegramBot(BOT_TOKEN, botOptions);
+
+// Load file_id cache before registering handlers
+const cacheEntries = loadCache();
+console.log(`[bot] file_id cache loaded: ${cacheEntries} entries`);
 
 bot.on('message', (msg) => {
   console.log(`[bot] message: ${msg.text?.slice(0, 30) || 'no text'} from ${msg.chat.id}`);

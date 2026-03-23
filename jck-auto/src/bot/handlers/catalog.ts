@@ -1,14 +1,18 @@
 import TelegramBot from "node-telegram-bot-api";
-import * as fs from "fs";
+import { existsSync } from "fs";
 import * as path from "path";
 import { readCatalogJson } from "../../lib/blobStorage";
 import { pendingSource, handleRequestCommand } from "./request";
+import { getFileId, setFileId, deleteFileId } from "../fileIdCache";
 import type { Car } from "../../types/car";
 
 /* ── CONSTANTS ─────────────────────────────────────────────────────────── */
 
 const CATALOG_STORAGE_PATH = "/var/www/jckauto/storage/catalog";
 const PHOTO_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+const PHOTO_BASE = process.env.TELEGRAM_API_BASE_URL
+  ? `${process.env.TELEGRAM_API_BASE_URL}/photo`
+  : "https://jckauto.ru";
 
 /* ── HELPERS ──────────────────────────────────────────────────────────── */
 
@@ -31,14 +35,14 @@ function resolvePhotoPath(photoRelative: string): string | null {
   const stripped = photoRelative.replace(/^\/storage\/catalog\//, "");
   const absolute = path.join(CATALOG_STORAGE_PATH, stripped);
 
-  if (fs.existsSync(absolute)) return absolute;
+  if (existsSync(absolute)) return absolute;
 
   // Try alternative extensions
   const parsed = path.parse(absolute);
   for (const ext of PHOTO_EXTENSIONS) {
     if (ext === parsed.ext) continue;
     const alt = path.join(parsed.dir, parsed.name + ext);
-    if (fs.existsSync(alt)) return alt;
+    if (existsSync(alt)) return alt;
   }
 
   return null;
@@ -163,30 +167,57 @@ async function sendCarCard(
   const car = cars[i];
   const caption = formatCarCaption(car);
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
+  const opts = { caption, reply_markup: { inline_keyboard: keyboard } };
 
-  if (car.photos.length > 0) {
-    const filePath = resolvePhotoPath(car.photos[0]);
-    if (filePath) {
+  if (car.photos.length > 0 && resolvePhotoPath(car.photos[0])) {
+    const photoPath = car.photos[0];
+    const cachedId = getFileId(photoPath);
+
+    // Try file_id first (instant delivery)
+    if (cachedId) {
       try {
-        await bot.sendPhoto(chatId, fs.createReadStream(filePath), {
-          caption,
-          reply_markup: { inline_keyboard: keyboard },
-        });
+        const sent = await bot.sendPhoto(chatId, cachedId, opts);
+        logTs("log", `[catalog] sendPhoto via file_id car=${car.id}`);
+        extractAndCacheFileId(sent, photoPath);
         return;
-      } catch (photoErr: any) {
-        logTs("error", `[catalog] sendPhoto FAILED car=${car.id} file=${filePath} error=${photoErr?.message || photoErr}`);
+      } catch (err: any) {
+        logTs("error", `[catalog] sendPhoto file_id FAILED car=${car.id}, fallback to URL. error=${err?.message || err}`);
+        deleteFileId(photoPath);
       }
-    } else {
-      logTs("log", `[catalog] photo not found on disk car=${car.id} path=${car.photos[0]}`);
     }
+
+    // Fallback: send by URL
+    const photoUrl = `${PHOTO_BASE}${photoPath}`;
+    try {
+      const sent = await bot.sendPhoto(chatId, photoUrl, opts);
+      logTs("log", `[catalog] sendPhoto via URL car=${car.id}`);
+      extractAndCacheFileId(sent, photoPath);
+      return;
+    } catch (photoErr: any) {
+      logTs("error", `[catalog] sendPhoto URL FAILED car=${car.id} url=${photoUrl} error=${photoErr?.message || photoErr}`);
+    }
+  } else if (car.photos.length > 0) {
+    logTs("log", `[catalog] photo not found on disk car=${car.id} path=${car.photos[0]}`);
   }
 
+  // Text fallback
   try {
     await bot.sendMessage(chatId, caption, {
       reply_markup: { inline_keyboard: keyboard },
     });
   } catch (err: any) {
     logTs("error", `[catalog] sendMessage FAILED car=${car.id} error=${err?.message || err}`);
+  }
+}
+
+/**
+ * Extract file_id from Telegram Message response and cache it
+ */
+function extractAndCacheFileId(msg: TelegramBot.Message, photoPath: string): void {
+  if (msg.photo && msg.photo.length > 0) {
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+    setFileId(photoPath, fileId);
+    logTs("log", `[catalog] cached file_id for ${photoPath}`);
   }
 }
 
@@ -206,31 +237,50 @@ async function editCarCard(
   const car = cars[i];
   const caption = formatCarCaption(car);
   const keyboard = carKeyboard(brand, car.id, i, cars.length);
+  const editOpts = { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: keyboard } };
 
-  if (car.photos.length > 0) {
-    const filePath = resolvePhotoPath(car.photos[0]);
-    if (filePath) {
+  if (car.photos.length > 0 && resolvePhotoPath(car.photos[0])) {
+    const photoPath = car.photos[0];
+    const cachedId = getFileId(photoPath);
+
+    // Try file_id first
+    if (cachedId) {
       try {
-        const stream = fs.createReadStream(filePath);
-        await bot.editMessageMedia(
-          { type: "photo", media: "attach://photo", caption },
-          {
-            chat_id: chatId,
-            message_id: messageId,
-            reply_markup: { inline_keyboard: keyboard },
-          },
-          { photo: stream } as any,
+        const result = await bot.editMessageMedia(
+          { type: "photo", media: cachedId, caption },
+          editOpts,
         );
+        logTs("log", `[catalog] editMedia via file_id car=${car.id}`);
+        if (result && typeof result === "object" && "photo" in result) {
+          extractAndCacheFileId(result as TelegramBot.Message, photoPath);
+        }
         return;
-      } catch (editErr: any) {
-        logTs("error", `[catalog] editMedia FAILED car=${car.id} file=${filePath} error=${editErr?.message || editErr}`);
-        try { await bot.deleteMessage(chatId, messageId); } catch {}
-        await sendCarCard(bot, chatId, brand, i);
-        return;
+      } catch (err: any) {
+        logTs("error", `[catalog] editMedia file_id FAILED car=${car.id}, fallback to URL. error=${err?.message || err}`);
+        deleteFileId(photoPath);
       }
-    } else {
-      logTs("log", `[catalog] photo not found on disk car=${car.id} path=${car.photos[0]}`);
     }
+
+    // Fallback: URL
+    const photoUrl = `${PHOTO_BASE}${photoPath}`;
+    try {
+      const result = await bot.editMessageMedia(
+        { type: "photo", media: photoUrl, caption },
+        editOpts,
+      );
+      logTs("log", `[catalog] editMedia via URL car=${car.id}`);
+      if (result && typeof result === "object" && "photo" in result) {
+        extractAndCacheFileId(result as TelegramBot.Message, photoPath);
+      }
+      return;
+    } catch (editErr: any) {
+      logTs("error", `[catalog] editMedia URL FAILED car=${car.id} url=${photoUrl} error=${editErr?.message || editErr}`);
+      try { await bot.deleteMessage(chatId, messageId); } catch {}
+      await sendCarCard(bot, chatId, brand, i);
+      return;
+    }
+  } else if (car.photos.length > 0) {
+    logTs("log", `[catalog] photo not found on disk car=${car.id} path=${car.photos[0]}`);
   }
 
   try {
