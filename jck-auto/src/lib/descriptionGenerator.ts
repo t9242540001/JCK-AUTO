@@ -40,7 +40,7 @@ function generateFallbackDescription(car: Car): string {
 }
 
 export async function generateCarDescription(car: Car): Promise<string> {
-  const client = new Anthropic({ apiKey: getAnthropicApiKey() });
+  const client = new Anthropic({ apiKey: getAnthropicApiKey(), baseURL: process.env.ANTHROPIC_BASE_URL || undefined });
 
   const carData = {
     brand: car.brand,
