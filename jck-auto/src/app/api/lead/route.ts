@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GROUP_CHAT_ID = process.env.TELEGRAM_GROUP_CHAT_ID;
+const TG_API_BASE = process.env.TELEGRAM_API_BASE_URL || "https://api.telegram.org";
 
 export async function POST(request: Request) {
   try {
@@ -35,21 +36,20 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join("\n");
 
-    const res = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: GROUP_CHAT_ID,
-          text,
-        }),
-      },
-    );
+    const apiUrl = `${TG_API_BASE}/bot${BOT_TOKEN}/sendMessage`;
+    const res = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: GROUP_CHAT_ID,
+        text,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
 
     if (!res.ok) {
       const err = await res.text();
-      console.error("Telegram API error:", err);
+      console.error(`[lead] Telegram API error (${TG_API_BASE.replace(/\/\/.*@/, "//***@")}):`, err);
       return NextResponse.json(
         { error: "Не удалось отправить заявку" },
         { status: 502 },
@@ -57,8 +57,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Lead API error:", err);
+  } catch (err: any) {
+    console.error(`[lead] API error: ${err?.message || err}`);
     return NextResponse.json(
       { error: "Внутренняя ошибка сервера" },
       { status: 500 },

@@ -14,6 +14,17 @@ const PHOTO_BASE = process.env.TELEGRAM_API_BASE_URL
   ? `${process.env.TELEGRAM_API_BASE_URL}/photo`
   : "https://jckauto.ru";
 
+/* ── ORDER ID MAPPING (short callback_data to avoid 64-byte limit) ──── */
+
+let orderCounter = 0;
+const orderIdMap = new Map<number, string>();
+
+function getOrderId(carId: string): string {
+  orderCounter++;
+  orderIdMap.set(orderCounter, carId);
+  return `o_${orderCounter}`;
+}
+
 /* ── HELPERS ──────────────────────────────────────────────────────────── */
 
 function logTs(level: "log" | "error", ...args: unknown[]): void {
@@ -90,7 +101,7 @@ function carKeyboard(
     nav,
     [
       { text: "\u{1F517} На сайте", url: `https://jckauto.ru/catalog/${carId}` },
-      { text: "\u{1F697} Заказать", callback_data: `order_${carId}` },
+      { text: "\u{1F697} Заказать", callback_data: getOrderId(carId) },
     ],
     [{ text: "\u21A9\uFE0F К списку марок", callback_data: "catalog_brands" }],
   ];
@@ -347,10 +358,17 @@ export function registerCatalogHandler(bot: TelegramBot, groupChatId: string) {
       return;
     }
 
-    // Order car
-    if (data.startsWith("order_")) {
+    // Order car (short ID to avoid 64-byte callback_data limit)
+    if (data.startsWith("o_")) {
       bot.answerCallbackQuery(query.id);
-      const carId = data.replace("order_", "");
+      const orderId = parseInt(data.replace("o_", ""), 10);
+      const carId = orderIdMap.get(orderId);
+      if (!carId) {
+        bot.answerCallbackQuery(query.id, {
+          text: "Сессия устарела, откройте каталог заново",
+        });
+        return;
+      }
       pendingSource.set(chatId, `https://jckauto.ru/catalog/${carId}`);
       handleRequestCommand(bot, chatId, groupChatId);
       return;
