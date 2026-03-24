@@ -330,17 +330,18 @@ async function main() {
     );
 
     try {
-      let description = await generateDescription(client, userMessage);
+      let description = await callWithRetry(client, userMessage, car.id);
       let words = wordCount(description);
 
       // Validation: retry if too short
       if (words < 50) {
         console.log(`  WARN: ${words} words (< 50), retrying...`);
         retries++;
-        await sleep(2000);
-        description = await generateDescription(
+        await sleep(5000);
+        description = await callWithRetry(
           client,
-          userMessage + "\n\nОписание получилось слишком коротким, напиши полноценный текст 80-150 слов."
+          userMessage + "\n\nОписание получилось слишком коротким, напиши полноценный текст 80-150 слов.",
+          car.id
         );
         words = wordCount(description);
       }
@@ -356,24 +357,27 @@ async function main() {
       console.log(`  OK: ${words} words | "${description.slice(0, 60)}..."`);
     } catch (err: unknown) {
       const error = err as { status?: number; message?: string };
+      console.error(`  ERROR for ${car.id}: ${error.message || String(err)}`);
+      errors++;
       if (error.status === 401 || error.status === 403) {
-        console.warn(`  WARNING: API returned ${error.status} for ${car.id}`);
-        errors++;
         consecutive403++;
-        if (consecutive403 >= 3) {
-          console.error(`3 consecutive API errors, stopping. Progress saved: ${processed} descriptions generated.`);
+        if (consecutive403 >= 5) {
+          console.error(`5 consecutive API errors, stopping. Progress saved: ${processed} descriptions generated.`);
           saveCatalog(cars);
           break;
         }
-      } else {
-        console.error(`  ERROR for ${car.id}: ${error.message || String(err)}`);
-        errors++;
       }
     }
 
-    // Rate limit: 2s pause between requests
+    // Progress logging every 10 cars
+    const totalProcessed = processed + errors;
+    if (totalProcessed > 0 && totalProcessed % 10 === 0) {
+      console.log(`  [progress] ${totalProcessed}/${pending.length} processed, ${errors} errors, ${retries} retries`);
+    }
+
+    // Rate limit: 5s pause between requests
     if (car !== pending[pending.length - 1]) {
-      await sleep(2000);
+      await sleep(5000);
     }
   }
 
@@ -392,6 +396,32 @@ async function main() {
     console.error("All attempts failed");
     process.exit(1);
   }
+}
+
+const RETRY_DELAYS = [15000, 30000, 60000];
+
+async function callWithRetry(
+  client: Anthropic,
+  userMessage: string,
+  carId: string,
+): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    try {
+      return await generateDescription(client, userMessage);
+    } catch (err: unknown) {
+      lastError = err;
+      const error = err as { status?: number };
+      if ((error.status === 401 || error.status === 403) && attempt < RETRY_DELAYS.length) {
+        const delay = RETRY_DELAYS[attempt];
+        console.log(`  RETRY ${attempt + 1}/${RETRY_DELAYS.length} for ${carId}: waiting ${delay / 1000}s...`);
+        await sleep(delay);
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw lastError;
 }
 
 async function generateDescription(
