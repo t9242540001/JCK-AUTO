@@ -5,7 +5,7 @@
  * @triggers GitHub Actions workflow / manual
  * @input /var/www/jckauto/storage/catalog/catalog.json
  * @output /var/www/jckauto/storage/catalog/catalog.json (поле description)
- * @cost Claude Sonnet ~$0.003-0.005 per car
+ * @cost Claude Haiku ~$0.001-0.002 per car
  * @section description-gen
  */
 
@@ -230,6 +230,10 @@ function buildUserMessage(car: Car, angle: string): string {
   return lines.join("\n");
 }
 
+function saveCatalog(cars: Car[]): void {
+  fs.writeFileSync(CATALOG_PATH, JSON.stringify(cars, null, 2), "utf-8");
+}
+
 function askConfirmation(question: string): Promise<boolean> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
@@ -315,6 +319,7 @@ async function main() {
   let processed = 0;
   let errors = 0;
   let retries = 0;
+  let consecutive403 = 0;
 
   for (const car of pending) {
     const angle = determineAngle(car);
@@ -347,19 +352,23 @@ async function main() {
 
       car.description = description;
       processed++;
+      consecutive403 = 0;
       console.log(`  OK: ${words} words | "${description.slice(0, 60)}..."`);
     } catch (err: unknown) {
       const error = err as { status?: number; message?: string };
-      if (error.status === 401) {
-        console.error("ERROR: Invalid API key");
-        process.exit(1);
+      if (error.status === 401 || error.status === 403) {
+        console.warn(`  WARNING: API returned ${error.status} for ${car.id}`);
+        errors++;
+        consecutive403++;
+        if (consecutive403 >= 3) {
+          console.error(`3 consecutive API errors, stopping. Progress saved: ${processed} descriptions generated.`);
+          saveCatalog(cars);
+          break;
+        }
+      } else {
+        console.error(`  ERROR for ${car.id}: ${error.message || String(err)}`);
+        errors++;
       }
-      if (error.status === 403) {
-        console.error("ERROR: API blocked (geo-restriction), run on GitHub Actions");
-        process.exit(1);
-      }
-      console.error(`  ERROR for ${car.id}: ${error.message || String(err)}`);
-      errors++;
     }
 
     // Rate limit: 2s pause between requests
@@ -369,7 +378,7 @@ async function main() {
   }
 
   // Save updated catalog
-  fs.writeFileSync(CATALOG_PATH, JSON.stringify(cars, null, 2), "utf-8");
+  saveCatalog(cars);
 
   console.log(`\n═══════════════════════════════════════`);
   console.log(`Summary:`);
@@ -390,7 +399,7 @@ async function generateDescription(
   userMessage: string,
 ): Promise<string> {
   const message = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],
