@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -58,8 +59,9 @@ export default function LeadFormModal({ isOpen, onClose, carName }: LeadFormModa
   };
 
   if (!isOpen) return null;
+  if (typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 transition-opacity duration-200"
       onClick={onClose}
@@ -138,6 +140,7 @@ export default function LeadFormModal({ isOpen, onClose, carName }: LeadFormModa
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
