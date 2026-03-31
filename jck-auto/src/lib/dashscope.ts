@@ -229,12 +229,91 @@ async function generateImage(
 
 // ─── VISION / OCR ─────────────────────────────────────────────────────────
 
-// будет добавлена на этапе 1.5.3
+/**
+ * Анализ картинки через Qwen-VL (OpenAI-совместимый API)
+ * @input imageSource — URL или base64 (data:image/...;base64,...), prompt — что извлечь
+ * @output VisionResponse с текстом ответа и usage
+ */
+async function analyzeImage(
+  imageSource: string,
+  prompt: string,
+  options?: VisionOptions,
+): Promise<VisionResponse> {
+  const apiKey = getApiKey();
+  const model = options?.model ?? DEFAULT_VISION_MODEL;
+  const maxTokens = options?.maxTokens ?? DEFAULT_VISION_MAX_TOKENS;
+  const temperature = options?.temperature ?? DEFAULT_VISION_TEMPERATURE;
+
+  await waitForRateLimit();
+
+  const payload = {
+    model,
+    max_tokens: maxTokens,
+    temperature,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageSource } },
+          { type: 'text', text: prompt },
+        ],
+      },
+    ],
+  };
+
+  const response = await fetchWithRetry(DASHSCOPE_CHAT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let data: Record<string, unknown>;
+  try {
+    data = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new Error('Failed to parse DashScope Vision response as JSON');
+  }
+
+  const choices = data.choices as Array<{
+    message?: { content?: string };
+    finish_reason?: string;
+  }> | undefined;
+  const content = choices?.[0]?.message?.content;
+
+  if (content == null) {
+    throw new Error(
+      `DashScope Vision returned empty response (finish_reason: ${choices?.[0]?.finish_reason})`,
+    );
+  }
+
+  recordRequest();
+
+  const usage = data.usage as {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  } | undefined;
+  const promptTokens = usage?.prompt_tokens ?? 0;
+  const completionTokens = usage?.completion_tokens ?? 0;
+  const totalTokens = promptTokens + completionTokens;
+
+  console.log(
+    `[DashScope] model=${model} action=analyzeImage tokens=${totalTokens} (in:${promptTokens}/out:${completionTokens})`,
+  );
+
+  return {
+    content,
+    usage: { promptTokens, completionTokens, totalTokens },
+  };
+}
 
 // ─── EXPORTS ──────────────────────────────────────────────────────────────
 
 export {
   generateImage,
+  analyzeImage,
   DASHSCOPE_IMAGE_URL,
   DASHSCOPE_CHAT_URL,
   DEFAULT_IMAGE_MODEL,
