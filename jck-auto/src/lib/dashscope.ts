@@ -152,7 +152,80 @@ async function fetchWithRetry(
 
 // ─── IMAGE GENERATION ─────────────────────────────────────────────────────
 
-// будет добавлена на этапе 1.5.2
+/**
+ * Генерация картинки через Qwen-Image (нативный DashScope API)
+ * @input prompt — текстовое описание картинки, options — параметры генерации
+ * @output ImageGenerateResponse с временным URL (валиден 24 часа) и usage
+ * @important URL картинки протухает через 24 часа — скачивать сразу
+ */
+async function generateImage(
+  prompt: string,
+  options?: ImageGenerateOptions,
+): Promise<ImageGenerateResponse> {
+  const apiKey = getApiKey();
+  const model = options?.model ?? DEFAULT_IMAGE_MODEL;
+  const size = options?.size ?? DEFAULT_IMAGE_SIZE;
+  const n = options?.n ?? 1;
+
+  await waitForRateLimit();
+
+  const payload = {
+    model,
+    input: {
+      messages: [
+        { role: 'user', content: [{ text: prompt }] },
+      ],
+    },
+    parameters: {
+      size,
+      prompt_extend: options?.promptExtend ?? true,
+      watermark: options?.watermark ?? false,
+      n,
+    },
+  };
+
+  const response = await fetchWithRetry(DASHSCOPE_IMAGE_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let data: Record<string, unknown>;
+  try {
+    data = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new Error('Failed to parse DashScope image response as JSON');
+  }
+
+  const output = data.output as {
+    choices?: Array<{
+      message?: { content?: Array<{ image?: string }> };
+    }>;
+  } | undefined;
+  const imageUrl = output?.choices?.[0]?.message?.content?.[0]?.image;
+
+  if (!imageUrl) {
+    throw new Error(
+      `DashScope returned no image URL. output: ${JSON.stringify(data.output)}`,
+    );
+  }
+
+  recordRequest();
+
+  const usage = data.usage as { image_count?: number } | undefined;
+
+  console.log(
+    `[DashScope] model=${model} action=generateImage images=${n} size=${size}`,
+  );
+
+  return {
+    imageUrl,
+    usage: { imageCount: usage?.image_count ?? 1 },
+  };
+}
 
 // ─── VISION / OCR ─────────────────────────────────────────────────────────
 
@@ -161,6 +234,7 @@ async function fetchWithRetry(
 // ─── EXPORTS ──────────────────────────────────────────────────────────────
 
 export {
+  generateImage,
   DASHSCOPE_IMAGE_URL,
   DASHSCOPE_CHAT_URL,
   DEFAULT_IMAGE_MODEL,
