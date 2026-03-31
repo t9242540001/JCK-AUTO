@@ -84,11 +84,133 @@ function recordRequest(): void {
 
 // ─── MAIN FUNCTION ────────────────────────────────────────────────────────
 
-// будет добавлена на этапе 1.2
+/**
+ * Универсальный вызов DeepSeek API для текстовой генерации
+ * @input userPrompt — текст запроса, options — параметры модели и системный промпт
+ * @output DeepSeekResponse с текстом, usage и стоимостью
+ * @important retry только на сетевые/5xx/429; не логирует промпты и ключ
+ */
+async function callDeepSeek(
+  userPrompt: string,
+  options?: DeepSeekOptions,
+): Promise<DeepSeekResponse> {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    throw new Error('DEEPSEEK_API_KEY is not set in environment variables');
+  }
+
+  const model = options?.model ?? DEFAULT_MODEL;
+  const temperature = options?.temperature ?? DEFAULT_TEMPERATURE;
+  const maxTokens = options?.maxTokens ?? DEFAULT_MAX_TOKENS;
+
+  const messages: Array<{ role: string; content: string }> = [];
+  if (options?.systemPrompt) {
+    messages.push({ role: 'system', content: options.systemPrompt });
+  }
+  messages.push({ role: 'user', content: userPrompt });
+
+  await waitForRateLimit();
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, 1000 * Math.pow(2, attempt)),
+      );
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${DEEPSEEK_BASE_URL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model,
+          temperature,
+          max_tokens: maxTokens,
+          messages,
+        }),
+      });
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        if (response.status === 429 || response.status >= 500) {
+          lastError = new Error(`DeepSeek API error ${response.status}: ${responseText}`);
+          continue;
+        }
+        throw new Error(`DeepSeek API error ${response.status}: ${responseText}`);
+      }
+
+      let data: Record<string, unknown>;
+      try {
+        data = (await response.json()) as Record<string, unknown>;
+      } catch {
+        lastError = new Error('Failed to parse DeepSeek API response as JSON');
+        continue;
+      }
+
+      const choices = data.choices as Array<{
+        message?: { content?: string };
+        finish_reason?: string;
+      }> | undefined;
+      const content = choices?.[0]?.message?.content;
+      if (content == null) {
+        throw new Error(
+          `DeepSeek returned empty response (finish_reason: ${choices?.[0]?.finish_reason})`,
+        );
+      }
+
+      recordRequest();
+
+      const usage = data.usage as {
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+      };
+      const promptTokens = usage?.prompt_tokens ?? 0;
+      const completionTokens = usage?.completion_tokens ?? 0;
+      const totalTokens = usage?.total_tokens ?? 0;
+      const cost = calculateCost(promptTokens, completionTokens);
+
+      console.log(
+        `[DeepSeek] model=${model} tokens=${totalTokens} (in:${promptTokens}/out:${completionTokens}) cost=$${cost}`,
+      );
+
+      return {
+        content,
+        usage: {
+          promptTokens,
+          completionTokens,
+          totalTokens,
+          estimatedCostUsd: cost,
+        },
+      };
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('DeepSeek')) {
+        throw err;
+      }
+      lastError = err instanceof Error ? err : new Error(String(err));
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw new Error(
+    `DeepSeek API failed after ${MAX_RETRIES} retries: ${lastError?.message}`,
+  );
+}
 
 // ─── EXPORTS ──────────────────────────────────────────────────────────────
 
 export {
+  callDeepSeek,
   DEEPSEEK_BASE_URL,
   DEFAULT_MODEL,
   DEFAULT_MAX_TOKENS,
