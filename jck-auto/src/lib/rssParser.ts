@@ -28,6 +28,26 @@ export interface RawNewsItem {
 
 const FETCH_TIMEOUT_MS = 15_000;
 
+// ─── ENCODING ─────────────────────────────────────────────────────────────
+
+/**
+ * Определить кодировку из XML-декларации и декодировать ArrayBuffer в строку
+ * @rule Поддержка: windows-1251, koi8-r, iso-8859-1, gb2312, gbk. Fallback — UTF-8
+ */
+function decodeXml(buffer: ArrayBuffer): string {
+  // Читаем первые 200 байт как latin1 для безопасного извлечения encoding
+  const header = new TextDecoder('latin1').decode(buffer.slice(0, 200));
+  const match = header.match(/<\?xml[^?]*encoding=["']([^"']+)["']/i);
+  const encoding = match?.[1]?.toLowerCase() ?? 'utf-8';
+
+  try {
+    return new TextDecoder(encoding).decode(buffer);
+  } catch {
+    // Неизвестная кодировка — fallback на UTF-8
+    return new TextDecoder('utf-8').decode(buffer);
+  }
+}
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
 /** Удалить HTML-теги и декодировать базовые entities */
@@ -113,7 +133,8 @@ export async function parseRSSFeed(
         console.warn(`[RSS] HTTP ${response.status} при загрузке ${url}`);
         return [];
       }
-      xml = await response.text();
+      const buffer = await response.arrayBuffer();
+      xml = decodeXml(buffer);
     } finally {
       clearTimeout(timeoutId);
     }

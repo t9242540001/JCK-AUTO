@@ -139,7 +139,7 @@ export const NEWS_SOURCES: NewsSource[] = [
     name: 'Autocar',
     language: 'en',
     category: 'global',
-    enabled: true,
+    enabled: false, // fetch failed на VDS
   },
   {
     url: 'https://theverge.com/rss/cars/index.xml',
@@ -162,11 +162,41 @@ export const NEWS_SOURCES: NewsSource[] = [
     name: 'iFeng Auto Headlines',
     language: 'zh',
     category: 'chinese_auto',
-    enabled: true,
+    enabled: false, // фид мёртвый
   },
   {
     url: 'https://auto.ifeng.com/rss/newcar.xml',
     name: 'iFeng Auto New Cars',
+    language: 'zh',
+    category: 'chinese_auto',
+    enabled: false, // фид мёртвый
+  },
+
+  // ── Google News RSS: китайский (доп.) ─────────────────────────────────
+  {
+    url: 'https://news.google.com/rss/search?q=比亚迪+奇瑞+吉利&hl=zh-CN&gl=CN&ceid=CN:zh-Hans',
+    name: 'Google News ZH: BYD/Chery/Geely',
+    language: 'zh',
+    category: 'chinese_auto',
+    enabled: true,
+  },
+  {
+    url: 'https://news.google.com/rss/search?q=汽车+销量+市场&hl=zh-CN&gl=CN&ceid=CN:zh-Hans',
+    name: 'Google News ZH: продажи',
+    language: 'zh',
+    category: 'market_ru',
+    enabled: true,
+  },
+  {
+    url: 'https://news.google.com/rss/search?q=电动汽车+电池+充电&hl=zh-CN&gl=CN&ceid=CN:zh-Hans',
+    name: 'Google News ZH: EV/батареи',
+    language: 'zh',
+    category: 'ev',
+    enabled: true,
+  },
+  {
+    url: 'https://news.google.com/rss/search?q=汽车+出口+俄罗斯&hl=zh-CN&gl=CN&ceid=CN:zh-Hans',
+    name: 'Google News ZH: экспорт в РФ',
     language: 'zh',
     category: 'chinese_auto',
     enabled: true,
