@@ -90,23 +90,51 @@ const SYSTEM_PROMPT = `Ты — главный редактор новостно
 - tags — только из списка: ${ALLOWED_TAGS.join(', ')}
 - sourceIndex — номер новости из входного списка (начиная с 1)
 ПРАВИЛО РАЗНООБРАЗИЯ (обязательно):
-- Не более 2 новостей с одним и тем же основным тегом
-- Дайджест должен покрывать минимум 3 разных тематики
-- Если в ленте доминирует одна тема (например, китайские_авто) — выбери 2 лучших из неё, остальные слоты отдай другим темам: электромобили, законодательство, рынок_РФ, технологии, автоспорт, глобальный_рынок, японские_авто, корейские_авто
+- Новости разделены на секции с квотами — выбирай строго по квотам каждой секции
+- Итого должно быть 5-6 новостей из разных секций
 - Это правило приоритетнее релевантности отдельной новости
 - Не придумывай факты. Если информации мало — скажи что известно.
 - Ответ — ТОЛЬКО валидный JSON, без пояснений до или после.`;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
-/** Подготовить список новостей для промпта */
-function formatNewsForPrompt(items: RawNewsItem[]): string {
+/** Отформатировать элементы корзины со сквозной нумерацией */
+function formatBucket(items: RawNewsItem[], allItems: RawNewsItem[]): string {
   return items
-    .map((item, i) => {
+    .map((item) => {
+      const idx = allItems.indexOf(item) + 1;
       const date = new Date(item.pubDate).toLocaleDateString('ru-RU');
-      return `${i + 1}. [${item.source}] [${item.language}] ${date}\n   ${item.title}\n   ${item.snippet}`;
+      return `${idx}. [${item.source}] [${item.language}] ${date}\n   ${item.title}\n   ${item.snippet}`;
     })
     .join('\n\n');
+}
+
+/** Подготовить секционный промпт из корзин */
+function formatSectionedPrompt(buckets: BalancedBuckets): string {
+  const sections: string[] = [];
+
+  if (buckets.china.length > 0) {
+    sections.push(
+      `=== СЕКЦИЯ 1: КИТАЙСКИЕ АВТО (выбери из этой секции 1-2 лучших) ===\n${formatBucket(buckets.china, buckets.all)}`,
+    );
+  }
+  if (buckets.ev.length > 0) {
+    sections.push(
+      `=== СЕКЦИЯ 2: ЭЛЕКТРОМОБИЛИ И БАТАРЕИ (выбери из этой секции 1-2 лучших) ===\n${formatBucket(buckets.ev, buckets.all)}`,
+    );
+  }
+  if (buckets.russia.length > 0) {
+    sections.push(
+      `=== СЕКЦИЯ 3: РОССИЯ, ЗАКОНОДАТЕЛЬСТВО, ТАМОЖНЯ (выбери из этой секции 1-2 лучших, если есть) ===\n${formatBucket(buckets.russia, buckets.all)}`,
+    );
+  }
+  if (buckets.other.length > 0) {
+    sections.push(
+      `=== СЕКЦИЯ 4: ГЛОБАЛЬНЫЙ АВТОПРОМ, ТЕХНОЛОГИИ, АВТОСПОРТ, СУПЕРКАРЫ (выбери из этой секции 2-3 лучших) ===\n${formatBucket(buckets.other, buckets.all)}`,
+    );
+  }
+
+  return sections.join('\n\n');
 }
 
 /** Попробовать распарсить JSON, включая извлечение из markdown-блока */
@@ -142,8 +170,16 @@ const QUOTA_CHINA = 20;
 const QUOTA_EV = 15;
 const QUOTA_RUSSIA = 15;
 
+interface BalancedBuckets {
+  china: RawNewsItem[];
+  ev: RawNewsItem[];
+  russia: RawNewsItem[];
+  other: RawNewsItem[];
+  all: RawNewsItem[]; // сквозной список для sourceIndex
+}
+
 /** Программная балансировка входного списка по тематическим корзинам */
-function balanceItems(items: RawNewsItem[]): RawNewsItem[] {
+function balanceItems(items: RawNewsItem[]): BalancedBuckets {
   const china: RawNewsItem[] = [];
   const ev: RawNewsItem[] = [];
   const russia: RawNewsItem[] = [];
@@ -176,22 +212,22 @@ function balanceItems(items: RawNewsItem[]): RawNewsItem[] {
     pickedOther = other.slice(0, otherSlots);
   } else {
     pickedOther = [...other];
-    let remaining = otherSlots - pickedOther.length;
     const overflow = [
       ...china.slice(QUOTA_CHINA),
       ...ev.slice(QUOTA_EV),
       ...russia.slice(QUOTA_RUSSIA),
     ].sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-    pickedOther.push(...overflow.slice(0, remaining));
+    pickedOther.push(...overflow.slice(0, otherSlots - pickedOther.length));
   }
 
   console.log(
     `[Processor] Баланс: china=${pickedChina.length}, ev=${pickedEv.length}, russia=${pickedRussia.length}, other=${pickedOther.length}`,
   );
 
-  // Объединить и пересортировать по дате
-  return [...pickedChina, ...pickedEv, ...pickedRussia, ...pickedOther]
-    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+  // Сквозной список для sourceIndex (порядок: china → ev → russia → other)
+  const all = [...pickedChina, ...pickedEv, ...pickedRussia, ...pickedOther];
+
+  return { china: pickedChina, ev: pickedEv, russia: pickedRussia, other: pickedOther, all };
 }
 
 // ─── MAIN FUNCTION ────────────────────────────────────────────────────────
@@ -211,11 +247,12 @@ export async function processNews(
   }
 
   // Ограничить входной список и сбалансировать по тематикам
-  const trimmedItems = balanceItems(items.slice(0, MAX_INPUT_ITEMS));
+  const buckets = balanceItems(items.slice(0, MAX_INPUT_ITEMS));
+  const trimmedItems = buckets.all;
 
   console.log(`[Processor] Новостей на входе: ${items.length}, отправляем в DeepSeek: ${trimmedItems.length}`);
 
-  const userPrompt = `Вот ${trimmedItems.length} свежих новостей из автомобильной индустрии. Отбери 5-6 самых значимых для аудитории JCK AUTO и подготовь дайджест.\n\n${formatNewsForPrompt(trimmedItems)}`;
+  const userPrompt = `Вот ${trimmedItems.length} свежих новостей из автомобильной индустрии, разделённых на тематические секции с квотами. Выбери по квотам из каждой секции и подготовь дайджест.\n\n${formatSectionedPrompt(buckets)}`;
 
   // Retry: до MAX_RETRIES попыток при ошибке парсинга JSON
   let lastError: Error | null = null;
