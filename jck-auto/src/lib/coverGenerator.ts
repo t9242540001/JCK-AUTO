@@ -141,7 +141,7 @@ async function generateFallbackArtwork(title: string, tags: string[]): Promise<B
 
   const textLines = lines
     .slice(0, 4)
-    .map((line, i) => `<text x="512" y="${230 + i * 48}" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="36" fill="white" opacity="0.9">${line}</text>`)
+    .map((line, i) => `<text x="512" y="${230 + i * 48}" text-anchor="middle" font-family="DejaVu Sans, Noto Sans, sans-serif" font-weight="700" font-size="36" fill="white" opacity="0.9">${line}</text>`)
     .join('\n');
 
   const svg = `<svg width="${IMAGE_WIDTH}" height="${IMAGE_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
@@ -169,8 +169,8 @@ async function applyOverlay(
   // Подложка внизу
   const overlaySvg = `<svg width="${IMAGE_WIDTH}" height="${IMAGE_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
     <rect x="0" y="${IMAGE_HEIGHT - OVERLAY_HEIGHT}" width="${IMAGE_WIDTH}" height="${OVERLAY_HEIGHT}" fill="rgba(0,0,0,0.4)"/>
-    <text x="${IMAGE_WIDTH - 20}" y="${IMAGE_HEIGHT - 30}" text-anchor="end" font-family="Arial, sans-serif" font-size="18" fill="white" opacity="0.7">${date}</text>
-    ${mainTag ? `<text x="${IMAGE_WIDTH - 20}" y="35" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="white" opacity="0.6">${mainTag}</text>` : ''}
+    <text x="${IMAGE_WIDTH - 20}" y="${IMAGE_HEIGHT - 30}" text-anchor="end" font-family="DejaVu Sans, Noto Sans, sans-serif" font-size="18" fill="white" opacity="0.7">${date}</text>
+    ${mainTag ? `<text x="${IMAGE_WIDTH - 20}" y="35" text-anchor="end" font-family="DejaVu Sans, Noto Sans, sans-serif" font-size="14" fill="white" opacity="0.6">${mainTag}</text>` : ''}
   </svg>`;
 
   // Загрузить и подготовить лого
