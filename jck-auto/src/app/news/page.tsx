@@ -101,7 +101,7 @@ export default async function NewsPage({ searchParams }: PageProps) {
             {result.items.map((preview) => (
               <Link
                 key={preview.date}
-                href={`/news/${preview.date}`}
+                href={`/news/${preview.slug}`}
                 className="group flex flex-col gap-6 rounded-2xl border border-border bg-white p-6 transition-all hover:shadow-md md:flex-row"
               >
                 {preview.coverImagePath ? (

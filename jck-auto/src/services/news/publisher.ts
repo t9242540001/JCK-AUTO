@@ -12,6 +12,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ProcessedNews } from './processor';
+import { generateSlug } from '@/lib/transliterate';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
 
@@ -57,8 +58,11 @@ export function publishNews(
   // Таймзона Владивосток (+10)
   const generatedAt = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Vladivostok' }).replace(' ', 'T') + '+10:00';
 
+  const slug = `${date}-${generateSlug(processed.mainStory.title)}`;
+
   const output = {
     date,
+    slug,
     generatedAt,
     model: processed.model,
     cost: processed.cost,

@@ -13,12 +13,14 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { StoryItem } from './processor';
 import type { CoverMeta } from './publisher';
+import { generateSlug } from '@/lib/transliterate';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
 
 /** Полный день новостей — все поля из JSON-файла */
 export interface NewsDay {
   date: string;
+  slug: string;
   generatedAt: string;
   model: string;
   cost: {
@@ -38,6 +40,7 @@ export interface NewsDay {
 /** Облегчённая версия для списка/ленты */
 export interface NewsDayPreview {
   date: string;
+  slug: string;
   mainStoryTitle: string;
   mainStoryTags: string[];
   mainStoryExcerpt: string;   // первые 200 символов mainStory.body + "..."
@@ -66,7 +69,12 @@ function getNewsDir(): string {
 function readNewsFile(filePath: string): NewsDay | null {
   try {
     const raw = readFileSync(filePath, 'utf-8');
-    return JSON.parse(raw) as NewsDay;
+    const data = JSON.parse(raw) as NewsDay;
+    // Обратная совместимость: старые файлы без slug
+    if (!data.slug) {
+      data.slug = `${data.date}-${generateSlug(data.mainStory.title)}`;
+    }
+    return data;
   } catch {
     return null;
   }
@@ -82,6 +90,7 @@ function truncateText(text: string, max: number = 200): string {
 function toPreview(day: NewsDay): NewsDayPreview {
   return {
     date: day.date,
+    slug: day.slug,
     mainStoryTitle: day.mainStory.title,
     mainStoryTags: day.mainStory.tags,
     mainStoryExcerpt: truncateText(day.mainStory.body),
@@ -173,6 +182,24 @@ export function getNewsDaysPaginated(
   const items = filtered.slice(start, start + limit);
 
   return { items, total, page, totalPages };
+}
+
+/**
+ * Получить один день по slug (формат: YYYY-MM-DD-slug-text)
+ * @input slug — полный slug включая дату
+ * @output NewsDay | null
+ */
+export function getNewsBySlug(slug: string): NewsDay | null {
+  if (slug.length < 10) return null;
+  const date = slug.slice(0, 10);
+  if (!DATE_RE.test(date)) return null;
+
+  const day = getNewsByDate(date);
+  if (!day) return null;
+
+  // Проверить совпадение slug
+  if (day.slug !== slug) return null;
+  return day;
 }
 
 /**

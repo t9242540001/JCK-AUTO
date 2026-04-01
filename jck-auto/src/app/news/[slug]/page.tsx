@@ -1,6 +1,6 @@
 /**
  * @file page.tsx
- * @description Детальная страница новостей за один день /news/YYYY-MM-DD
+ * @description Детальная страница новостей /news/YYYY-MM-DD-slug
  * @runs VDS (Next.js server-side, ISR revalidate=3600)
  * @lastModified 2026-04-01
  */
@@ -10,22 +10,19 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Send, ExternalLink } from 'lucide-react';
-import { getNewsByDate } from '@/services/news/reader';
+import { getNewsBySlug } from '@/services/news/reader';
 import { getTagStyle } from '@/lib/newsTagColors';
 import { CONTACTS } from '@/lib/constants';
 
 export const revalidate = 3600;
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-interface NewsDatePageProps {
-  params: Promise<{ date: string }>;
+interface NewsSlugPageProps {
+  params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({ params }: NewsDatePageProps): Promise<Metadata> {
-  const { date } = await params;
-  if (!DATE_RE.test(date)) return {};
-  const day = getNewsByDate(date);
+export async function generateMetadata({ params }: NewsSlugPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const day = getNewsBySlug(slug);
   if (!day) return {};
 
   const description = day.mainStory.body.slice(0, 155);
@@ -37,12 +34,12 @@ export async function generateMetadata({ params }: NewsDatePageProps): Promise<M
       description,
       type: 'article',
       publishedTime: day.date,
-      url: `https://jckauto.ru/news/${day.date}`,
+      url: `https://jckauto.ru/news/${day.slug}`,
       ...(day.cover?.imagePath
         ? { images: [{ url: `https://jckauto.ru${day.cover.imagePath}` }] }
         : {}),
     },
-    alternates: { canonical: `https://jckauto.ru/news/${day.date}` },
+    alternates: { canonical: `https://jckauto.ru/news/${day.slug}` },
   };
 }
 
@@ -62,11 +59,9 @@ function formatDate(date: string): string {
   });
 }
 
-export default async function NewsDatePage({ params }: NewsDatePageProps) {
-  const { date } = await params;
-  if (!DATE_RE.test(date)) notFound();
-
-  const day = getNewsByDate(date);
+export default async function NewsSlugPage({ params }: NewsSlugPageProps) {
+  const { slug } = await params;
+  const day = getNewsBySlug(slug);
   if (!day) notFound();
 
   const articleJsonLd = {
@@ -89,7 +84,6 @@ export default async function NewsDatePage({ params }: NewsDatePageProps) {
       />
 
       <article className="mx-auto max-w-3xl px-4">
-        {/* Хлебная крошка */}
         <Link
           href="/news"
           className="inline-flex items-center gap-1 text-sm text-text-muted transition-colors hover:text-primary"
@@ -98,7 +92,6 @@ export default async function NewsDatePage({ params }: NewsDatePageProps) {
           Назад к новостям
         </Link>
 
-        {/* Мета */}
         <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-text-muted">
           <time>{formatDate(day.date)}</time>
           {day.mainStory.tags.map((tag) => (
@@ -106,7 +99,6 @@ export default async function NewsDatePage({ params }: NewsDatePageProps) {
           ))}
         </div>
 
-        {/* Обложка */}
         {day.cover?.imagePath && (
           <div className="relative mt-8 aspect-[2/1] w-full overflow-hidden rounded-xl">
             <Image
@@ -119,7 +111,6 @@ export default async function NewsDatePage({ params }: NewsDatePageProps) {
           </div>
         )}
 
-        {/* Главная новость */}
         <section className="mt-8">
           <p className="text-xs font-medium uppercase tracking-wider text-secondary">
             Главное
@@ -146,7 +137,6 @@ export default async function NewsDatePage({ params }: NewsDatePageProps) {
           </div>
         </section>
 
-        {/* Дайджест */}
         {day.digest.length > 0 && (
           <section className="mt-12 border-t border-border pt-10">
             <p className="text-xs font-medium uppercase tracking-wider text-secondary">
@@ -185,12 +175,10 @@ export default async function NewsDatePage({ params }: NewsDatePageProps) {
           </section>
         )}
 
-        {/* Маркировка */}
         <p className="mt-12 text-center text-xs text-text-muted/50">
           Подготовлено с использованием ИИ | JCK AUTO
         </p>
 
-        {/* CTA-блок */}
         <div className="mt-12 rounded-2xl border border-border bg-surface-alt p-6 text-center sm:p-8">
           <h2 className="font-heading text-xl font-bold text-text">
             Хотите привезти автомобиль?
