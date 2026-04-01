@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { label: "Калькулятор", href: "/calculator" },
   { label: "О компании", href: "/about" },
   { label: "Блог", href: "/blog" },
+  { label: "Новости", href: "/news" },
 ];
 
 export default function Header() {
