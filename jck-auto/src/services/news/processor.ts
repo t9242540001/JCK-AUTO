@@ -132,6 +132,68 @@ function filterTags(tags: unknown): string[] {
   );
 }
 
+// ─── BALANCER ─────────────────────────────────────────────────────────────
+
+const CHINA_RE = /china|chinese|chery|byd|geely|changan|nio|xpeng|li auto|zeekr|haval|tank|dongfeng|gac|great wall|wey|jac|faw|saic|中国|汽车|新能源|比亚迪|吉利|长安|蔚来/i;
+const EV_RE = /electric|ev\b|battery|charging|tesla|электромобил|электрокар|аккумулятор|зарядк/i;
+const RUSSIA_RE = /россия|российск|утильсбор|растаможк|таможен|пошлин|\bрф\b|автоваз|лада|moscow|russia/i;
+
+const QUOTA_CHINA = 20;
+const QUOTA_EV = 15;
+const QUOTA_RUSSIA = 15;
+
+/** Программная балансировка входного списка по тематическим корзинам */
+function balanceItems(items: RawNewsItem[]): RawNewsItem[] {
+  const china: RawNewsItem[] = [];
+  const ev: RawNewsItem[] = [];
+  const russia: RawNewsItem[] = [];
+  const other: RawNewsItem[] = [];
+
+  for (const item of items) {
+    const t = item.title + ' ' + item.snippet;
+    if (CHINA_RE.test(t)) {
+      china.push(item);
+    } else if (EV_RE.test(t)) {
+      ev.push(item);
+    } else if (RUSSIA_RE.test(t)) {
+      russia.push(item);
+    } else {
+      other.push(item);
+    }
+  }
+
+  // Применить квоты — внутри каждой корзины уже отсортированы по дате (от collector)
+  const pickedChina = china.slice(0, QUOTA_CHINA);
+  const pickedEv = ev.slice(0, QUOTA_EV);
+  const pickedRussia = russia.slice(0, QUOTA_RUSSIA);
+
+  const usedSlots = pickedChina.length + pickedEv.length + pickedRussia.length;
+  const otherSlots = MAX_INPUT_ITEMS - usedSlots;
+
+  // Если other мало — добить из оставшихся по корзинам
+  let pickedOther: RawNewsItem[];
+  if (other.length >= otherSlots) {
+    pickedOther = other.slice(0, otherSlots);
+  } else {
+    pickedOther = [...other];
+    let remaining = otherSlots - pickedOther.length;
+    const overflow = [
+      ...china.slice(QUOTA_CHINA),
+      ...ev.slice(QUOTA_EV),
+      ...russia.slice(QUOTA_RUSSIA),
+    ].sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+    pickedOther.push(...overflow.slice(0, remaining));
+  }
+
+  console.log(
+    `[Processor] Баланс: china=${pickedChina.length}, ev=${pickedEv.length}, russia=${pickedRussia.length}, other=${pickedOther.length}`,
+  );
+
+  // Объединить и пересортировать по дате
+  return [...pickedChina, ...pickedEv, ...pickedRussia, ...pickedOther]
+    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+}
+
 // ─── MAIN FUNCTION ────────────────────────────────────────────────────────
 
 /**
@@ -148,8 +210,8 @@ export async function processNews(
     throw new Error('Нет новостей для обработки');
   }
 
-  // Ограничить входной список — самые свежие первые (уже отсортированы collector)
-  const trimmedItems = items.slice(0, MAX_INPUT_ITEMS);
+  // Ограничить входной список и сбалансировать по тематикам
+  const trimmedItems = balanceItems(items.slice(0, MAX_INPUT_ITEMS));
 
   console.log(`[Processor] Новостей на входе: ${items.length}, отправляем в DeepSeek: ${trimmedItems.length}`);
 
