@@ -1,17 +1,17 @@
 /**
  * @file page.tsx
- * @description Страница /news — каталог новостей (компактные карточки-превью)
+ * @description Страница /news — каталог всех новостей (компактные карточки-превью)
  * @runs VDS (Next.js server-side, ISR revalidate=3600)
  * @lastModified 2026-04-01
  */
 
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Send } from 'lucide-react';
 import { getNewsDaysPaginated, getAllTags } from '@/services/news/reader';
 import { getTagStyle } from '@/lib/newsTagColors';
 import { CONTACTS } from '@/lib/constants';
+import NewsDayCard from '@/components/news/NewsDayCard';
 
 export const revalidate = 3600;
 
@@ -30,25 +30,16 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://jckauto.ru/news' },
 };
 
-function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
 interface PageProps {
-  searchParams: Promise<{ page?: string; tag?: string }>;
+  searchParams: Promise<{ page?: string }>;
 }
 
 export default async function NewsPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1);
-  const tag = params.tag || undefined;
 
   const allTags = getAllTags();
-  const result = getNewsDaysPaginated(page, 7, tag);
+  const result = getNewsDaysPaginated(page, 7);
 
   return (
     <div className="min-h-screen bg-white pb-20 pt-28">
@@ -71,23 +62,15 @@ export default async function NewsPage({ searchParams }: PageProps) {
           <div className="mt-8 flex flex-wrap justify-center gap-2">
             <Link
               href="/news"
-              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                !tag
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-alt text-text-muted hover:bg-primary/10'
-              }`}
+              className="rounded-full px-3 py-1 text-sm font-medium bg-primary text-white"
             >
               Все
             </Link>
             {allTags.map((t) => (
               <Link
                 key={t}
-                href={`/news?tag=${encodeURIComponent(t)}`}
-                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                  tag === t
-                    ? 'bg-primary text-white'
-                    : `${getTagStyle(t)} hover:opacity-80`
-                }`}
+                href={`/news/tag/${t}`}
+                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${getTagStyle(t)} hover:opacity-80`}
               >
                 {t}
               </Link>
@@ -99,62 +82,12 @@ export default async function NewsPage({ searchParams }: PageProps) {
         {result.items.length > 0 ? (
           <div className="mt-12 space-y-6">
             {result.items.map((preview) => (
-              <Link
-                key={preview.date}
-                href={`/news/${preview.slug}`}
-                className="group flex flex-col gap-6 rounded-2xl border border-border bg-white p-6 transition-all hover:shadow-md md:flex-row"
-              >
-                {preview.coverImagePath ? (
-                  <div className="relative w-full shrink-0 overflow-hidden rounded-xl md:w-48">
-                    <div className="aspect-[2/1] md:h-32 md:aspect-auto">
-                      <Image
-                        src={preview.coverImagePath}
-                        alt={preview.mainStoryTitle}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex h-32 w-full shrink-0 items-center justify-center rounded-xl bg-border/50 text-4xl md:w-48">
-                    📰
-                  </div>
-                )}
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-                    <time>{formatDate(preview.date)}</time>
-                    {preview.digestCount > 0 && (
-                      <>
-                        <span>&bull;</span>
-                        <span>ещё {preview.digestCount} {preview.digestCount === 1 ? 'новость' : preview.digestCount < 5 ? 'новости' : 'новостей'}</span>
-                      </>
-                    )}
-                  </div>
-                  <h2 className="mt-2 font-heading text-lg font-bold text-text transition-colors group-hover:text-primary">
-                    {preview.mainStoryTitle}
-                  </h2>
-                  <p className="mt-1 line-clamp-2 text-sm text-text-muted">
-                    {preview.mainStoryExcerpt}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {preview.mainStoryTags.map((t) => (
-                      <span
-                        key={t}
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getTagStyle(t)}`}
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </Link>
+              <NewsDayCard key={preview.date} preview={preview} />
             ))}
           </div>
         ) : (
           <p className="mt-16 text-center text-text-muted">
-            {tag
-              ? `Новостей с тегом "${tag}" пока нет.`
-              : 'Новости скоро появятся. Мы готовим для вас ежедневные дайджесты автомобильного мира.'}
+            Новости скоро появятся. Мы готовим для вас ежедневные дайджесты автомобильного мира.
           </p>
         )}
 
@@ -163,7 +96,7 @@ export default async function NewsPage({ searchParams }: PageProps) {
           <div className="mt-12 flex items-center justify-center gap-4">
             {page > 1 && (
               <Link
-                href={`/news?page=${page - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
+                href={`/news?page=${page - 1}`}
                 className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:border-primary hover:text-primary"
               >
                 &larr; Новее
@@ -174,7 +107,7 @@ export default async function NewsPage({ searchParams }: PageProps) {
             </span>
             {page < result.totalPages && (
               <Link
-                href={`/news?page=${page + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
+                href={`/news?page=${page + 1}`}
                 className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:border-primary hover:text-primary"
               >
                 Старее &rarr;
