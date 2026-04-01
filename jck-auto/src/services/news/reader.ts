@@ -40,6 +40,7 @@ export interface NewsDayPreview {
   date: string;
   mainStoryTitle: string;
   mainStoryTags: string[];
+  mainStoryExcerpt: string;   // первые 200 символов mainStory.body + "..."
   digestCount: number;
   coverImagePath: string | null;
 }
@@ -71,11 +72,19 @@ function readNewsFile(filePath: string): NewsDay | null {
   }
 }
 
+function truncateText(text: string, max: number = 200): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut) + '...';
+}
+
 function toPreview(day: NewsDay): NewsDayPreview {
   return {
     date: day.date,
     mainStoryTitle: day.mainStory.title,
     mainStoryTags: day.mainStory.tags,
+    mainStoryExcerpt: truncateText(day.mainStory.body),
     digestCount: day.digest.length,
     coverImagePath: day.cover?.imagePath ?? null,
   };

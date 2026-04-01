@@ -1,9 +1,7 @@
 /**
  * @file page.tsx
- * @description Страница /news — лента автомобильных новостей с фильтрацией и пагинацией
+ * @description Страница /news — каталог новостей (компактные карточки-превью)
  * @runs VDS (Next.js server-side, ISR revalidate=3600)
- * @input storage/news/YYYY-MM-DD.json через reader.ts
- * @output HTML с лентой новостей, тегами, пагинацией, JSON-LD, CTA
  * @lastModified 2026-04-01
  */
 
@@ -11,20 +9,14 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Send } from 'lucide-react';
-import {
-  getNewsByDate,
-  getNewsDaysPaginated,
-  getAllTags,
-} from '@/services/news/reader';
-import type { NewsDay } from '@/services/news/reader';
+import { getNewsDaysPaginated, getAllTags } from '@/services/news/reader';
+import { getTagStyle } from '@/lib/newsTagColors';
 import { CONTACTS } from '@/lib/constants';
 
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: {
-    absolute: 'Автоновости — JCK AUTO',
-  },
+  title: { absolute: 'Автоновости — JCK AUTO' },
   description:
     'Ежедневный дайджест автомобильных новостей: импорт авто в Россию, китайские автомобили, электромобили, законодательство, таможня. Экспертный анализ от JCK AUTO.',
   keywords:
@@ -35,33 +27,8 @@ export const metadata: Metadata = {
       'Ежедневный дайджест автомобильных новостей: импорт, китайские авто, электромобили, законодательство.',
     url: 'https://jckauto.ru/news',
   },
-  alternates: {
-    canonical: 'https://jckauto.ru/news',
-  },
+  alternates: { canonical: 'https://jckauto.ru/news' },
 };
-
-// ─── TAG STYLES ───────────────────────────────────────────────────────────
-
-const TAG_STYLES: Record<string, string> = {
-  'китайские_авто': 'bg-china/10 text-china',
-  'рынок_РФ': 'bg-china/10 text-china',
-  'корейские_авто': 'bg-korea/10 text-korea',
-  'японские_авто': 'bg-japan/10 text-japan',
-  'электромобили': 'bg-primary/10 text-primary',
-  'технологии': 'bg-primary/10 text-primary',
-};
-
-function tagStyle(tag: string): string {
-  return TAG_STYLES[tag] ?? 'bg-surface-alt text-text-muted';
-}
-
-function TagBadge({ tag }: { tag: string }) {
-  return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${tagStyle(tag)}`}>
-      {tag}
-    </span>
-  );
-}
 
 function formatDate(date: string): string {
   return new Date(date).toLocaleDateString('ru-RU', {
@@ -71,92 +38,6 @@ function formatDate(date: string): string {
   });
 }
 
-// ─── JSON-LD ──────────────────────────────────────────────────────────────
-
-function newsArticleJsonLd(day: NewsDay) {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'NewsArticle',
-    headline: day.mainStory.title,
-    datePublished: day.date,
-    author: { '@type': 'Organization', name: 'JCK AUTO' },
-    publisher: { '@type': 'Organization', name: 'JCK AUTO' },
-    ...(day.cover?.imagePath ? { image: `https://jckauto.ru${day.cover.imagePath}` } : {}),
-  };
-}
-
-// ─── NEWS DAY BLOCK ───────────────────────────────────────────────────────
-
-function NewsDayBlock({ date }: { date: string }) {
-  const day = getNewsByDate(date);
-  if (!day) return null;
-
-  return (
-    <div className="space-y-6">
-      {/* Дата */}
-      <time className="text-sm font-medium text-text-muted">
-        {formatDate(day.date)}
-      </time>
-
-      {/* Обложка */}
-      {day.cover?.imagePath && (
-        <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl">
-          <Image
-            src={day.cover.imagePath}
-            alt={day.mainStory.title}
-            fill
-            className="object-cover"
-          />
-        </div>
-      )}
-
-      {/* Главная новость */}
-      <div>
-        <h2 className="font-heading text-xl font-bold text-text sm:text-2xl">
-          {day.mainStory.title}
-        </h2>
-        <p className="mt-3 whitespace-pre-line text-text-muted">
-          {day.mainStory.body}
-        </p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-text-muted">
-            Источник: {day.mainStory.source}
-          </span>
-          {day.mainStory.tags.map((tag) => (
-            <TagBadge key={tag} tag={tag} />
-          ))}
-        </div>
-      </div>
-
-      {/* Дайджест */}
-      {day.digest.length > 0 && (
-        <div className="space-y-4 pl-4 border-l-2 border-border">
-          {day.digest.map((item, i) => (
-            <div key={i}>
-              <h3 className="font-heading text-base font-semibold text-text">
-                {item.title}
-              </h3>
-              <p className="mt-1 line-clamp-3 text-sm text-text-muted">
-                {item.body}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-text-muted">
-                  {item.source}
-                </span>
-                {item.tags.map((tag) => (
-                  <TagBadge key={tag} tag={tag} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── PAGE ─────────────────────────────────────────────────────────────────
-
 interface PageProps {
   searchParams: Promise<{ page?: string; tag?: string }>;
 }
@@ -165,32 +46,12 @@ export default async function NewsPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1);
   const tag = params.tag || undefined;
-  const limit = 7;
 
   const allTags = getAllTags();
-  const result = getNewsDaysPaginated(page, limit, tag);
-
-  // JSON-LD только для page=1, первые 3 дня
-  const jsonLdDays: NewsDay[] = [];
-  if (page === 1) {
-    for (const preview of result.items.slice(0, 3)) {
-      const day = getNewsByDate(preview.date);
-      if (day) jsonLdDays.push(day);
-    }
-  }
+  const result = getNewsDaysPaginated(page, 7, tag);
 
   return (
     <div className="min-h-screen bg-white pb-20 pt-28">
-      {jsonLdDays.map((day) => (
-        <script
-          key={day.date}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(newsArticleJsonLd(day)),
-          }}
-        />
-      ))}
-
       <div className="mx-auto max-w-4xl px-4">
         {/* Заголовок */}
         <div className="text-center">
@@ -225,7 +86,7 @@ export default async function NewsPage({ searchParams }: PageProps) {
                 className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                   tag === t
                     ? 'bg-primary text-white'
-                    : `${tagStyle(t)} hover:opacity-80`
+                    : `${getTagStyle(t)} hover:opacity-80`
                 }`}
               >
                 {t}
@@ -234,14 +95,59 @@ export default async function NewsPage({ searchParams }: PageProps) {
           </div>
         )}
 
-        {/* Лента новостей */}
+        {/* Лента карточек */}
         {result.items.length > 0 ? (
-          <div className="mt-12 space-y-12">
-            {result.items.map((preview, i) => (
-              <div key={preview.date}>
-                {i > 0 && <div className="mb-12 border-t border-border" />}
-                <NewsDayBlock date={preview.date} />
-              </div>
+          <div className="mt-12 space-y-6">
+            {result.items.map((preview) => (
+              <Link
+                key={preview.date}
+                href={`/news/${preview.date}`}
+                className="group flex flex-col gap-6 rounded-2xl border border-border bg-white p-6 transition-all hover:shadow-md md:flex-row"
+              >
+                {preview.coverImagePath ? (
+                  <div className="relative w-full shrink-0 overflow-hidden rounded-xl md:w-48">
+                    <div className="aspect-[2/1] md:h-32 md:aspect-auto">
+                      <Image
+                        src={preview.coverImagePath}
+                        alt={preview.mainStoryTitle}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-32 w-full shrink-0 items-center justify-center rounded-xl bg-border/50 text-4xl md:w-48">
+                    📰
+                  </div>
+                )}
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                    <time>{formatDate(preview.date)}</time>
+                    {preview.digestCount > 0 && (
+                      <>
+                        <span>&bull;</span>
+                        <span>ещё {preview.digestCount} {preview.digestCount === 1 ? 'новость' : preview.digestCount < 5 ? 'новости' : 'новостей'}</span>
+                      </>
+                    )}
+                  </div>
+                  <h2 className="mt-2 font-heading text-lg font-bold text-text transition-colors group-hover:text-primary">
+                    {preview.mainStoryTitle}
+                  </h2>
+                  <p className="mt-1 line-clamp-2 text-sm text-text-muted">
+                    {preview.mainStoryExcerpt}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {preview.mainStoryTags.map((t) => (
+                      <span
+                        key={t}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getTagStyle(t)}`}
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </Link>
             ))}
           </div>
         ) : (
