@@ -3,13 +3,14 @@
  * @description AI-обработка новостей: отбор, ранжирование, пересказ через DeepSeek
  * @input RawNewsItem[] от collector.ts
  * @output ProcessedNews — структурированный дайджест (1 главная + 4-5 кратких)
- * @cost ~3500 prompt + ~2100 completion tokens ≈ $0.002 за вызов
+ * @cost ~4 вызова DeepSeek ≈ $0.004-0.008 за полный цикл
  * @rule Системный промпт менять только с явного согласования — он определяет тон и формат всего контента
  * @rule DeepSeek должен возвращать строго JSON, без markdown-обёрток
- * @lastModified 2026-03-31
+ * @lastModified 2026-04-01
  */
 
 import { callDeepSeek } from '@/lib/deepseek';
+import type { DeepSeekResponse } from '@/lib/deepseek';
 import type { RawNewsItem } from '@/lib/rssParser';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -51,99 +52,33 @@ const ALLOWED_TAGS = [
 ] as const;
 
 /**
+ * Общий системный промпт для всех вызовов
  * @rule Менять только с явного согласования — определяет тон и формат всего контента
  */
-const SYSTEM_PROMPT = `Ты — главный редактор новостного раздела сайта JCK AUTO (импорт авто из Китая, Кореи, Японии в Россию).
-Целевая аудитория: мужчины 28-50, предприниматели, рассматривают покупку авто из-за рубежа.
-Тон: экспертный, спокойный, без восклицательных знаков и кликбейта. Факты важнее эмоций.
-
-Задача: из списка новостей отбери 5-6 самых значимых для аудитории JCK AUTO.
-Приоритеты при отборе:
-- Импорт авто в Россию, утильсбор, таможенные правила
-- Китайские бренды (BYD, Chery, Geely, Changan, Haval и др.)
-- Электромобили, гибриды
-- Корейские и японские бренды
-- Общие автоновости — только если реально значимые
-
-Формат ответа — строго JSON (без markdown-обёрток, без \`\`\`):
-{
-  "mainStory": {
-    "title": "Заголовок главной новости на русском",
-    "body": "Развёрнутый пересказ 300-500 слов. Экспертный анализ: что это значит для покупателей авто из-за рубежа. Конкретные цифры, факты, последствия.",
-    "sourceIndex": <номер из списка>,
-    "tags": ["тег1", "тег2"]
-  },
-  "digest": [
-    {
-      "title": "Заголовок на русском",
-      "body": "Краткий пересказ 100-150 слов. Суть + почему это важно для аудитории.",
-      "sourceIndex": <номер>,
-      "tags": ["тег1"]
-    }
-  ]
-}
-
-Правила:
-- mainStory: 1 новость, самая значимая. Пересказ 300-500 слов с экспертным комментарием.
-- digest: 4-5 новостей. Каждая — 100-150 слов.
-- Все тексты на русском языке (даже если источник на EN или ZH).
-- tags — только из списка: ${ALLOWED_TAGS.join(', ')}
-- sourceIndex — номер новости из входного списка (начиная с 1)
-ПРАВИЛО РАЗНООБРАЗИЯ (обязательно):
-- Новости разделены на секции с квотами — выбирай строго по квотам каждой секции
-- Итого должно быть 5-6 новостей из разных секций
-- Это правило приоритетнее релевантности отдельной новости
-- Не придумывай факты. Если информации мало — скажи что известно.
-- Ответ — ТОЛЬКО валидный JSON, без пояснений до или после.`;
+const SYSTEM_PROMPT = `Ты — редактор автомобильного портала JCK AUTO (импорт авто из Китая, Кореи, Японии в Россию).
+Целевая аудитория: автолюбители и покупатели авто в России, мужчины 28-50.
+Тон: профессиональный, но доступный. Без восклицательных знаков и кликбейта.
+Пересказывай факты своими словами, указывай источник. Все тексты на русском языке.
+Теги — только из списка: ${ALLOWED_TAGS.join(', ')}
+Ответь ТОЛЬКО валидным JSON, без markdown-обёрток и пояснений.`;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
-/** Отформатировать элементы корзины со сквозной нумерацией */
-function formatBucket(items: RawNewsItem[], allItems: RawNewsItem[]): string {
+/** Отформатировать список новостей для промпта */
+function formatItemsList(items: RawNewsItem[]): string {
   return items
-    .map((item) => {
-      const idx = allItems.indexOf(item) + 1;
+    .map((item, i) => {
       const date = new Date(item.pubDate).toLocaleDateString('ru-RU');
-      return `${idx}. [${item.source}] [${item.language}] ${date}\n   ${item.title}\n   ${item.snippet}`;
+      return `${i + 1}. [${item.source}] ${date}\n   ${item.title}\n   ${item.snippet}`;
     })
     .join('\n\n');
 }
 
-/** Подготовить секционный промпт из корзин */
-function formatSectionedPrompt(buckets: BalancedBuckets): string {
-  const sections: string[] = [];
-
-  if (buckets.china.length > 0) {
-    sections.push(
-      `=== СЕКЦИЯ 1: КИТАЙСКИЕ АВТО (выбери из этой секции 1-2 лучших) ===\n${formatBucket(buckets.china, buckets.all)}`,
-    );
-  }
-  if (buckets.ev.length > 0) {
-    sections.push(
-      `=== СЕКЦИЯ 2: ЭЛЕКТРОМОБИЛИ И БАТАРЕИ (выбери из этой секции 1-2 лучших) ===\n${formatBucket(buckets.ev, buckets.all)}`,
-    );
-  }
-  if (buckets.russia.length > 0) {
-    sections.push(
-      `=== СЕКЦИЯ 3: РОССИЯ, ЗАКОНОДАТЕЛЬСТВО, ТАМОЖНЯ (выбери из этой секции 1-2 лучших, если есть) ===\n${formatBucket(buckets.russia, buckets.all)}`,
-    );
-  }
-  if (buckets.other.length > 0) {
-    sections.push(
-      `=== СЕКЦИЯ 4: ГЛОБАЛЬНЫЙ АВТОПРОМ, ТЕХНОЛОГИИ, АВТОСПОРТ, СУПЕРКАРЫ (выбери из этой секции 2-3 лучших) ===\n${formatBucket(buckets.other, buckets.all)}`,
-    );
-  }
-
-  return sections.join('\n\n');
-}
-
 /** Попробовать распарсить JSON, включая извлечение из markdown-блока */
 function parseJsonResponse(text: string): unknown {
-  // Попытка 1: прямой JSON.parse
   try {
     return JSON.parse(text);
   } catch {
-    // Попытка 2: извлечь из ```json...```
     const match = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     if (match?.[1]) {
       return JSON.parse(match[1]);
@@ -158,6 +93,38 @@ function filterTags(tags: unknown): string[] {
   return tags.filter((t): t is string =>
     typeof t === 'string' && (ALLOWED_TAGS as readonly string[]).includes(t),
   );
+}
+
+/** Вызов DeepSeek с retry на ошибку парсинга JSON */
+async function callWithRetry(userPrompt: string): Promise<{ data: unknown; usage: DeepSeekResponse['usage'] }> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const response = await callDeepSeek(userPrompt, {
+      temperature: 0.3,
+      maxTokens: 4096,
+      systemPrompt: SYSTEM_PROMPT,
+    });
+    try {
+      const data = parseJsonResponse(response.content);
+      return { data, usage: response.usage };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+  throw new Error(`JSON parse failed after ${MAX_RETRIES} retries: ${lastError?.message}`);
+}
+
+/** Извлечь StoryItem из raw-объекта и списка новостей-источников */
+function toStoryItem(raw: { title?: string; body?: string; tags?: unknown }, items: RawNewsItem[], sourceIdx?: number): StoryItem {
+  const idx = (sourceIdx ?? 1) - 1;
+  const src = items[idx];
+  return {
+    title: raw.title ?? '',
+    body: raw.body ?? '',
+    source: src?.source ?? 'unknown',
+    sourceUrl: src?.link ?? '',
+    tags: filterTags(raw.tags),
+  };
 }
 
 // ─── BALANCER ─────────────────────────────────────────────────────────────
@@ -175,7 +142,6 @@ interface BalancedBuckets {
   ev: RawNewsItem[];
   russia: RawNewsItem[];
   other: RawNewsItem[];
-  all: RawNewsItem[]; // сквозной список для sourceIndex
 }
 
 /** Программная балансировка входного списка по тематическим корзинам */
@@ -187,26 +153,18 @@ function balanceItems(items: RawNewsItem[]): BalancedBuckets {
 
   for (const item of items) {
     const t = item.title + ' ' + item.snippet;
-    if (CHINA_RE.test(t)) {
-      china.push(item);
-    } else if (EV_RE.test(t)) {
-      ev.push(item);
-    } else if (RUSSIA_RE.test(t)) {
-      russia.push(item);
-    } else {
-      other.push(item);
-    }
+    if (CHINA_RE.test(t)) china.push(item);
+    else if (EV_RE.test(t)) ev.push(item);
+    else if (RUSSIA_RE.test(t)) russia.push(item);
+    else other.push(item);
   }
 
-  // Применить квоты — внутри каждой корзины уже отсортированы по дате (от collector)
   const pickedChina = china.slice(0, QUOTA_CHINA);
   const pickedEv = ev.slice(0, QUOTA_EV);
   const pickedRussia = russia.slice(0, QUOTA_RUSSIA);
-
   const usedSlots = pickedChina.length + pickedEv.length + pickedRussia.length;
   const otherSlots = MAX_INPUT_ITEMS - usedSlots;
 
-  // Если other мало — добить из оставшихся по корзинам
   let pickedOther: RawNewsItem[];
   if (other.length >= otherSlots) {
     pickedOther = other.slice(0, otherSlots);
@@ -224,19 +182,16 @@ function balanceItems(items: RawNewsItem[]): BalancedBuckets {
     `[Processor] Баланс: china=${pickedChina.length}, ev=${pickedEv.length}, russia=${pickedRussia.length}, other=${pickedOther.length}`,
   );
 
-  // Сквозной список для sourceIndex (порядок: china → ev → russia → other)
-  const all = [...pickedChina, ...pickedEv, ...pickedRussia, ...pickedOther];
-
-  return { china: pickedChina, ev: pickedEv, russia: pickedRussia, other: pickedOther, all };
+  return { china: pickedChina, ev: pickedEv, russia: pickedRussia, other: pickedOther };
 }
 
 // ─── MAIN FUNCTION ────────────────────────────────────────────────────────
 
 /**
- * Обработать массив новостей через DeepSeek: отбор, ранжирование, пересказ
+ * Обработать массив новостей через DeepSeek: параллельные вызовы по корзинам
  * @input items — RawNewsItem[] от collector.ts
  * @output ProcessedNews — структурированный дайджест
- * @important Ограничение: макс 80 новостей на входе (обрезка по свежести)
+ * @important 3-4 параллельных вызова DeepSeek (по одному на корзину)
  */
 export async function processNews(
   items: RawNewsItem[],
@@ -246,92 +201,119 @@ export async function processNews(
     throw new Error('Нет новостей для обработки');
   }
 
-  // Ограничить входной список и сбалансировать по тематикам
   const buckets = balanceItems(items.slice(0, MAX_INPUT_ITEMS));
-  const trimmedItems = buckets.all;
+  const totalItems = buckets.china.length + buckets.ev.length + buckets.russia.length + buckets.other.length;
+  console.log(`[Processor] Новостей на входе: ${items.length}, в корзинах: ${totalItems}`);
 
-  console.log(`[Processor] Новостей на входе: ${items.length}, отправляем в DeepSeek: ${trimmedItems.length}`);
+  // Формируем промпты для каждой непустой корзины
+  type BucketCall = { name: string; items: RawNewsItem[]; prompt: string; isMain: boolean };
+  const calls: BucketCall[] = [];
 
-  const userPrompt = `Вот ${trimmedItems.length} свежих новостей из автомобильной индустрии, разделённых на тематические секции с квотами. Выбери по квотам из каждой секции и подготовь дайджест.\n\n${formatSectionedPrompt(buckets)}`;
+  const mainBucket = buckets.china.length > 0 ? buckets.china : buckets.other;
+  const mainName = buckets.china.length > 0 ? 'china' : 'other';
 
-  // Retry: до MAX_RETRIES попыток при ошибке парсинга JSON
-  let lastError: Error | null = null;
+  calls.push({
+    name: mainName,
+    items: mainBucket,
+    isMain: true,
+    prompt: `Из списка новостей выбери 1 самую важную для аудитории JCK AUTO (импорт авто в Россию).
+Напиши развёрнутый пересказ 300-500 слов с экспертным комментарием.
+Формат JSON: { "title": "Заголовок на русском", "body": "Пересказ 300-500 слов", "sourceIndex": <номер из списка>, "tags": ["тег1", "тег2"] }
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      console.log(`[Processor] Повторная попытка ${attempt + 1}/${MAX_RETRIES} (ошибка парсинга JSON)`);
-    }
+Новости:\n${formatItemsList(mainBucket)}`,
+  });
 
-    const response = await callDeepSeek(userPrompt, {
-      temperature: 0.3,
-      maxTokens: 4096,
-      systemPrompt: SYSTEM_PROMPT,
-    });
-
-    try {
-      const data = parseJsonResponse(response.content) as {
-        mainStory: { title: string; body: string; sourceIndex: number; tags: unknown };
-        digest: Array<{ title: string; body: string; sourceIndex: number; tags: unknown }>;
-      };
-
-      // Валидация базовой структуры
-      if (!data.mainStory?.title || !data.mainStory?.body) {
-        throw new Error('mainStory отсутствует или не содержит title/body');
-      }
-      if (!Array.isArray(data.digest) || data.digest.length === 0) {
-        throw new Error('digest пуст или не является массивом');
-      }
-
-      // Собрать mainStory
-      const mainIdx = (data.mainStory.sourceIndex ?? 1) - 1;
-      const mainSource = trimmedItems[mainIdx];
-      const mainStory: StoryItem = {
-        title: data.mainStory.title,
-        body: data.mainStory.body,
-        source: mainSource?.source ?? 'unknown',
-        sourceUrl: mainSource?.link ?? '',
-        tags: filterTags(data.mainStory.tags),
-      };
-
-      // Собрать digest
-      const digest: StoryItem[] = data.digest.map((d) => {
-        const idx = (d.sourceIndex ?? 1) - 1;
-        const src = trimmedItems[idx];
-        return {
-          title: d.title,
-          body: d.body,
-          source: src?.source ?? 'unknown',
-          sourceUrl: src?.link ?? '',
-          tags: filterTags(d.tags),
-        };
-      });
-
-      console.log(
-        `[Processor] Готово: 1 главная + ${digest.length} дайджест | ` +
-        `tokens=${response.usage.totalTokens} cost=$${response.usage.estimatedCostUsd}`,
-      );
-
-      return {
-        date: new Date().toISOString().slice(0, 10),
-        model: 'deepseek-chat',
-        cost: {
-          promptTokens: response.usage.promptTokens,
-          completionTokens: response.usage.completionTokens,
-          estimatedUsd: response.usage.estimatedCostUsd,
-        },
-        mainStory,
-        digest,
-        sourcesProcessed: stats?.sourcesProcessed ?? 0,
-        rawItemsCollected: stats?.rawItemsCollected ?? items.length,
-        duplicatesRemoved: stats?.duplicatesRemoved ?? 0,
-      };
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(`[Processor] Ошибка парсинга ответа DeepSeek: ${lastError.message}`);
+  // Для остальных корзин — digest вызовы
+  const digestBuckets: Array<{ name: string; items: RawNewsItem[]; count: string }> = [];
+  if (buckets.china.length > 0 && buckets.ev.length > 0) {
+    digestBuckets.push({ name: 'ev', items: buckets.ev, count: '1-2' });
+  }
+  if (buckets.russia.length > 0) {
+    digestBuckets.push({ name: 'russia', items: buckets.russia, count: '1-2' });
+  }
+  // other — если china была mainStory, other идёт в digest; если china пуста, other уже использована для main
+  if (buckets.china.length > 0 && buckets.other.length > 0) {
+    digestBuckets.push({ name: 'other', items: buckets.other, count: '2-3' });
+  } else if (buckets.china.length === 0) {
+    // china пуста, other использована для main; ev и russia — digest
+    if (buckets.ev.length > 0) {
+      digestBuckets.push({ name: 'ev', items: buckets.ev, count: '1-2' });
     }
   }
 
-  throw new Error(
-    `Не удалось получить валидный JSON от DeepSeek после ${MAX_RETRIES} попыток: ${lastError?.message}`,
+  for (const db of digestBuckets) {
+    calls.push({
+      name: db.name,
+      items: db.items,
+      isMain: false,
+      prompt: `Из списка новостей выбери ${db.count} самые важные для аудитории JCK AUTO.
+Для каждой напиши краткий пересказ 100-150 слов.
+Формат JSON: { "items": [{ "title": "Заголовок на русском", "body": "Пересказ 100-150 слов", "sourceIndex": <номер из списка>, "tags": ["тег1"] }] }
+
+Новости:\n${formatItemsList(db.items)}`,
+    });
+  }
+
+  // Параллельные вызовы DeepSeek
+  console.log(`[Processor] Запуск ${calls.length} параллельных вызовов DeepSeek...`);
+  const results = await Promise.allSettled(
+    calls.map(async (call, i) => {
+      console.log(`[Processor] Вызов ${i + 1}/${calls.length} (${call.name}): ${call.items.length} новостей`);
+      const { data, usage } = await callWithRetry(call.prompt);
+      return { call, data, usage };
+    }),
   );
+
+  // Собрать результаты
+  let mainStory: StoryItem | null = null;
+  const digest: StoryItem[] = [];
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let totalCostUsd = 0;
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.warn(`[Processor] Вызов упал: ${result.reason}`);
+      continue;
+    }
+    const { call, data, usage } = result.value;
+    totalPromptTokens += usage.promptTokens;
+    totalCompletionTokens += usage.completionTokens;
+    totalCostUsd += usage.estimatedCostUsd;
+
+    if (call.isMain) {
+      const raw = data as { title?: string; body?: string; sourceIndex?: number; tags?: unknown };
+      mainStory = toStoryItem(raw, call.items, raw.sourceIndex);
+    } else {
+      const raw = data as { items?: Array<{ title?: string; body?: string; sourceIndex?: number; tags?: unknown }> };
+      for (const item of raw.items ?? []) {
+        digest.push(toStoryItem(item, call.items, item.sourceIndex));
+      }
+    }
+  }
+
+  if (!mainStory) {
+    throw new Error('Не удалось получить mainStory ни из одного вызова DeepSeek');
+  }
+
+  const totalTokens = totalPromptTokens + totalCompletionTokens;
+  console.log(
+    `[Processor] Готово: 1 главная + ${digest.length} дайджест | ` +
+    `tokens=${totalTokens} (in:${totalPromptTokens}/out:${totalCompletionTokens}) cost=$${totalCostUsd.toFixed(4)}`,
+  );
+
+  return {
+    date: new Date().toISOString().slice(0, 10),
+    model: 'deepseek-chat',
+    cost: {
+      promptTokens: totalPromptTokens,
+      completionTokens: totalCompletionTokens,
+      estimatedUsd: parseFloat(totalCostUsd.toFixed(6)),
+    },
+    mainStory,
+    digest,
+    sourcesProcessed: stats?.sourcesProcessed ?? 0,
+    rawItemsCollected: stats?.rawItemsCollected ?? items.length,
+    duplicatesRemoved: stats?.duplicatesRemoved ?? 0,
+  };
 }
