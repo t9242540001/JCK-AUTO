@@ -2,6 +2,7 @@ import { MetadataRoute } from "next";
 import { getAllPosts } from "@/lib/blog";
 import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
+import { getAllNewsDays, getAllTags } from "@/services/news/reader";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
@@ -68,5 +69,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticPages, ...catalogPages, ...blogPages];
+  // News pages
+  const newsIndex: MetadataRoute.Sitemap = [
+    {
+      url: "https://jckauto.ru/news",
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.8,
+    },
+  ];
+
+  const newsTagPages: MetadataRoute.Sitemap = getAllTags().map((tag) => ({
+    url: `https://jckauto.ru/news/tag/${tag}`,
+    lastModified: new Date(),
+    changeFrequency: "daily" as const,
+    priority: 0.6,
+  }));
+
+  const newsDayPages: MetadataRoute.Sitemap = getAllNewsDays().map((day) => ({
+    url: `https://jckauto.ru/news/${day.slug}`,
+    lastModified: new Date(day.date),
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+  }));
+
+  return [...staticPages, ...catalogPages, ...blogPages, ...newsIndex, ...newsTagPages, ...newsDayPages];
 }
