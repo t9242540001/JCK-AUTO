@@ -38,7 +38,7 @@ export interface CalcInput {
 export interface CalcResult {
   totalRub: number;
   carPriceRub: number;
-  breakdown: { label: string; value: number }[];
+  breakdown: { label: string; value: number; details?: string }[];
   currencyRate: {
     code: CurrencyCode;
     rate: number;
@@ -56,6 +56,10 @@ function findBracket<T extends Record<string, number>>(
   key: string,
 ): T {
   return table.find((row) => value <= row[key])!;
+}
+
+function fmt(n: number, decimals = 0): string {
+  return n.toLocaleString('ru-RU', { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
 }
 
 /* ── 1. Сбор за таможенное оформление ─────────────────────────────── */
@@ -169,9 +173,11 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
 
   // 2. Таможенное оформление
   const processingFee = calcCustomsProcessingFee(carPriceRub);
+  const processingRow = findBracket(CUSTOMS_PROCESSING_FEE, carPriceRub, "maxRub");
+  const processingDetails = `при стоимости авто до ${fmt(processingRow.maxRub === Infinity ? 999_999_999 : processingRow.maxRub)} ₽`;
 
   // 3. Таможенные платежи
-  const breakdown: { label: string; value: number }[] = [];
+  const breakdown: { label: string; value: number; details?: string }[] = [];
 
   if (isChina) {
     breakdown.push({ label: "Автомобиль", value: Math.round(priceInCurrency * currencyRate) });
@@ -180,27 +186,71 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
     breakdown.push({ label: "Автомобиль", value: carPriceRub });
   }
 
-  breakdown.push({ label: "Таможенное оформление", value: processingFee });
+  breakdown.push({ label: "Таможенное оформление", value: processingFee, details: processingDetails });
 
   let customsTotal = 0;
 
   if (buyerType === "individual") {
     const ets = calcETS(carPriceEur, engineVolume, carAge, eurRate);
-    breakdown.push({ label: "Единая таможенная ставка", value: ets });
+    let etsDetails: string;
+    if (carAge === "under3") {
+      const row = findBracket(ETS_UNDER3, carPriceEur, "maxEur");
+      etsDetails = `max(${(row.pct * 100).toFixed(0)}% × ${fmt(Math.round(carPriceEur))} €; ${row.minPerCc} €/см³ × ${fmt(engineVolume)} см³) × ${fmt(eurRate, 2)} ₽/€`;
+    } else if (carAge === "3to5") {
+      const row = findBracket(ETS_3TO5, engineVolume, "maxCc");
+      etsDetails = `${row.rate} €/см³ × ${fmt(engineVolume)} см³ × ${fmt(eurRate, 2)} ₽/€`;
+    } else {
+      const row = findBracket(ETS_OVER5, engineVolume, "maxCc");
+      etsDetails = `${row.rate} €/см³ × ${fmt(engineVolume)} см³ × ${fmt(eurRate, 2)} ₽/€`;
+    }
+    breakdown.push({ label: "Единая таможенная ставка", value: ets, details: etsDetails });
     customsTotal = ets;
   } else {
     const duty = calcDuty(carPriceRub, carPriceEur, engineVolume, carAge, eurRate);
+    let dutyDetails: string;
+    if (carAge === "under3") {
+      dutyDetails = `${(DUTY_UNDER3_PCT * 100).toFixed(0)}% от стоимости`;
+    } else if (carAge === "3to5" || carAge === "5to7") {
+      const row = findBracket(DUTY_3TO7, engineVolume, "maxCc");
+      dutyDetails = `max(${(row.pct * 100).toFixed(0)}% × ${fmt(Math.round(carPriceEur))} €; ${row.minPerCc} €/см³ × ${fmt(engineVolume)} см³) × ${fmt(eurRate, 2)} ₽/€`;
+    } else {
+      const row = findBracket(DUTY_OVER7, engineVolume, "maxCc");
+      dutyDetails = `${row.rate} €/см³ × ${fmt(engineVolume)} см³ × ${fmt(eurRate, 2)} ₽/€`;
+    }
+
     const excise = calcExcise(enginePower);
+    const exciseRow = findBracket(EXCISE_RATES, enginePower, "maxHp");
+    const exciseDetails = exciseRow.rate === 0
+      ? `без акциза (до 90 л.с.)`
+      : `${fmt(exciseRow.rate)} ₽/л.с. × ${fmt(enginePower)} л.с.`;
+
     const vat = Math.round((carPriceRub + duty + excise) * VAT_RATE);
-    breakdown.push({ label: "Таможенная пошлина", value: duty });
-    breakdown.push({ label: "Акциз", value: excise });
-    breakdown.push({ label: "НДС 20%", value: vat });
+    const vatDetails = `20% × (стоимость + пошлина + акциз)`;
+
+    breakdown.push({ label: "Таможенная пошлина", value: duty, details: dutyDetails });
+    breakdown.push({ label: "Акциз", value: excise, details: exciseDetails });
+    breakdown.push({ label: "НДС 20%", value: vat, details: vatDetails });
     customsTotal = duty + excise + vat;
   }
 
   // 4. Утильсбор
   const recycling = calcRecyclingFee(enginePower, engineVolume, carAge, buyerType, personalUse);
-  breakdown.push({ label: "Утилизационный сбор", value: recycling });
+  const isUnder3 = carAge === "under3";
+  const ageLabel = isUnder3 ? "до 3 лет" : "3+ лет";
+  let recyclingDetails: string;
+  if (buyerType === "company") {
+    const row = findBracket(RECYCLING_COMPANY, enginePower, "maxHp");
+    const coeff = isUnder3 ? row.under3 : row.over3;
+    recyclingDetails = `${fmt(RECYCLING_BASE)} ₽ × ${coeff} (юрлицо, ${ageLabel})`;
+  } else if (enginePower <= 160 && engineVolume <= 3000 && personalUse) {
+    const coeff = isUnder3 ? RECYCLING_INDIVIDUAL_PREFERENTIAL.under3 : RECYCLING_INDIVIDUAL_PREFERENTIAL.over3;
+    recyclingDetails = `${fmt(RECYCLING_BASE)} ₽ × ${coeff} (льготный: ≤160 л.с., ≤3 л, ${ageLabel})`;
+  } else {
+    const row = findBracket(RECYCLING_INDIVIDUAL_COMMERCIAL, enginePower, "maxHp");
+    const coeff = isUnder3 ? row.under3 : row.over3;
+    recyclingDetails = `${fmt(RECYCLING_BASE)} ₽ × ${coeff} (коммерч., ${ageLabel})`;
+  }
+  breakdown.push({ label: "Утилизационный сбор", value: recycling, details: recyclingDetails });
 
   // 5. Фиксированные расходы — только если country указана
   let fixedTotal = 0;
