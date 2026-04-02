@@ -10,7 +10,7 @@ import {
 import { findCoverPhotoIndex } from "@/lib/catalogSync";
 import { generateSlug } from "@/lib/carUtils";
 import { calculateFullPriceWithRates } from "@/lib/priceCalculator";
-import { fetchCBRRates } from "@/lib/currency";
+import { fetchCBRRates } from "@/lib/currencyRates";
 
 export const maxDuration = 300;
 

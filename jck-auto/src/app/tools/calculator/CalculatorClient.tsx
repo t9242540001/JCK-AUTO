@@ -8,9 +8,9 @@ import {
   type PriceParams,
   type PriceResult,
 } from "@/lib/priceCalculator";
-import { fetchCBRRates, type CBRRates, COUNTRY_CURRENCY } from "@/lib/currency";
+import { fetchCBRRates, type CBRRates, COUNTRY_CURRENCY } from "@/lib/currencyRates";
 import { CONTACTS, type Country } from "@/lib/constants";
-import { DELIVERY_CITY } from "@/lib/calculator-data";
+import { DELIVERY_CITY } from "@/lib/tariffs";
 
 function formatPrice(value: number): string {
   return value.toLocaleString("ru-RU") + " \u20BD";

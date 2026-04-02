@@ -12,7 +12,7 @@ import {
   type CarAge,
   type BuyerType,
 } from "@/lib/calculator";
-import { fetchCBRRates, type CBRRates, COUNTRY_CURRENCY } from "@/lib/currency";
+import { fetchCBRRates, type CBRRates, COUNTRY_CURRENCY } from "@/lib/currencyRates";
 import { type Country } from "@/lib/constants";
 
 const countryOptions: { value: Country; label: string }[] = [
@@ -63,6 +63,7 @@ export default function Calculator() {
 
     const input: CalcInput = {
       country,
+      currencyCode: COUNTRY_CURRENCY[country].code,
       priceInCurrency: p,
       engineVolume: v,
       enginePower: hp,

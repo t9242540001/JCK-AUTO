@@ -13,7 +13,7 @@ import {
   getRecyclingFee,
   type PriceParams,
 } from "@/lib/priceCalculator";
-import type { CBRRates } from "@/lib/currency";
+import type { CBRRates } from "@/lib/currencyRates";
 import type { Car } from "@/types/car";
 
 /* ── Test helpers ────────────────────────────────────────────────────── */
@@ -50,6 +50,7 @@ function assertEqual(actual: number, expected: number, label: string): void {
 const TEST_RATES: CBRRates = {
   CNY: 11.05,
   EUR: 91.25,
+  USD: 88.50,
   KRW: 0.0636,
   JPY: 0.582,
   date: "test",
