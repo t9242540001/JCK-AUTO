@@ -9,6 +9,7 @@
  */
 
 import { join } from 'path';
+import { execSync } from 'child_process';
 import { generateTopic, addToPublishedLog } from '../src/services/articles/topicGenerator';
 import { generateArticle } from '../src/services/articles/generator';
 import { publishArticle } from '../src/services/articles/articlePublisher';
@@ -44,12 +45,12 @@ async function main() {
 
   try {
     // Шаг 3: Сгенерировать текст
-    console.log('\n[Article] Шаг 1/3: Генерация текста...');
+    console.log('\n[Article] Шаг 1/4: Генерация текста...');
     const article = await generateArticle(topic, newsContext, internalLinks);
     console.log(`[Article] Текст: ${article.wordCount} слов, $${article.cost.estimatedCostUsd}`);
 
     // Шаг 4: Сгенерировать обложку
-    console.log('\n[Article] Шаг 2/3: Генерация обложки...');
+    console.log('\n[Article] Шаг 2/4: Генерация обложки...');
     let cover = null;
     try {
       const coverPath = join(PROJECT_ROOT, 'public', 'images', 'blog', `${article.slug}.jpg`);
@@ -67,7 +68,7 @@ async function main() {
     }
 
     // Шаг 5: Опубликовать
-    console.log('\n[Article] Шаг 3/3: Публикация...');
+    console.log('\n[Article] Шаг 3/4: Публикация...');
     const pubResult = await publishArticle(article, cover);
     console.log(`[Article] Опубликовано: ${pubResult.mdxPath}`);
 
@@ -82,6 +83,16 @@ async function main() {
       cost: article.cost.estimatedCostUsd + (cover?.cost.estimatedUsd ?? 0),
       newsSource: newsContext.map((n) => n.date).join(','),
     });
+
+    // Шаг 6: Сборка и перезапуск
+    console.log('\n[Article] Шаг 4/4: Сборка сайта...');
+    try {
+      execSync('npm run build', { cwd: PROJECT_ROOT, stdio: 'pipe', timeout: 300000 });
+      execSync('pm2 restart jckauto', { stdio: 'pipe', timeout: 30000 });
+      console.log('[Article] Сайт пересобран и перезапущен');
+    } catch (buildErr) {
+      console.warn('[Article] Сборка не удалась (нефатально, статья сохранена):', buildErr instanceof Error ? buildErr.message : buildErr);
+    }
 
     // Итог
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
