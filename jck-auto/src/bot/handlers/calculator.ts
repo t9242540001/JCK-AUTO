@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { calculateTotal, formatPrice, type CalcInput, type CarAge } from "../../lib/calculator";
-import { fetchCBRRates, COUNTRY_CURRENCY } from "../../lib/currency";
+import { fetchCBRRates, COUNTRY_CURRENCY } from "../../lib/currencyRates";
 
 interface CalcState {
   step: "country" | "price" | "volume" | "power" | "age";
@@ -147,6 +147,7 @@ async function finishCalc(bot: TelegramBot, chatId: number, state: CalcState) {
 
   const input: CalcInput = {
     country: state.data.country!,
+    currencyCode: COUNTRY_CURRENCY[state.data.country!].code,
     priceInCurrency: state.data.priceInCurrency!,
     engineVolume: state.data.engineVolume!,
     enginePower: state.data.enginePower!,
@@ -159,7 +160,7 @@ async function finishCalc(bot: TelegramBot, chatId: number, state: CalcState) {
     const rates = await fetchCBRRates();
     const result = calculateTotal(input, rates);
 
-    const curr = COUNTRY_CURRENCY[input.country];
+    const curr = COUNTRY_CURRENCY[input.country!];
     const lines = [
       "\u{1F4CA} Расчёт стоимости под ключ",
       "",

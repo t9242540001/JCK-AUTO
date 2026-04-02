@@ -35,7 +35,7 @@ if (existsSync(envLocalPath)) {
 
 import type { Car } from "@/types/car";
 import { readCatalogJson, writeCatalogJson } from "@/lib/blobStorage";
-import { fetchCBRRates } from "@/lib/currency";
+import { fetchCBRRates } from "@/lib/currencyRates";
 import { calculateFullPriceWithRates } from "@/lib/priceCalculator";
 import { parseFromFolderName } from "@/lib/screenshotParser";
 

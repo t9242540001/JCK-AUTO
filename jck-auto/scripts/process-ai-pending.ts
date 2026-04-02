@@ -57,7 +57,7 @@ if (existsSync(envLocalPath)) {
 import type { Car } from "@/types/car";
 import { parseCarScreenshot, parseCarMultipleScreenshots } from "@/lib/screenshotParser";
 import { generateCarDescription } from "@/lib/descriptionGenerator";
-import { fetchCBRRates } from "@/lib/currency";
+import { fetchCBRRates } from "@/lib/currencyRates";
 import { calculateFullPriceWithRates } from "@/lib/priceCalculator";
 
 const SCREENSHOTS_DIR = resolve(process.cwd(), "screenshots");

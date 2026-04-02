@@ -10,7 +10,7 @@ import { parseCarScreenshot } from "./screenshotParser";
 import { generateCarDescription } from "./descriptionGenerator";
 import { generateSlug } from "./carUtils";
 import { calculateFullPriceWithRates } from "./priceCalculator";
-import { fetchCBRRates, type CBRRates } from "./currency";
+import { fetchCBRRates, type CBRRates } from "./currencyRates";
 
 const MAX_NEW_PER_RUN = 10;
 

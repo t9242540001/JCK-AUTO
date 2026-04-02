@@ -1,4 +1,4 @@
-import { type CBRRates, COUNTRY_CURRENCY } from "./currency";
+import { type CBRRates, type CurrencyCode, COUNTRY_CURRENCY } from "./currencyRates";
 import {
   CUSTOMS_PROCESSING_FEE,
   ETS_UNDER3,
@@ -15,21 +15,24 @@ import {
   RECYCLING_COMPANY,
   FIXED_COSTS,
   DELIVERY_CITY,
-} from "./calculator-data";
+} from "./tariffs";
 
 /* ── Типы ─────────────────────────────────────────────────────────── */
 
 export type CarAge = "under3" | "3to5" | "5to7" | "over7";
 export type BuyerType = "individual" | "company";
 
+export type Country = "china" | "korea" | "japan";
+
 export interface CalcInput {
-  country: "china" | "korea" | "japan";
   priceInCurrency: number;
+  currencyCode: CurrencyCode;
   engineVolume: number;
   enginePower: number;
   carAge: CarAge;
   buyerType: BuyerType;
   personalUse: boolean;
+  country?: Country;  // если указано → включает логистику и комиссию
 }
 
 export interface CalcResult {
@@ -37,12 +40,12 @@ export interface CalcResult {
   carPriceRub: number;
   breakdown: { label: string; value: number }[];
   currencyRate: {
-    code: string;
+    code: CurrencyCode;
     rate: number;
     eurRate: number;
     date: string;
   };
-  deliveryCity: string;
+  deliveryCity?: string;
 }
 
 /* ── Вспомогательные ──────────────────────────────────────────────── */
@@ -148,12 +151,11 @@ function calcRecyclingFee(
 
 /* ── Главная функция расчёта ──────────────────────────────────────── */
 export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
-  const { country, priceInCurrency, engineVolume, enginePower, carAge, buyerType, personalUse } = input;
+  const { priceInCurrency, currencyCode, engineVolume, enginePower, carAge, buyerType, personalUse, country } = input;
 
-  const currencyInfo = COUNTRY_CURRENCY[country];
-  const currencyRate = rates[currencyInfo.code];
+  const currencyRate = rates[currencyCode] as number;
   const eurRate = rates.EUR;
-  const city = DELIVERY_CITY[country];
+  const city = country ? DELIVERY_CITY[country] : undefined;
 
   const isChina = country === "china";
 
@@ -200,20 +202,22 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
   const recycling = calcRecyclingFee(enginePower, engineVolume, carAge, buyerType, personalUse);
   breakdown.push({ label: "Утилизационный сбор", value: recycling });
 
-  // 5. Фиксированные расходы — разные для Китая и Кореи/Японии
-  let fixedTotal: number;
+  // 5. Фиксированные расходы — только если country указана
+  let fixedTotal = 0;
 
-  if (isChina) {
-    const markupRub = FIXED_COSTS.china.markup_rub;
-    breakdown.push({ label: `Доставка до ${city}, СБКТС, ЭПТС, брокер`, value: markupRub });
-    fixedTotal = markupRub;
-  } else {
-    const costs = FIXED_COSTS[country];
-    breakdown.push({ label: "СБКТС (сертификат безопасности)", value: costs.sbkts });
-    breakdown.push({ label: "ЭПТС (электронный паспорт ТС)", value: costs.epts });
-    breakdown.push({ label: "Услуги таможенного брокера", value: costs.broker });
-    breakdown.push({ label: `Доставка до ${city}`, value: costs.logistics });
-    fixedTotal = costs.sbkts + costs.epts + costs.broker + costs.logistics;
+  if (country) {
+    if (isChina) {
+      const markupRub = FIXED_COSTS.china.markup_rub;
+      breakdown.push({ label: `Доставка до ${city}, СБКТС, ЭПТС, брокер`, value: markupRub });
+      fixedTotal = markupRub;
+    } else {
+      const costs = FIXED_COSTS[country];
+      breakdown.push({ label: "СБКТС (сертификат безопасности)", value: costs.sbkts });
+      breakdown.push({ label: "ЭПТС (электронный паспорт ТС)", value: costs.epts });
+      breakdown.push({ label: "Услуги таможенного брокера", value: costs.broker });
+      breakdown.push({ label: `Доставка до ${city}`, value: costs.logistics });
+      fixedTotal = costs.sbkts + costs.epts + costs.broker + costs.logistics;
+    }
   }
 
   // 6. Итого
@@ -229,7 +233,7 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
     carPriceRub,
     breakdown,
     currencyRate: {
-      code: currencyInfo.code,
+      code: currencyCode,
       rate: currencyRate,
       eurRate,
       date: rates.date,
