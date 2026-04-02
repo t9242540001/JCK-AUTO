@@ -15,10 +15,11 @@ const CYRILLIC_MAP: Record<string, string> = {
 /**
  * Генерация URL-slug из текста (кириллица → латиница)
  * @input text — заголовок или произвольный текст
- * @input maxWords — максимум слов в slug (по умолчанию 7)
- * @output lowercase slug: a-z, 0-9, дефисы
+ * @input maxWords — максимум слов в slug (по умолчанию 6)
+ * @input maxLength — максимум символов в slug (по умолчанию 50)
+ * @output lowercase slug: a-z, 0-9, дефисы, ≤maxLength символов
  */
-export function generateSlug(text: string, maxWords: number = 7): string {
+export function generateSlug(text: string, maxWords: number = 6, maxLength: number = 50): string {
   const transliterated = text
     .toLowerCase()
     .split('')
@@ -30,6 +31,31 @@ export function generateSlug(text: string, maxWords: number = 7): string {
     .replace(/[\s-]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
-  const words = slug.split('-').filter(Boolean).slice(0, maxWords);
-  return words.join('-') || 'news';
+  const allWords = slug.split('-').filter(Boolean);
+  const words = allWords.slice(0, maxWords);
+  // Убрать короткие хвосты только если слова были обрезаны
+  if (allWords.length > maxWords) {
+    while (words.length > 1 && words[words.length - 1].length <= 3) {
+      words.pop();
+    }
+  }
+  let result = words.join('-');
+
+  // Обрезка по длине с учётом целых слов + удаление коротких хвостов
+  if (result.length > maxLength) {
+    result = result.slice(0, maxLength);
+    const lastDash = result.lastIndexOf('-');
+    if (lastDash > 0) {
+      result = result.slice(0, lastDash);
+    }
+
+    // Убрать короткие хвосты (предлоги, частицы ≤3 символов) после обрезки
+    const parts = result.split('-');
+    while (parts.length > 1 && parts[parts.length - 1].length <= 3) {
+      parts.pop();
+    }
+    result = parts.join('-');
+  }
+
+  return result || 'news';
 }
