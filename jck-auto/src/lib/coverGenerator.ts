@@ -1,13 +1,13 @@
 /**
  * @file coverGenerator.ts
- * @description Генерация обложек: DeepSeek (метафора) → DashScope (акварель) → Sharp (оверлей)
- * @input заголовок, теги, дата, тип (news/article)
- * @output JPEG с акварельной иллюстрацией и брендированным оверлеем
+ * @description Генерация обложек: DeepSeek (метафора) → DashScope (иллюстрация) → Sharp (оверлей)
+ * @input заголовок, теги, дата, тип (news/article), стиль (watercolor/realistic)
+ * @output JPEG с иллюстрацией (watercolor + оверлей для новостей, realistic для статей)
  * @cost DeepSeek ~$0.0003 (промпт-метафора) + DashScope ~$0.04 (картинка)
- * @rule Стиль ВСЕГДА watercolor & ink wash — не менять без согласования
- * @rule Лого накладывать с пониженной непрозрачностью (65%) и blur для вписывания в акварельный стиль
+ * @rule Стиль watercolor — для новостей (с оверлеем), realistic — для статей (без оверлея)
+ * @rule Лого накладывать только в watercolor-режиме (65% opacity, blur)
  * @rule НЕ включать текст, логотипы, брендинг в промпт для генерации картинки — только в Sharp-оверлее
- * @lastModified 2026-04-01
+ * @lastModified 2026-04-02
  */
 
 import sharp from 'sharp';
@@ -23,6 +23,7 @@ export interface CoverOptions {
   tags: string[];
   date: string;           // "2026-04-01"
   type: 'news' | 'article';
+  style?: 'watercolor' | 'realistic';  // default: 'watercolor'
   outputPath: string;
 }
 
@@ -55,11 +56,15 @@ const TAG_PALETTES: Record<string, { colors: string; hex: [string, string] }> = 
   'глобальный_рынок': { colors: 'navy blue and warm amber', hex: ['#1E3A5F', '#D4A84B'] },
 };
 
-const METAPHOR_SYSTEM_PROMPT = `Ты — арт-директор. По заголовку и тегам придумай визуальную метафору для иллюстрации.
+const METAPHOR_SYSTEM_PROMPT_WATERCOLOR = `Ты — арт-директор. По заголовку и тегам придумай визуальную метафору для иллюстрации.
 НЕ описывай конкретные марки и модели авто. Описывай СЦЕНУ или МЕТАФОРУ.
 Результат — только промпт на английском, до 100 слов. Без пояснений, только промпт.`;
 
+const METAPHOR_SYSTEM_PROMPT_REALISTIC = `Ты — арт-директор автомобильного журнала. По заголовку статьи создай промпт для генерации фотореалистичной иллюстрации в стиле tech/automotive editorial. Стиль: профессиональная автомобильная фотография, студийное освещение, технологичный фон, глубина резкости. НЕ описывай конкретные марки и модели. Описывай СЦЕНУ, стиль, освещение, композицию. Результат — только промпт на английском, до 120 слов. Без пояснений.`;
+
 const WATERCOLOR_STYLE = 'Watercolor and ink illustration, loose wet-on-wet technique, colors bleeding at edges, visible paper texture, artistic brushstrokes, no text, no logos, no branding.';
+
+const REALISTIC_STYLE = 'Photorealistic automotive photography, professional studio lighting, cinematic depth of field, high-end car magazine editorial style. Ultra detailed, 8K quality. No text, no logos, no watermarks, no branding.';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
@@ -75,18 +80,24 @@ function getPalette(tags: string[]): { colors: string; hex: [string, string] } {
 async function generateMetaphorPrompt(
   title: string,
   tags: string[],
+  style: 'watercolor' | 'realistic' = 'watercolor',
 ): Promise<{ prompt: string; usage: { promptTokens: number; completionTokens: number; estimatedUsd: number } }> {
   const palette = getPalette(tags);
   const userPrompt = `Заголовок: "${title}"\nТеги: ${tags.join(', ')}\nЦветовая палитра: ${palette.colors}\n\nПридумай визуальную метафору для этого заголовка.`;
 
+  const systemPrompt = style === 'realistic'
+    ? METAPHOR_SYSTEM_PROMPT_REALISTIC
+    : METAPHOR_SYSTEM_PROMPT_WATERCOLOR;
+  const styleSuffix = style === 'realistic' ? REALISTIC_STYLE : WATERCOLOR_STYLE;
+
   const response = await callDeepSeek(userPrompt, {
     temperature: 0.7,
     maxTokens: 256,
-    systemPrompt: METAPHOR_SYSTEM_PROMPT,
+    systemPrompt,
   });
 
-  const prompt = `${response.content.trim()} ${WATERCOLOR_STYLE} Color palette: ${palette.colors}.`;
-  console.log(`[Cover] Промпт-метафора: ${prompt.slice(0, 120)}...`);
+  const prompt = `${response.content.trim()} ${styleSuffix} Color palette: ${palette.colors}.`;
+  console.log(`[Cover] Промпт-метафора (${style}): ${prompt.slice(0, 120)}...`);
 
   return {
     prompt,
@@ -223,10 +234,10 @@ async function applyOverlay(
  * @important Fallback: DashScope → Sharp-градиент. Без OpenRouter.
  */
 export async function generateCover(options: CoverOptions): Promise<CoverResult> {
-  const { title, tags, date, outputPath } = options;
+  const { title, tags, date, style = 'watercolor', outputPath } = options;
 
   // Шаг 1: DeepSeek генерирует промпт-метафору
-  const metaphor = await generateMetaphorPrompt(title, tags);
+  const metaphor = await generateMetaphorPrompt(title, tags, style);
 
   // Шаг 2: DashScope генерирует акварельную иллюстрацию (с fallback)
   let imageBuffer: Buffer;
@@ -251,8 +262,16 @@ export async function generateCover(options: CoverOptions): Promise<CoverResult>
     }
   }
 
-  // Шаг 3: Sharp накладывает брендированный оверлей
-  const finalBuffer = await applyOverlay(imageBuffer, date, tags);
+  // Шаг 3: финализация — watercolor с оверлеем, realistic без
+  let finalBuffer: Buffer;
+  if (style === 'realistic') {
+    finalBuffer = await sharp(imageBuffer)
+      .resize(IMAGE_WIDTH, IMAGE_HEIGHT, { fit: 'cover' })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+  } else {
+    finalBuffer = await applyOverlay(imageBuffer, date, tags);
+  }
 
   // Сохранить
   mkdirSync(dirname(outputPath), { recursive: true });
