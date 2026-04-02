@@ -1,22 +1,77 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Phone, Menu, Send } from "lucide-react";
+import { Phone, Menu, Send, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CONTACTS } from "@/lib/constants";
+import { NAV_ITEMS, type NavItem } from "@/lib/navigation";
 import MobileMenu from "./MobileMenu";
 
-const NAV_ITEMS = [
-  { label: "Главная", href: "/" },
-  { label: "Каталог", href: "/catalog" },
-  { label: "Калькулятор", href: "/calculator" },
-  { label: "О компании", href: "/about" },
-  { label: "Блог", href: "/blog" },
-  { label: "Новости", href: "/news" },
-];
+function DesktopNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleEnter = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setOpen(true);
+  }, []);
+
+  const handleLeave = useCallback(() => {
+    timeoutRef.current = setTimeout(() => setOpen(false), 150);
+  }, []);
+
+  if (!item.children) {
+    return (
+      <Link
+        href={item.href}
+        className={cn(
+          "text-sm transition-colors hover:text-primary",
+          pathname === item.href ? "font-medium text-primary" : "text-text-muted"
+        )}
+      >
+        {item.label}
+      </Link>
+    );
+  }
+
+  const isActive = pathname.startsWith(item.href);
+
+  return (
+    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      <Link
+        href={item.href}
+        className={cn(
+          "flex items-center gap-1 text-sm transition-colors hover:text-primary",
+          isActive ? "font-medium text-primary" : "text-text-muted"
+        )}
+      >
+        {item.label}
+        <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
+      </Link>
+      {open && (
+        <div className="absolute left-0 top-full pt-2">
+          <div className="min-w-56 rounded-xl bg-white py-2 shadow-lg ring-1 ring-black/5">
+            {item.children.map((child) => (
+              <Link
+                key={child.href}
+                href={child.href}
+                className={cn(
+                  "block px-4 py-2 text-sm transition-colors hover:bg-surface-alt hover:text-primary",
+                  pathname === child.href ? "font-medium text-primary" : "text-text-muted"
+                )}
+              >
+                {child.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Header() {
   const pathname = usePathname();
@@ -38,18 +93,7 @@ export default function Header() {
 
         <nav className="hidden items-center gap-8 lg:flex" role="navigation">
           {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "text-sm transition-colors hover:text-primary",
-                pathname === item.href
-                  ? "font-medium text-primary"
-                  : "text-text-muted"
-              )}
-            >
-              {item.label}
-            </Link>
+            <DesktopNavItem key={item.href} item={item} pathname={pathname} />
           ))}
         </nav>
 

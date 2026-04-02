@@ -2,15 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Phone, Send, Youtube } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
-
-const NAV_ITEMS = [
-  { label: "Главная", href: "/" },
-  { label: "Каталог", href: "/catalog" },
-  { label: "Калькулятор", href: "/calculator" },
-  { label: "О компании", href: "/about" },
-  { label: "Блог", href: "/blog" },
-  { label: "Новости", href: "/news" },
-];
+import { NAV_ITEMS } from "@/lib/navigation";
 
 export default function Footer() {
   return (
@@ -37,15 +29,30 @@ export default function Footer() {
               Навигация
             </h3>
             <nav className="mt-4 flex flex-col gap-1">
-              {NAV_ITEMS.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="py-1.5 text-sm text-white/70 transition-colors hover:text-white"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {NAV_ITEMS.map((item) =>
+                item.children ? (
+                  <div key={item.href}>
+                    <span className="block py-1.5 text-sm text-white/50">{item.label}</span>
+                    {item.children.map((child) => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className="block py-1.5 pl-3 text-sm text-white/70 transition-colors hover:text-white"
+                      >
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="py-1.5 text-sm text-white/70 transition-colors hover:text-white"
+                  >
+                    {item.label}
+                  </Link>
+                )
+              )}
             </nav>
           </div>
 

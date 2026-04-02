@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Phone, Send } from "lucide-react";
+import { Phone, Send, ChevronDown } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -10,20 +11,66 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { CONTACTS } from "@/lib/constants";
+import { NAV_ITEMS, type NavItem } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
-
-const NAV_ITEMS = [
-  { label: "Главная", href: "/" },
-  { label: "Каталог", href: "/catalog" },
-  { label: "Калькулятор", href: "/calculator" },
-  { label: "О компании", href: "/about" },
-  { label: "Блог", href: "/blog" },
-  { label: "Новости", href: "/news" },
-];
 
 interface MobileMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+function MobileNavItem({ item, pathname, onClose }: { item: NavItem; pathname: string; onClose: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!item.children) {
+    return (
+      <Link
+        href={item.href}
+        onClick={onClose}
+        className={cn(
+          "py-3 text-lg transition-colors hover:text-primary",
+          pathname === item.href ? "font-medium text-primary" : "text-text"
+        )}
+      >
+        {item.label}
+      </Link>
+    );
+  }
+
+  const isActive = pathname.startsWith(item.href);
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={cn(
+          "flex w-full items-center justify-between py-3 text-lg transition-colors hover:text-primary",
+          isActive ? "font-medium text-primary" : "text-text"
+        )}
+      >
+        {item.label}
+        <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", expanded && "rotate-180")} />
+      </button>
+      <div
+        className="overflow-hidden transition-all duration-200"
+        style={{ maxHeight: expanded ? `${item.children.length * 48}px` : "0" }}
+      >
+        {item.children.map((child) => (
+          <Link
+            key={child.href}
+            href={child.href}
+            onClick={onClose}
+            className={cn(
+              "block py-2.5 pl-4 text-base transition-colors hover:text-primary",
+              pathname === child.href ? "font-medium text-primary" : "text-text-muted"
+            )}
+          >
+            {child.label}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
@@ -42,19 +89,12 @@ export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
 
           <nav className="flex flex-col px-6">
             {NAV_ITEMS.map((item) => (
-              <Link
+              <MobileNavItem
                 key={item.href}
-                href={item.href}
-                onClick={() => onOpenChange(false)}
-                className={cn(
-                  "py-3 text-lg transition-colors hover:text-primary",
-                  pathname === item.href
-                    ? "font-medium text-primary"
-                    : "text-text"
-                )}
-              >
-                {item.label}
-              </Link>
+                item={item}
+                pathname={pathname}
+                onClose={() => onOpenChange(false)}
+              />
             ))}
           </nav>
 
