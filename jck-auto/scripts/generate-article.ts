@@ -3,13 +3,13 @@
  * @description Cron-скрипт: полный pipeline генерации SEO-статьи для блога
  * @runs VDS
  * @triggers cron | manual: npx tsx -r dotenv/config scripts/generate-article.ts dotenv_config_path=.env.local
- * @input topicQueue → generator → coverGenerator → articlePublisher
+ * @input topicGenerator → generator → coverGenerator → articlePublisher
  * @output content/blog/{slug}.mdx + public/images/blog/{slug}.jpg
- * @lastModified 2026-04-02
+ * @lastModified 2026-04-03
  */
 
 import { join } from 'path';
-import { getNextTopic, getTopicNewsContext, updateTopicStatus } from '../src/services/articles/topicQueue';
+import { generateTopic, addToPublishedLog } from '../src/services/articles/topicGenerator';
 import { generateArticle } from '../src/services/articles/generator';
 import { publishArticle } from '../src/services/articles/articlePublisher';
 import { generateCover } from '../src/lib/coverGenerator';
@@ -27,18 +27,18 @@ async function main() {
 
   console.log('[Article] Запуск генератора статей...');
 
-  // Шаг 1: Выбрать тему
-  const topic = getNextTopic();
-  if (!topic) {
-    console.log('[Article] Все темы опубликованы. Нечего генерировать.');
+  // Шаг 1: AI анализирует новости и генерирует тему
+  console.log('[Article] Анализ новостей за 3 дня...');
+  const result = await generateTopic();
+  if (!result) {
+    console.log('[Article] Нет свежих новостей для генерации темы. Выход.');
     process.exit(0);
   }
+  const { topic, newsContext } = result;
 
-  console.log(`[Article] Тема: ${topic.title} (id: ${topic.id}, priority: ${topic.basePriority}, wave: ${topic.wave})`);
-  updateTopicStatus(topic.id, 'generating');
+  console.log(`[Article] Тема: ${topic.title} (cluster: ${topic.cluster}, country: ${topic.country})`);
 
-  // Шаг 2: Собрать контекст
-  const newsContext = getTopicNewsContext(topic);
+  // Шаг 2: Собрать контекст ссылок
   const internalLinks = getAllInternalLinks();
   console.log(`[Article] Контекст: ${newsContext.length} новостей, ${internalLinks.length} внутренних ссылок`);
 
@@ -55,7 +55,7 @@ async function main() {
       const coverPath = join(PROJECT_ROOT, 'public', 'images', 'blog', `${article.slug}.jpg`);
       cover = await generateCover({
         title: article.frontmatter.title,
-        tags: topic.newsKeywords.slice(0, 2),
+        tags: topic.keywords.slice(0, 2),
         date: article.frontmatter.date,
         type: 'article',
         style: 'realistic',
@@ -68,15 +68,26 @@ async function main() {
 
     // Шаг 5: Опубликовать
     console.log('\n[Article] Шаг 3/3: Публикация...');
-    const result = await publishArticle(article, cover, topic.id);
-    console.log(`[Article] Опубликовано: ${result.mdxPath}`);
+    const pubResult = await publishArticle(article, cover);
+    console.log(`[Article] Опубликовано: ${pubResult.mdxPath}`);
+
+    // Записать в лог
+    addToPublishedLog({
+      date: new Date().toISOString().slice(0, 10),
+      slug: article.slug,
+      title: article.frontmatter.title,
+      keywords: topic.keywords,
+      country: topic.country,
+      wordCount: article.wordCount,
+      cost: article.cost.estimatedCostUsd + (cover?.cost.estimatedUsd ?? 0),
+      newsSource: newsContext.map((n) => n.date).join(','),
+    });
 
     // Итог
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     const totalCost = article.cost.estimatedCostUsd + (cover?.cost.estimatedUsd ?? 0);
     console.log(`\n[Article] Готово за ${elapsed}с | ${topic.title} | ${article.wordCount} слов | $${totalCost.toFixed(4)} | обложка: ${cover ? 'да' : 'нет'}`);
   } catch (err) {
-    updateTopicStatus(topic.id, 'error');
     console.error('[Article] ОШИБКА:', err);
     process.exit(1);
   }
