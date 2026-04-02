@@ -3,11 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Calculator as CalcIcon, Check, Phone, Loader2, Send } from "lucide-react";
-import {
-  calculatePriceFromParams,
-  type PriceParams,
-  type PriceResult,
-} from "@/lib/priceCalculator";
+import { calculateTotal, type CalcResult, type CarAge } from "@/lib/calculator";
 import { fetchCBRRates, type CBRRates, COUNTRY_CURRENCY } from "@/lib/currencyRates";
 import { CONTACTS, type Country } from "@/lib/constants";
 import { DELIVERY_CITY } from "@/lib/tariffs";
@@ -22,10 +18,10 @@ const countryOptions: { value: Country; label: string }[] = [
   { value: "japan", label: "Япония" },
 ];
 
-const ageOptions = [
-  { value: 2, label: "До 3 лет" },
-  { value: 4, label: "3\u20135 лет" },
-  { value: 6, label: "Старше 5 лет" },
+const ageOptions: { value: CarAge; label: string }[] = [
+  { value: "under3", label: "До 3 лет" },
+  { value: "3to5", label: "3\u20135 лет" },
+  { value: "over7", label: "Старше 5 лет" },
 ];
 
 const pricePlaceholder: Record<Country, string> = {
@@ -55,8 +51,8 @@ export default function CalculatorClient() {
   const [price, setPrice] = useState("");
   const [volume, setVolume] = useState("");
   const [power, setPower] = useState("");
-  const [age, setAge] = useState(4);
-  const [result, setResult] = useState<PriceResult | null>(null);
+  const [age, setAge] = useState<CarAge>("3to5");
+  const [result, setResult] = useState<CalcResult | null>(null);
 
   useEffect(() => {
     fetchCBRRates().then(setRates);
@@ -69,20 +65,19 @@ export default function CalculatorClient() {
     const hp = Number(power);
     if (!p || !v || !hp) return;
 
-    // Convert non-CNY prices to yuan equivalent
     const currCode = COUNTRY_CURRENCY[country].code;
-    const priceYuan =
-      currCode === "CNY"
-        ? p
-        : Math.round((p * rates[currCode]) / rates.CNY);
+    const calcResult = calculateTotal({
+      priceInCurrency: p,
+      currencyCode: currCode,
+      engineVolume: Math.round(v * 1000),
+      enginePower: hp,
+      carAge: age,
+      buyerType: 'individual',
+      personalUse: true,
+      country,
+    }, rates);
 
-    const params: PriceParams = {
-      priceYuan,
-      engineVolumeLiters: v,
-      horsePower: hp,
-      carAgeYears: age,
-    };
-    setResult(calculatePriceFromParams(params, rates));
+    setResult(calcResult);
   };
 
   const curr = COUNTRY_CURRENCY[country];
@@ -190,7 +185,7 @@ export default function CalculatorClient() {
                   </label>
                   <select
                     value={age}
-                    onChange={(e) => { setAge(Number(e.target.value)); setResult(null); }}
+                    onChange={(e) => { setAge(e.target.value as CarAge); setResult(null); }}
                     className={inputClass}
                   >
                     {ageOptions.map((o) => (
@@ -220,7 +215,7 @@ export default function CalculatorClient() {
                         &asymp; {formatPrice(result.totalRub)}
                       </p>
                       <p className="mt-1 text-sm text-text-muted">
-                        Доставка до {DELIVERY_CITY[country]}
+                        Доставка до {result.deliveryCity ?? DELIVERY_CITY[country]}
                       </p>
                     </div>
 
@@ -237,7 +232,7 @@ export default function CalculatorClient() {
                     </div>
 
                     <p className="mt-4 text-xs text-text-muted">
-                      Курс ЦБ РФ на {result.date}:{" "}
+                      Курс ЦБ РФ на {result.currencyRate.date}:{" "}
                       1 {curr.code} = {rates[curr.code].toFixed(curr.code === "KRW" ? 4 : 2)} {"\u20BD"} |{" "}
                       1 EUR = {rates.EUR.toFixed(2)} {"\u20BD"}
                     </p>
