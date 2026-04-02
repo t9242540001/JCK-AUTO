@@ -34,12 +34,14 @@ export interface ImageGenerateResponse {
 }
 
 export interface VisionOptions {
-  /** Модель Vision (default: 'qwen3-vl-flash') */
-  model?: 'qwen3-vl-flash';
+  /** Модель Vision */
+  model?: 'qwen3-vl-flash' | 'qwen3.5-flash' | 'qwen3.5-plus' | 'qwen3.6-plus';
   /** Максимум токенов в ответе (default: 2048) */
   maxTokens?: number;
   /** Температура генерации (default: 0.3) */
   temperature?: number;
+  /** Системный промпт */
+  systemPrompt?: string;
 }
 
 export interface VisionResponse {
@@ -85,7 +87,7 @@ const DASHSCOPE_IMAGE_URL =
 const DASHSCOPE_CHAT_URL =
   'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
 const DEFAULT_IMAGE_MODEL = 'qwen-image-2.0-pro';
-const DEFAULT_VISION_MODEL = 'qwen3-vl-flash';
+const DEFAULT_VISION_MODEL = 'qwen3.5-plus';
 const DEFAULT_IMAGE_SIZE = '1024*1024';
 const DEFAULT_VISION_MAX_TOKENS = 2048;
 const DEFAULT_VISION_TEMPERATURE = 0.3;
@@ -276,19 +278,23 @@ async function analyzeImage(
 
   await waitForRateLimit();
 
+  const messages: Array<Record<string, unknown>> = [];
+  if (options?.systemPrompt) {
+    messages.push({ role: 'system', content: options.systemPrompt });
+  }
+  messages.push({
+    role: 'user',
+    content: [
+      { type: 'image_url', image_url: { url: imageSource } },
+      { type: 'text', text: prompt },
+    ],
+  });
+
   const payload = {
     model,
     max_tokens: maxTokens,
     temperature,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: imageSource } },
-          { type: 'text', text: prompt },
-        ],
-      },
-    ],
+    messages,
   };
 
   const response = await fetchWithRetry(DASHSCOPE_CHAT_URL, {
