@@ -53,6 +53,29 @@ export interface VisionResponse {
   };
 }
 
+export interface QwenTextOptions {
+  /** Модель текстовой генерации (default: 'qwen3.5-plus') */
+  model?: 'qwen3.5-plus' | 'qwen3.5-flash';
+  /** Температура генерации (default: 0.5) */
+  temperature?: number;
+  /** Максимум токенов в ответе (default: 4096) */
+  maxTokens?: number;
+  /** Системный промпт */
+  systemPrompt?: string;
+}
+
+export interface QwenTextResponse {
+  /** Сгенерированный текст */
+  content: string;
+  /** Статистика использования токенов */
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+  };
+}
+
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 
 /** Нативный API для Qwen-Image */
@@ -66,6 +89,13 @@ const DEFAULT_VISION_MODEL = 'qwen3-vl-flash';
 const DEFAULT_IMAGE_SIZE = '1024*1024';
 const DEFAULT_VISION_MAX_TOKENS = 2048;
 const DEFAULT_VISION_TEMPERATURE = 0.3;
+const DEFAULT_QWEN_TEXT_MODEL = 'qwen3.5-plus';
+const DEFAULT_QWEN_TEXT_MAX_TOKENS = 4096;
+const DEFAULT_QWEN_TEXT_TEMPERATURE = 0.5;
+const QWEN_PLUS_INPUT_PRICE_PER_M = 0.80;
+const QWEN_PLUS_OUTPUT_PRICE_PER_M = 2.40;
+const QWEN_FLASH_INPUT_PRICE_PER_M = 0.05;
+const QWEN_FLASH_OUTPUT_PRICE_PER_M = 0.25;
 const REQUEST_TIMEOUT_MS = 120_000;
 const MAX_RETRIES = 3;
 const RATE_LIMIT_PER_MINUTE = 6;
@@ -309,11 +339,99 @@ async function analyzeImage(
   };
 }
 
+// ─── TEXT GENERATION ───────────────────────────────────────────────────────
+
+/**
+ * Текстовая генерация через Qwen3.5 (OpenAI-совместимый API)
+ * @input userPrompt — текст запроса, options — параметры модели
+ * @output QwenTextResponse с текстом, usage и стоимостью
+ */
+async function callQwenText(
+  userPrompt: string,
+  options?: QwenTextOptions,
+): Promise<QwenTextResponse> {
+  const apiKey = getApiKey();
+  const model = options?.model ?? DEFAULT_QWEN_TEXT_MODEL;
+  const maxTokens = options?.maxTokens ?? DEFAULT_QWEN_TEXT_MAX_TOKENS;
+  const temperature = options?.temperature ?? DEFAULT_QWEN_TEXT_TEMPERATURE;
+
+  await waitForRateLimit();
+
+  const messages: Array<{ role: string; content: string }> = [];
+  if (options?.systemPrompt) {
+    messages.push({ role: 'system', content: options.systemPrompt });
+  }
+  messages.push({ role: 'user', content: userPrompt });
+
+  const payload = {
+    model,
+    max_tokens: maxTokens,
+    temperature,
+    messages,
+  };
+
+  const response = await fetchWithRetry(DASHSCOPE_CHAT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let data: Record<string, unknown>;
+  try {
+    data = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new Error('Failed to parse DashScope text response as JSON');
+  }
+
+  const choices = data.choices as Array<{
+    message?: { content?: string };
+    finish_reason?: string;
+  }> | undefined;
+  const content = choices?.[0]?.message?.content;
+
+  if (content == null) {
+    throw new Error(
+      `DashScope text returned empty response (finish_reason: ${choices?.[0]?.finish_reason})`,
+    );
+  }
+
+  recordRequest();
+
+  const usage = data.usage as {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  } | undefined;
+  const promptTokens = usage?.prompt_tokens ?? 0;
+  const completionTokens = usage?.completion_tokens ?? 0;
+  const totalTokens = promptTokens + completionTokens;
+
+  // Расчёт стоимости в зависимости от модели
+  const isFlash = model === 'qwen3.5-flash';
+  const inputPrice = isFlash ? QWEN_FLASH_INPUT_PRICE_PER_M : QWEN_PLUS_INPUT_PRICE_PER_M;
+  const outputPrice = isFlash ? QWEN_FLASH_OUTPUT_PRICE_PER_M : QWEN_PLUS_OUTPUT_PRICE_PER_M;
+  const estimatedCostUsd = parseFloat(
+    ((promptTokens / 1_000_000) * inputPrice + (completionTokens / 1_000_000) * outputPrice).toFixed(6),
+  );
+
+  console.log(
+    `[DashScope] model=${model} action=textGeneration tokens=${totalTokens} (in:${promptTokens}/out:${completionTokens}) cost=$${estimatedCostUsd}`,
+  );
+
+  return {
+    content,
+    usage: { promptTokens, completionTokens, totalTokens, estimatedCostUsd },
+  };
+}
+
 // ─── EXPORTS ──────────────────────────────────────────────────────────────
 
 export {
   generateImage,
   analyzeImage,
+  callQwenText,
   DASHSCOPE_IMAGE_URL,
   DASHSCOPE_CHAT_URL,
   DEFAULT_IMAGE_MODEL,
@@ -321,6 +439,13 @@ export {
   DEFAULT_IMAGE_SIZE,
   DEFAULT_VISION_MAX_TOKENS,
   DEFAULT_VISION_TEMPERATURE,
+  DEFAULT_QWEN_TEXT_MODEL,
+  DEFAULT_QWEN_TEXT_MAX_TOKENS,
+  DEFAULT_QWEN_TEXT_TEMPERATURE,
+  QWEN_PLUS_INPUT_PRICE_PER_M,
+  QWEN_PLUS_OUTPUT_PRICE_PER_M,
+  QWEN_FLASH_INPUT_PRICE_PER_M,
+  QWEN_FLASH_OUTPUT_PRICE_PER_M,
   REQUEST_TIMEOUT_MS,
   MAX_RETRIES,
   RATE_LIMIT_PER_MINUTE,
