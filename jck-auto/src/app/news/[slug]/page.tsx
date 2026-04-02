@@ -9,7 +9,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Send, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Send } from 'lucide-react';
 import { getNewsBySlug } from '@/services/news/reader';
 import { getTagStyle } from '@/lib/newsTagColors';
 import { CONTACTS } from '@/lib/constants';
@@ -123,17 +123,6 @@ export default async function NewsSlugPage({ params }: NewsSlugPageProps) {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-text-muted">
             <span>Источник: {day.mainStory.source}</span>
-            {day.mainStory.sourceUrl && (
-              <a
-                href={day.mainStory.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Оригинал
-              </a>
-            )}
           </div>
         </section>
 
@@ -154,17 +143,6 @@ export default async function NewsSlugPage({ params }: NewsSlugPageProps) {
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-text-muted">
                     <span>{item.source}</span>
-                    {item.sourceUrl && (
-                      <a
-                        href={item.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-primary hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Оригинал
-                      </a>
-                    )}
                     {item.tags.map((tag) => (
                       <TagBadge key={tag} tag={tag} />
                     ))}
