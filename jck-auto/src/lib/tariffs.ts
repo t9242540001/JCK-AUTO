@@ -10,7 +10,7 @@
 
 // Метаданные актуальности
 export const TARIFF_META = {
-  lastUpdated: '2026-04-02',
+  lastUpdated: '2026-04-03',
   validUntil: '2026-12-31',
   sources: [
     'Решение ЕАЭС от 2017 — единые ставки для физлиц',
@@ -18,6 +18,13 @@ export const TARIFF_META = {
     'Индексация утильсбора +20% с 01.01.2026',
     'НК РФ ст.193 — акциз по мощности двигателя',
     'ПП РФ №863 — таможенный сбор по стоимости авто',
+    'Решение Совета ЕЭК от 14.09.2021 № 80 — пошлина 15% на электромобили',
+    'ЕТТ ЕАЭС — раздельные ставки бензин/дизель для юрлиц',
+  ],
+  monitorUrls: [
+    { url: 'https://customs.gov.ru', description: 'Утильсбор, таможенные сборы' },
+    { url: 'https://pravo.gov.ru', description: 'Постановления правительства' },
+    { url: 'https://eec.eaeunion.org', description: 'Решения ЕЭК, ЕТТ, ЕТС' },
   ],
 } as const;
 
@@ -64,30 +71,62 @@ export const ETS_OVER5: { maxCc: number; rate: number }[] = [
   { maxCc: Infinity, rate: 5.7 },
 ];
 
-/* ── 2.3 Таможенная пошлина (юрлица) ─────────────────────────────── */
+/* ── 2.3 Таможенная пошлина (юрлица) — БЕНЗИН ───────────────────── */
 
-// До 3 лет — 15% от стоимости
-export const DUTY_UNDER3_PCT = 0.15;
+// Бензин до 3 лет — зависит от объёма
+export const DUTY_PETROL_UNDER3: { maxCc: number; pct: number }[] = [
+  { maxCc: 2800, pct: 0.15 },
+  { maxCc: Infinity, pct: 0.125 },
+];
 
-// 3–7 лет: 20%, но не менее мин. ставки за см³
-export const DUTY_3TO7: { maxCc: number; pct: number; minPerCc: number }[] = [
+// Бензин 3–7 лет: 20%, но не менее мин. ставки за см³
+export const DUTY_PETROL_3TO7: { maxCc: number; pct: number; minPerCc: number }[] = [
   { maxCc: 1000, pct: 0.20, minPerCc: 0.36 },
   { maxCc: 1500, pct: 0.20, minPerCc: 0.40 },
   { maxCc: 1800, pct: 0.20, minPerCc: 0.36 },
   { maxCc: 2300, pct: 0.20, minPerCc: 0.44 },
+  { maxCc: 2800, pct: 0.20, minPerCc: 0.44 },
   { maxCc: 3000, pct: 0.20, minPerCc: 0.44 },
   { maxCc: Infinity, pct: 0.20, minPerCc: 0.80 },
 ];
 
-// Старше 7 лет — фиксированная ставка
-export const DUTY_OVER7: { maxCc: number; rate: number }[] = [
+// Бензин старше 7 лет — фиксированная ставка
+export const DUTY_PETROL_OVER7: { maxCc: number; rate: number }[] = [
   { maxCc: 1000, rate: 1.4 },
   { maxCc: 1500, rate: 1.5 },
   { maxCc: 1800, rate: 1.6 },
   { maxCc: 2300, rate: 2.2 },
+  { maxCc: 2800, rate: 2.2 },
   { maxCc: 3000, rate: 2.2 },
   { maxCc: Infinity, rate: 3.2 },
 ];
+
+/* ── 2.3b Таможенная пошлина (юрлица) — ДИЗЕЛЬ ──────────────────── */
+
+// Дизель до 3 лет — 15% для всех объёмов
+export const DUTY_DIESEL_UNDER3_PCT = 0.15;
+
+// Дизель 3–7 лет: 20%, но не менее мин. ставки за см³
+export const DUTY_DIESEL_3TO7: { maxCc: number; pct: number; minPerCc: number }[] = [
+  { maxCc: 1500, pct: 0.20, minPerCc: 0.32 },
+  { maxCc: 2500, pct: 0.20, minPerCc: 0.40 },
+  { maxCc: Infinity, pct: 0.20, minPerCc: 0.80 },
+];
+
+// Дизель старше 7 лет — фиксированная ставка
+export const DUTY_DIESEL_OVER7: { maxCc: number; rate: number }[] = [
+  { maxCc: 1500, rate: 1.5 },
+  { maxCc: 2500, rate: 2.2 },
+  { maxCc: Infinity, rate: 3.2 },
+];
+
+/* ── 2.3c Электромобили (ТН ВЭД 8703800002) ─────────────────────── */
+
+// @rule: Пошлина на электромобили — 15% (и физлицо и юрлицо, любой возраст)
+export const ELECTRIC_DUTY_RATE = 0.15;
+
+// @rule: Льготный утильсбор для электро — ≤80 л.с. (не 160 как для ДВС)
+export const ELECTRIC_PREFERENTIAL_MAX_HP = 80;
 
 /* ── 2.4 Акциз (2026, ФЗ №425-ФЗ от 28.11.2025) ─────────────────── */
 export const EXCISE_RATES: { maxHp: number; rate: number }[] = [
