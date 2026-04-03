@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle, Zap } from "lucide-react";
 import Image from "next/image";
 import { CONTACTS } from "@/lib/constants";
 
@@ -15,6 +15,8 @@ interface EncarResult {
   region: string | null; dealerName: string | null; dealerPhone: string | null;
   accidentFree: boolean; inspectionSummary: string | null; description: string | null;
   sourceUrl: string; confidence: string;
+  enginePower?: number; enginePowerKw?: number;
+  enginePowerSource?: 'ai' | 'user'; enginePowerConfidence?: 'high' | 'medium' | 'low';
 }
 
 interface BreakdownItem { label: string; value: number; details?: string }
@@ -24,29 +26,38 @@ interface ApiError { error: string; message: string; resetIn?: number }
 
 type State = "idle" | "loading" | "result" | "error";
 
+const KW_TO_HP = 1.35962;
 function formatPrice(v: number): string { return v.toLocaleString("ru-RU") + " \u20BD"; }
 function formatKRW(v: number): string { return v.toLocaleString("ru-RU") + " ₩"; }
+
+function confidenceBadge(c: string): { label: string; cls: string } {
+  if (c === "high") return { label: "высокая точность", cls: "bg-green-100 text-green-700" };
+  if (c === "medium") return { label: "средняя точность", cls: "bg-amber-100 text-amber-700" };
+  return { label: "низкая точность", cls: "bg-red-100 text-red-700" };
+}
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────
 
 export default function EncarClient() {
   const [state, setState] = useState<State>("idle");
   const [url, setUrl] = useState("");
-  const [power, setPower] = useState("");
   const [result, setResult] = useState<EncarResult | null>(null);
   const [cost, setCost] = useState<CostBreakdown | null>(null);
   const [meta, setMeta] = useState<ApiResponse["meta"] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
-  // Основной запрос
-  const handleAnalyze = async (overridePower?: string) => {
+  // Manual power override
+  const [showPowerOverride, setShowPowerOverride] = useState(false);
+  const [manualPower, setManualPower] = useState("");
+  const [manualUnit, setManualUnit] = useState<"hp" | "kw">("hp");
+
+  const handleAnalyze = async (overridePower?: number) => {
     if (!url.trim()) return;
     setState("loading");
     setError(null);
     try {
       const body: Record<string, unknown> = { url: url.trim() };
-      const hp = Number(overridePower ?? power);
-      if (hp > 0) body.enginePower = hp;
+      if (overridePower && overridePower > 0) body.enginePower = overridePower;
       const res = await fetch("/api/tools/encar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json();
       if (!res.ok) { setError(json as ApiError); setState("error"); return; }
@@ -55,12 +66,24 @@ export default function EncarClient() {
       setCost(data.costBreakdown);
       setMeta(data.meta);
       setState("result");
+      setShowPowerOverride(false);
     } catch { setError({ error: "network", message: "Ошибка сети. Проверьте подключение." }); setState("error"); }
   };
 
-  // Допрасчёт мощности
-  const [extraPower, setExtraPower] = useState("");
-  const handleCalcCost = () => { if (extraPower) handleAnalyze(extraPower); };
+  const handleRecalcWithPower = () => {
+    const val = Number(manualPower);
+    if (!val) return;
+    const hp = manualUnit === "kw" ? Math.round(val * KW_TO_HP) : val;
+    handleAnalyze(hp);
+  };
+
+  const toggleManualUnit = () => {
+    const val = Number(manualPower);
+    if (val > 0) {
+      setManualPower(manualUnit === "hp" ? String(Math.round(val / KW_TO_HP)) : String(Math.round(val * KW_TO_HP)));
+    }
+    setManualUnit(manualUnit === "hp" ? "kw" : "hp");
+  };
 
   const handleDownloadPdf = async () => {
     if (!result) return;
@@ -74,24 +97,20 @@ export default function EncarClient() {
     } catch { /* silent */ }
   };
 
-  const reset = () => { setUrl(""); setPower(""); setResult(null); setCost(null); setMeta(null); setError(null); setExtraPower(""); setState("idle"); };
+  const reset = () => { setUrl(""); setResult(null); setCost(null); setMeta(null); setError(null); setShowPowerOverride(false); setManualPower(""); setState("idle"); };
 
   const inputClass = "mt-1 w-full rounded-xl border border-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary";
+  const toggleBtn = (active: boolean) => `rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${active ? "bg-primary text-white" : "border border-border text-text-muted hover:bg-primary/10"}`;
 
   return (
     <div className="mx-auto mt-12 max-w-4xl px-4">
-      {/* ── Форма ввода ── */}
+      {/* Форма */}
       {state === "idle" && (
         <div className="rounded-2xl border border-border bg-surface p-6 md:p-8">
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium text-text">Ссылка на автомобиль</label>
               <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://fem.encar.com/cars/detail/..." className={inputClass} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-text">Мощность двигателя, л.с.</label>
-              <input type="number" value={power} onChange={(e) => setPower(e.target.value)} placeholder="например, 177" className={inputClass} />
-              <p className="mt-1 text-xs text-text-muted">Необязательно. Если указать — рассчитаем полную стоимость в РФ</p>
             </div>
             <button onClick={() => handleAnalyze()} disabled={!url.trim()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-3.5 font-medium text-white transition-colors hover:bg-secondary-hover disabled:opacity-50">
               <Search className="h-5 w-5" /> Анализировать
@@ -100,16 +119,16 @@ export default function EncarClient() {
         </div>
       )}
 
-      {/* ── Загрузка ── */}
+      {/* Загрузка */}
       {state === "loading" && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
           <p className="mt-3 font-medium text-text">Загружаем данные с Encar...</p>
-          <p className="mt-1 text-sm text-text-muted">Обычно 2–3 секунды</p>
+          <p className="mt-1 text-sm text-text-muted">Определяем мощность и рассчитываем стоимость</p>
         </div>
       )}
 
-      {/* ── Результат ── */}
+      {/* Результат */}
       {state === "result" && result && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Автомобиль */}
@@ -134,7 +153,41 @@ export default function EncarClient() {
                       <span className="font-medium text-text">{value}</span>
                     </div>
                   ))}
+                  {/* Мощность */}
+                  {result.enginePower && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-text-muted">Мощность</span>
+                      <span className="flex items-center gap-1.5 font-medium text-text">
+                        {result.enginePowerKw ? `${result.enginePowerKw} кВт (${result.enginePower} л.с.)` : `${result.enginePower} л.с.`}
+                        {result.enginePowerSource === 'ai' && result.enginePowerConfidence && (
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${confidenceBadge(result.enginePowerConfidence).cls}`}>
+                            <Zap className="h-2.5 w-2.5" /> AI
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </div>
+
+                {/* AI-мощность: возможность переопределить */}
+                {result.enginePower && result.enginePowerSource === 'ai' && !showPowerOverride && (
+                  <button onClick={() => setShowPowerOverride(true)} className="mt-2 text-xs text-primary hover:underline">Указать другую мощность</button>
+                )}
+
+                {/* Мощность не определена ИЛИ пользователь хочет переопределить */}
+                {(!result.enginePower || showPowerOverride) && (
+                  <div className="mt-3 rounded-xl bg-surface-alt p-3">
+                    <p className="text-xs text-text-muted">{result.enginePower ? 'Укажите мощность вручную:' : 'Не удалось определить мощность. Укажите вручную для расчёта.'}</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input type="number" value={manualPower} onChange={(e) => setManualPower(e.target.value)} placeholder={manualUnit === "kw" ? "кВт" : "л.с."} className="w-24 rounded-lg border border-border bg-white px-3 py-2 text-sm" />
+                      <div className="flex gap-1">
+                        <button type="button" onClick={toggleManualUnit} className={toggleBtn(manualUnit === "hp")}>л.с.</button>
+                        <button type="button" onClick={toggleManualUnit} className={toggleBtn(manualUnit === "kw")}>кВт</button>
+                      </div>
+                      <button onClick={handleRecalcWithPower} disabled={!manualPower} className="rounded-lg bg-secondary px-3 py-2 text-sm font-medium text-white disabled:opacity-50">{cost ? 'Пересчитать' : 'Рассчитать'}</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -145,9 +198,7 @@ export default function EncarClient() {
               <h3 className="font-heading text-lg font-semibold text-text">Состояние</h3>
               <div className="mt-3 flex items-center gap-2">
                 {result.accidentFree ? <CheckCircle className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
-                <span className={`font-medium ${result.accidentFree ? "text-green-700" : "text-red-700"}`}>
-                  {result.accidentFree ? "Без ДТП" : "Есть ДТП"}
-                </span>
+                <span className={`font-medium ${result.accidentFree ? "text-green-700" : "text-red-700"}`}>{result.accidentFree ? "Без ДТП" : "Есть ДТП"}</span>
               </div>
               <p className="mt-2 text-sm text-text-muted">{result.inspectionSummary}</p>
             </div>
@@ -182,13 +233,7 @@ export default function EncarClient() {
                 </p>
               </div>
             ) : (
-              <div className="mt-6 rounded-xl bg-surface-alt p-4">
-                <p className="text-sm text-text-muted">Укажите мощность двигателя для расчёта стоимости в РФ</p>
-                <div className="mt-3 flex gap-3">
-                  <input type="number" value={extraPower} onChange={(e) => setExtraPower(e.target.value)} placeholder="л.с." className="w-28 rounded-xl border border-border bg-white px-3 py-2 text-sm" />
-                  <button onClick={handleCalcCost} disabled={!extraPower} className="rounded-xl bg-secondary px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Рассчитать</button>
-                </div>
-              </div>
+              <p className="mt-4 text-sm text-text-muted">Укажите мощность двигателя для расчёта стоимости в РФ</p>
             )}
           </div>
 
@@ -213,7 +258,7 @@ export default function EncarClient() {
         </motion.div>
       )}
 
-      {/* ── Ошибка ── */}
+      {/* Ошибка */}
       {state === "error" && error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
           <AlertTriangle className="mx-auto h-8 w-8 text-red-400" />

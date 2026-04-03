@@ -10,6 +10,8 @@
  * @lastModified 2026-04-03
  */
 
+import { callDeepSeek } from './deepseek';
+
 // ─── TYPES ────────────────────────────────────────────────────────────────
 
 export interface EncarResult {
@@ -34,6 +36,10 @@ export interface EncarResult {
   description: string | null;
   sourceUrl: string;
   confidence: 'high' | 'medium';
+  enginePower?: number;
+  enginePowerKw?: number;
+  enginePowerSource?: 'ai' | 'user';
+  enginePowerConfidence?: 'high' | 'medium' | 'low';
 }
 
 // Сырые данные из Encar API (частичная типизация)
@@ -209,4 +215,48 @@ export function mapToResult(
     sourceUrl: `https://fem.encar.com/cars/detail/${carid}`,
     confidence: photos.length > 0 && spec?.mileage ? 'high' : 'medium',
   };
+}
+
+// ─── AI POWER ESTIMATION ──────────────────────────────────────────────────
+
+const POWER_SYSTEM_PROMPT = 'Ты — автомобильный справочник. Определи мощность двигателя по характеристикам. Ответь ТОЛЬКО числом в формате JSON: {"power": число, "unit": "hp" или "kw", "confidence": "high" или "medium" или "low"}. Если не можешь определить — ответь {"power": null}.';
+
+/**
+ * Определить мощность двигателя через DeepSeek по характеристикам авто
+ * @cost ~$0.0001 за вызов (DeepSeek, ~100 токенов)
+ * @rule При ошибке возвращает null — не ломает основной поток
+ */
+export async function estimateEnginePower(params: {
+  make: string;
+  model: string;
+  grade: string | null;
+  year: number;
+  displacement: number;
+  fuelType: string;
+}): Promise<{ power: number; unit: 'hp' | 'kw'; confidence: 'high' | 'medium' | 'low' } | null> {
+  try {
+    const userPrompt = `Мощность двигателя: ${params.make} ${params.model} ${params.grade ?? ''}, ${params.year} год, ${params.displacement} см³, ${params.fuelType}`;
+
+    const response = await callDeepSeek(userPrompt, {
+      temperature: 0.1,
+      maxTokens: 100,
+      systemPrompt: POWER_SYSTEM_PROMPT,
+    });
+
+    const text = response.content.trim();
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+
+    const data = JSON.parse(match[0]) as { power?: number | null; unit?: string; confidence?: string };
+    if (!data.power || typeof data.power !== 'number' || data.power < 1 || data.power > 2000) return null;
+    if (data.unit !== 'hp' && data.unit !== 'kw') return null;
+
+    const confidence = (['high', 'medium', 'low'].includes(data.confidence ?? '') ? data.confidence : 'medium') as 'high' | 'medium' | 'low';
+
+    console.log(`[encar] estimateEnginePower: ${params.make} ${params.model} → ${data.power} ${data.unit} (${confidence})`);
+    return { power: data.power, unit: data.unit, confidence };
+  } catch (err) {
+    console.warn('[encar] estimateEnginePower failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
 }
