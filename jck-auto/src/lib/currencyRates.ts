@@ -23,17 +23,25 @@ const FALLBACK_RATES: CBRRates = {
   date: "fallback",
 };
 
+let cachedRates: CBRRates | null = null;
+let cachedAt: number = 0;
+const CACHE_TTL = 3_600_000; // 1 час
+
 export async function fetchCBRRates(): Promise<CBRRates> {
+  if (cachedRates && Date.now() - cachedAt < CACHE_TTL) {
+    return cachedRates;
+  }
+
   try {
     const res = await fetch("https://www.cbr-xml-daily.ru/daily_json.js", {
-      next: { revalidate: 3600 },
+      cache: 'no-store',
     });
-    if (!res.ok) return FALLBACK_RATES;
+    if (!res.ok) return cachedRates ?? FALLBACK_RATES;
 
     const data = await res.json();
     const v = data.Valute;
 
-    return {
+    cachedRates = {
       EUR: v.EUR.Value / v.EUR.Nominal,
       USD: v.USD.Value / v.USD.Nominal,
       CNY: v.CNY.Value / v.CNY.Nominal,
@@ -41,8 +49,10 @@ export async function fetchCBRRates(): Promise<CBRRates> {
       JPY: v.JPY.Value / v.JPY.Nominal,
       date: data.Date ? new Date(data.Date).toLocaleDateString("ru-RU") : "—",
     };
+    cachedAt = Date.now();
+    return cachedRates;
   } catch {
-    return FALLBACK_RATES;
+    return cachedRates ?? FALLBACK_RATES;
   }
 }
 
