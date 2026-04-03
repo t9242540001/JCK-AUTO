@@ -4,9 +4,14 @@ import {
   ETS_UNDER3,
   ETS_3TO5,
   ETS_OVER5,
-  DUTY_UNDER3_PCT,
-  DUTY_3TO7,
-  DUTY_OVER7,
+  DUTY_PETROL_UNDER3,
+  DUTY_PETROL_3TO7,
+  DUTY_PETROL_OVER7,
+  DUTY_DIESEL_UNDER3_PCT,
+  DUTY_DIESEL_3TO7,
+  DUTY_DIESEL_OVER7,
+  ELECTRIC_DUTY_RATE,
+  ELECTRIC_PREFERENTIAL_MAX_HP,
   EXCISE_RATES,
   VAT_RATE,
   RECYCLING_BASE,
@@ -21,8 +26,8 @@ import {
 
 export type CarAge = "under3" | "3to5" | "5to7" | "over7";
 export type BuyerType = "individual" | "company";
-
 export type Country = "china" | "korea" | "japan";
+export type EngineType = "petrol" | "diesel" | "hybrid" | "electric";
 
 export interface CalcInput {
   priceInCurrency: number;
@@ -32,7 +37,8 @@ export interface CalcInput {
   carAge: CarAge;
   buyerType: BuyerType;
   personalUse: boolean;
-  country?: Country;  // если указано → включает логистику и комиссию
+  country?: Country;
+  engineType?: EngineType; // default = 'petrol'
 }
 
 export interface CalcResult {
@@ -68,7 +74,7 @@ function calcCustomsProcessingFee(priceRub: number): number {
   return row.fee;
 }
 
-/* ── 2. ЕТС (физлица) ────────────────────────────────────────────── */
+/* ── 2. ЕТС (физлица, только ДВС) ──────────────────────────────── */
 function calcETS(
   priceEur: number,
   volume: number,
@@ -92,31 +98,46 @@ function calcETS(
   return Math.round(volume * row.rate * eurRate);
 }
 
-/* ── 3. Таможенная пошлина (юрлица) ───────────────────────────────── */
+/* ── 3. Пошлина (юрлица + электро-физлица) ───────────────────────── */
 function calcDuty(
   priceRub: number,
   priceEur: number,
   volume: number,
   age: CarAge,
   eurRate: number,
+  engineType: EngineType,
 ): number {
+  // Электро: 15% любой возраст
+  if (engineType === "electric") {
+    return Math.round(priceRub * ELECTRIC_DUTY_RATE);
+  }
+
+  const isDiesel = engineType === "diesel";
+
   if (age === "under3") {
-    return Math.round(priceRub * DUTY_UNDER3_PCT);
+    if (isDiesel) {
+      return Math.round(priceRub * DUTY_DIESEL_UNDER3_PCT);
+    }
+    // Бензин/гибрид — зависит от объёма
+    const row = findBracket(DUTY_PETROL_UNDER3, volume, "maxCc");
+    return Math.round(priceRub * row.pct);
   }
 
   if (age === "3to5" || age === "5to7") {
-    const row = findBracket(DUTY_3TO7, volume, "maxCc");
+    const table = isDiesel ? DUTY_DIESEL_3TO7 : DUTY_PETROL_3TO7;
+    const row = findBracket(table, volume, "maxCc");
     const byPercent = priceEur * row.pct;
     const byVolume = volume * row.minPerCc;
     return Math.round(Math.max(byPercent, byVolume) * eurRate);
   }
 
   // over7
-  const row = findBracket(DUTY_OVER7, volume, "maxCc");
+  const table = isDiesel ? DUTY_DIESEL_OVER7 : DUTY_PETROL_OVER7;
+  const row = findBracket(table, volume, "maxCc");
   return Math.round(volume * row.rate * eurRate);
 }
 
-/* ── 4. Акциз (юрлица) ───────────────────────────────────────────── */
+/* ── 4. Акциз ───────────────────────────────────────────────────── */
 function calcExcise(power: number): number {
   const row = findBracket(EXCISE_RATES, power, "maxHp");
   return Math.round(power * row.rate);
@@ -129,6 +150,7 @@ function calcRecyclingFee(
   age: CarAge,
   buyerType: BuyerType,
   personalUse: boolean,
+  isElectric: boolean,
 ): number {
   const isUnder3 = age === "under3";
 
@@ -139,7 +161,8 @@ function calcRecyclingFee(
   }
 
   // Физлицо — проверяем льготу
-  const preferential = power <= 160 && volume <= 3000 && personalUse;
+  const hpLimit = isElectric ? ELECTRIC_PREFERENTIAL_MAX_HP : 160;
+  const preferential = power <= hpLimit && (isElectric || volume <= 3000) && personalUse;
   if (preferential) {
     const coeff = isUnder3
       ? RECYCLING_INDIVIDUAL_PREFERENTIAL.under3
@@ -156,6 +179,8 @@ function calcRecyclingFee(
 /* ── Главная функция расчёта ──────────────────────────────────────── */
 export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
   const { priceInCurrency, currencyCode, engineVolume, enginePower, carAge, buyerType, personalUse, country } = input;
+  const engineType = input.engineType ?? "petrol";
+  const isElectric = engineType === "electric";
 
   const currencyRate = rates[currencyCode] as number;
   const eurRate = rates.EUR;
@@ -164,7 +189,6 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
   const isChina = country === "china";
 
   // 1. Цена в рублях и евро
-  // Китай: effectivePrice = price + markup_cny (все расходы в Китае)
   const effectivePriceCurrency = isChina
     ? priceInCurrency + FIXED_COSTS.china.markup_cny
     : priceInCurrency;
@@ -190,7 +214,26 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
 
   let customsTotal = 0;
 
-  if (buyerType === "individual") {
+  if (isElectric) {
+    // Электро: и физлицо и юрлицо → пошлина 15% + акциз + НДС 20%
+    const duty = calcDuty(carPriceRub, carPriceEur, engineVolume, carAge, eurRate, engineType);
+    const dutyDetails = `${(ELECTRIC_DUTY_RATE * 100).toFixed(0)}% от стоимости (электромобиль)`;
+
+    const excise = calcExcise(enginePower);
+    const exciseRow = findBracket(EXCISE_RATES, enginePower, "maxHp");
+    const exciseDetails = exciseRow.rate === 0
+      ? `без акциза (до 90 л.с.)`
+      : `${fmt(exciseRow.rate)} ₽/л.с. × ${fmt(enginePower)} л.с.`;
+
+    const vat = Math.round((carPriceRub + duty + excise) * VAT_RATE);
+    const vatDetails = `20% × (стоимость + пошлина + акциз)`;
+
+    breakdown.push({ label: "Таможенная пошлина", value: duty, details: dutyDetails });
+    breakdown.push({ label: "Акциз", value: excise, details: exciseDetails });
+    breakdown.push({ label: "НДС 20%", value: vat, details: vatDetails });
+    customsTotal = duty + excise + vat;
+  } else if (buyerType === "individual") {
+    // ДВС физлицо → ЕТС
     const ets = calcETS(carPriceEur, engineVolume, carAge, eurRate);
     let etsDetails: string;
     if (carAge === "under3") {
@@ -206,15 +249,25 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
     breakdown.push({ label: "Единая таможенная ставка", value: ets, details: etsDetails });
     customsTotal = ets;
   } else {
-    const duty = calcDuty(carPriceRub, carPriceEur, engineVolume, carAge, eurRate);
+    // ДВС юрлицо → пошлина + акциз + НДС
+    const duty = calcDuty(carPriceRub, carPriceEur, engineVolume, carAge, eurRate, engineType);
     let dutyDetails: string;
+    const isDiesel = engineType === "diesel";
+
     if (carAge === "under3") {
-      dutyDetails = `${(DUTY_UNDER3_PCT * 100).toFixed(0)}% от стоимости`;
+      if (isDiesel) {
+        dutyDetails = `${(DUTY_DIESEL_UNDER3_PCT * 100).toFixed(0)}% от стоимости (дизель)`;
+      } else {
+        const row = findBracket(DUTY_PETROL_UNDER3, engineVolume, "maxCc");
+        dutyDetails = `${(row.pct * 100).toFixed(1)}% от стоимости (бензин, ${engineVolume <= 2800 ? '≤2800' : '>2800'} см³)`;
+      }
     } else if (carAge === "3to5" || carAge === "5to7") {
-      const row = findBracket(DUTY_3TO7, engineVolume, "maxCc");
+      const table = isDiesel ? DUTY_DIESEL_3TO7 : DUTY_PETROL_3TO7;
+      const row = findBracket(table, engineVolume, "maxCc");
       dutyDetails = `max(${(row.pct * 100).toFixed(0)}% × ${fmt(Math.round(carPriceEur))} €; ${row.minPerCc} €/см³ × ${fmt(engineVolume)} см³) × ${fmt(eurRate, 2)} ₽/€`;
     } else {
-      const row = findBracket(DUTY_OVER7, engineVolume, "maxCc");
+      const table = isDiesel ? DUTY_DIESEL_OVER7 : DUTY_PETROL_OVER7;
+      const row = findBracket(table, engineVolume, "maxCc");
       dutyDetails = `${row.rate} €/см³ × ${fmt(engineVolume)} см³ × ${fmt(eurRate, 2)} ₽/€`;
     }
 
@@ -234,7 +287,7 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
   }
 
   // 4. Утильсбор
-  const recycling = calcRecyclingFee(enginePower, engineVolume, carAge, buyerType, personalUse);
+  const recycling = calcRecyclingFee(enginePower, engineVolume, carAge, buyerType, personalUse, isElectric);
   const isUnder3 = carAge === "under3";
   const ageLabel = isUnder3 ? "до 3 лет" : "3+ лет";
   let recyclingDetails: string;
@@ -242,13 +295,17 @@ export function calculateTotal(input: CalcInput, rates: CBRRates): CalcResult {
     const row = findBracket(RECYCLING_COMPANY, enginePower, "maxHp");
     const coeff = isUnder3 ? row.under3 : row.over3;
     recyclingDetails = `${fmt(RECYCLING_BASE)} ₽ × ${coeff} (юрлицо, ${ageLabel})`;
-  } else if (enginePower <= 160 && engineVolume <= 3000 && personalUse) {
-    const coeff = isUnder3 ? RECYCLING_INDIVIDUAL_PREFERENTIAL.under3 : RECYCLING_INDIVIDUAL_PREFERENTIAL.over3;
-    recyclingDetails = `${fmt(RECYCLING_BASE)} ₽ × ${coeff} (льготный: ≤160 л.с., ≤3 л, ${ageLabel})`;
   } else {
-    const row = findBracket(RECYCLING_INDIVIDUAL_COMMERCIAL, enginePower, "maxHp");
-    const coeff = isUnder3 ? row.under3 : row.over3;
-    recyclingDetails = `${fmt(RECYCLING_BASE)} ₽ × ${coeff} (коммерч., ${ageLabel})`;
+    const hpLimit = isElectric ? ELECTRIC_PREFERENTIAL_MAX_HP : 160;
+    const preferential = enginePower <= hpLimit && (isElectric || engineVolume <= 3000) && personalUse;
+    if (preferential) {
+      const coeff = isUnder3 ? RECYCLING_INDIVIDUAL_PREFERENTIAL.under3 : RECYCLING_INDIVIDUAL_PREFERENTIAL.over3;
+      recyclingDetails = `${fmt(RECYCLING_BASE)} ₽ × ${coeff} (льготный: ≤${hpLimit} л.с., ${ageLabel})`;
+    } else {
+      const row = findBracket(RECYCLING_INDIVIDUAL_COMMERCIAL, enginePower, "maxHp");
+      const coeff = isUnder3 ? row.under3 : row.over3;
+      recyclingDetails = `${fmt(RECYCLING_BASE)} ₽ × ${coeff} (коммерч., ${ageLabel})`;
+    }
   }
   breakdown.push({ label: "Утилизационный сбор", value: recycling, details: recyclingDetails });
 
