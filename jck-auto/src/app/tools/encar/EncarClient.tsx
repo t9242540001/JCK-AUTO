@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle, Zap } from "lucide-react";
-import Image from "next/image";
 import { CONTACTS } from "@/lib/constants";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -50,6 +49,7 @@ export default function EncarClient() {
   const [showPowerOverride, setShowPowerOverride] = useState(false);
   const [manualPower, setManualPower] = useState("");
   const [manualUnit, setManualUnit] = useState<"hp" | "kw">("hp");
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const handleAnalyze = async (overridePower?: number) => {
     if (!url.trim()) return;
@@ -131,15 +131,16 @@ export default function EncarClient() {
       {/* Результат */}
       {state === "result" && result && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          {/* Главное фото */}
+          {result.photoUrls[0] && (
+            <div className="overflow-hidden rounded-2xl w-full max-h-80">
+              <img src={result.photoUrls[0]} alt={`${result.make} ${result.model}`} className="w-full h-full object-cover" />
+            </div>
+          )}
+
           {/* Автомобиль */}
           <div className="rounded-2xl border border-border bg-surface p-6">
-            <div className="flex flex-col gap-6 sm:flex-row">
-              {result.photoUrls[0] && (
-                <div className="relative h-48 w-full shrink-0 overflow-hidden rounded-xl sm:w-64">
-                  <Image src={result.photoUrls[0]} alt={`${result.make} ${result.model}`} fill className="object-cover" unoptimized />
-                </div>
-              )}
-              <div className="flex-1">
+            <div>
                 <h3 className="font-heading text-xl font-bold text-text">{result.make} {result.model}</h3>
                 {result.grade && <p className="text-sm text-text-muted">{result.grade}</p>}
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -188,7 +189,6 @@ export default function EncarClient() {
                     </div>
                   </div>
                 )}
-              </div>
             </div>
           </div>
 
@@ -202,6 +202,51 @@ export default function EncarClient() {
               </div>
               <p className="mt-2 text-sm text-text-muted">{result.inspectionSummary}</p>
             </div>
+          )}
+
+          {/* Продавец */}
+          {(result.dealerName || result.region) && (
+            <div className="rounded-2xl border border-border bg-surface p-6">
+              <h3 className="font-heading text-lg font-semibold text-text">Продавец</h3>
+              <div className="mt-3 grid gap-2">
+                {result.dealerName && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Имя</span>
+                    <span className="font-medium text-text">{result.dealerName}</span>
+                  </div>
+                )}
+                {result.region && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Регион</span>
+                    <span className="font-medium text-text">{result.region}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Описание от продавца */}
+          {result.description && (
+            <div className="rounded-2xl border border-border bg-surface p-6">
+              <h3 className="font-heading text-lg font-semibold text-text">Описание от продавца</h3>
+              <p className="mt-3 text-sm text-text-muted whitespace-pre-line">
+                {descExpanded || result.description.length <= 200
+                  ? result.description
+                  : result.description.slice(0, 200) + "..."}
+              </p>
+              {result.description.length > 200 && (
+                <button onClick={() => setDescExpanded(!descExpanded)} className="mt-2 text-sm text-primary hover:underline">
+                  {descExpanded ? "Свернуть" : "Показать полностью"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Ссылка на Encar.com */}
+          {result.sourceUrl && (
+            <a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-text-muted hover:text-primary transition-colors">
+              Смотреть на Encar.com →
+            </a>
           )}
 
           {/* Цена и стоимость */}
