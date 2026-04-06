@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Upload, Cpu, FileText } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
+import { BetaBadge, BetaBanner } from "@/components/BetaBadge";
 import AuctionSheetClient from "./AuctionSheetClient";
 import { CalculatorFAQ } from "../calculator/CalculatorFAQ";
 import { CalculatorCTA } from "../calculator/CalculatorCTA";
@@ -92,13 +93,14 @@ export default function AuctionSheetPage() {
         <div className="mx-auto max-w-3xl px-4 text-center">
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">Аукционные листы</p>
           <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
-            AI-расшифровка аукционных листов
+            AI-расшифровка аукционных листов <BetaBadge />
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
             Загрузите фото аукционного листа — AI переведёт на русский и расшифрует все данные за 15 секунд
           </p>
         </div>
 
+        <BetaBanner />
         <AuctionSheetClient />
 
         {/* How it works */}

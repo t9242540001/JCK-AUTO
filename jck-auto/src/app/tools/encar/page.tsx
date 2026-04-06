@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Link2, Search, FileText } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
+import { BetaBadge, BetaBanner } from "@/components/BetaBadge";
 import EncarClient from "./EncarClient";
 import { CalculatorFAQ } from "../calculator/CalculatorFAQ";
 import { CalculatorCTA } from "../calculator/CalculatorCTA";
@@ -71,13 +72,14 @@ export default function EncarPage() {
         <div className="mx-auto max-w-3xl px-4 text-center">
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">Анализатор Encar</p>
           <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
-            Авто с Encar.com на русском
+            Авто с Encar.com на русском <BetaBadge />
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
             Вставьте ссылку на автомобиль — получите характеристики на русском и расчёт стоимости доставки в Россию
           </p>
         </div>
 
+        <BetaBanner />
         <EncarClient />
 
         {/* Как это работает */}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BetaBanner } from "@/components/BetaBadge";
 import CalculatorClient from "./CalculatorClient";
 import { CONTACTS } from "@/lib/constants";
 import { readCatalogJson } from "@/lib/blobStorage";
@@ -108,6 +109,7 @@ export default async function CalculatorPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
+      <BetaBanner />
       <CalculatorClient />
 
       <HowToUse />
