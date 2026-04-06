@@ -7,6 +7,7 @@ import { calculateTotal, type CalcResult, type CarAge, type EngineType } from "@
 import { fetchCBRRates, type CBRRates, COUNTRY_CURRENCY } from "@/lib/currencyRates";
 import { CONTACTS, type Country } from "@/lib/constants";
 import { DELIVERY_CITY } from "@/lib/tariffs";
+import { BetaBadge } from "@/components/BetaBadge";
 
 function formatPrice(value: number): string {
   return value.toLocaleString("ru-RU") + " \u20BD";
@@ -132,7 +133,7 @@ export default function CalculatorClient() {
       >
         <p className="text-sm font-medium uppercase tracking-wider text-secondary">Калькулятор стоимости</p>
         <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
-          Сколько стоит привезти автомобиль?
+          Сколько стоит привезти автомобиль? <BetaBadge />
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
           Введите параметры и получите расчёт всех расходов &laquo;под ключ&raquo;: таможня, утильсбор, доставка, оформление

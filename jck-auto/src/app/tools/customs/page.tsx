@@ -7,6 +7,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CONTACTS } from "@/lib/constants";
+import { BetaBadge, BetaBanner } from "@/components/BetaBadge";
 import CustomsClient from "./CustomsClient";
 import { CalculatorFAQ } from "../calculator/CalculatorFAQ";
 import { CalculatorCTA } from "../calculator/CalculatorCTA";
@@ -87,7 +88,7 @@ export default function CustomsPage() {
             Калькулятор пошлин
           </p>
           <h1 className="mt-2 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl">
-            Расчёт таможенных платежей
+            Расчёт таможенных платежей <BetaBadge />
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base text-text-muted sm:text-lg">
             Сравните стоимость растаможки для физических и юридических лиц.
@@ -95,6 +96,7 @@ export default function CustomsPage() {
           </p>
         </div>
 
+        <BetaBanner />
         <CustomsClient />
 
         {/* SEO-текст */}

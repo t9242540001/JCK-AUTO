@@ -10,6 +10,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Calculator, Receipt, FileSearch, Car, Send } from 'lucide-react';
 import { CONTACTS } from '@/lib/constants';
+import { BetaBadge, BetaBanner } from '@/components/BetaBadge';
 
 export const metadata: Metadata = {
   title: { absolute: 'Калькуляторы и сервисы для импорта авто — JCK AUTO' },
@@ -89,6 +90,8 @@ export default function ToolsPage() {
         </p>
       </div>
 
+      <BetaBanner />
+
       {/* Карточки */}
       <div className="mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-6 px-4 sm:grid-cols-2">
         {tools.map((tool) => {
@@ -108,7 +111,7 @@ export default function ToolsPage() {
                 <Icon className="h-6 w-6 text-primary" />
               </div>
               <h2 className="mt-4 font-heading text-lg font-semibold text-text">
-                {tool.title}
+                {tool.title} <BetaBadge />
               </h2>
               <p className="mt-2 text-sm text-text-muted">{tool.description}</p>
             </Link>
