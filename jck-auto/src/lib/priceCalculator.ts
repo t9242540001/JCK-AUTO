@@ -48,7 +48,7 @@ function mapResult(r: CalcResult, rates: CBRRates): PriceResult {
 
   return {
     totalRub: r.totalRub,
-    exchangeRate: rates.CNY * 1.02,
+    exchangeRate: rates.CNY,
     date: r.currencyRate.date,
     breakdown: {
       carPriceRub: r.carPriceRub,

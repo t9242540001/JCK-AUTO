@@ -222,9 +222,14 @@ export default function CalculatorClient() {
                         </div>
                       ))}
                     </div>
-                    <p className="mt-4 text-xs text-text-muted">
-                      Курс ЦБ РФ на {result.currencyRate.date}: 1 {curr.code} = {rates[curr.code].toFixed(curr.code === "KRW" ? 4 : 2)} {"\u20BD"} | 1 EUR = {rates.EUR.toFixed(2)} {"\u20BD"}
-                    </p>
+                    <div className="mt-4 text-xs text-text-muted space-y-1">
+                      <p>
+                        Ориентировочный курс: 1 {curr.code} ≈ {rates[curr.code].toFixed(curr.code === "KRW" ? 4 : 2)} ₽ | 1 EUR ≈ {rates.EUR.toFixed(2)} ₽
+                      </p>
+                      <p>
+                        Расчёт ориентировочный. Реальный курс уточняется при оформлении заявки — он зависит от дня сделки и канала перевода.
+                      </p>
+                    </div>
                     <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                       <a href={CONTACTS.telegram} target="_blank" rel="noopener noreferrer" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-secondary-hover">
                         <Send className="h-4 w-4" /> Получить точную оценку
