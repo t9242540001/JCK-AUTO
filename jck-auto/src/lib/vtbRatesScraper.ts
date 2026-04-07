@@ -7,8 +7,9 @@
  * @rule One unified flow for all currencies. NO branches by currency name.
  * @rule KRW naturally returns 'no-data' (page exists but rates[] is empty after filtering).
  * @rule Two failure modes — 'no-data' is silent, 'error' triggers console.warn in consumer.
- * @rule Parse rates[] array from __NEXT_DATA__ JSON. Filter by currencyType === 'offlineInTheBranch'.
- *       Take most recent by date. NO regex fallbacks — they cause cross-currency false positives.
+ * @rule Parse all rates[] arrays from __NEXT_DATA__ JSON. Each entry has shape { buy, sell, branchId, currency, updateDate }.
+ *       Filter by entry.currency === target. Take most recent by updateDate. NO regex fallbacks.
+ * @rule Multiple rates[] arrays exist per page (one per branch) — collect ALL, not just the first.
  * @lastModified 2026-04-07
  */
 
@@ -19,11 +20,11 @@ export type ScrapeResult =
   | { status: 'no-data' }
   | { status: 'error'; reason: string };
 
-interface RateRecord {
+interface RateEntry {
   buy: number;
   sell: number;
-  currencyType: string;
-  date: string;
+  currency: string;
+  updateDate: string;
 }
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
@@ -78,19 +79,26 @@ export async function scrapeVtbRate(currency: keyof typeof SRAVNI_URLS): Promise
       return { status: 'no-data' };
     }
 
-    // Find the "rates" array recursively
-    const ratesArray = findRatesArray(data, 0);
-    if (!ratesArray || ratesArray.length === 0) return { status: 'no-data' };
+    // Collect all entries from all rates[] arrays across the page (one per branch)
+    const allEntries: RateEntry[] = [];
+    collectRatesEntries(data, 0, allEntries);
 
-    // Filter to offlineInTheBranch entries only
-    const branchRates = ratesArray.filter(r => r.currencyType === 'offlineInTheBranch');
-    if (branchRates.length === 0) return { status: 'no-data' };
+    // Filter to entries matching the target currency
+    const matched = allEntries.filter(e => e.currency === currency);
+    if (matched.length === 0) return { status: 'no-data' };
 
-    // Sort by date descending (most recent first)
-    branchRates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Sort by updateDate descending (most recent first); unparseable dates go to the end
+    matched.sort((a, b) => {
+      const ta = new Date(a.updateDate).getTime();
+      const tb = new Date(b.updateDate).getTime();
+      if (isNaN(ta) && isNaN(tb)) return 0;
+      if (isNaN(ta)) return 1;
+      if (isNaN(tb)) return -1;
+      return tb - ta;
+    });
 
     // Take most recent, validate sell is a finite positive number
-    const latest = branchRates[0];
+    const latest = matched[0];
     if (!Number.isFinite(latest.sell) || latest.sell <= 0) return { status: 'no-data' };
 
     return { status: 'ok', rate: latest.sell };
@@ -103,40 +111,52 @@ export async function scrapeVtbRate(currency: keyof typeof SRAVNI_URLS): Promise
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
 /**
- * Recursively walk an object looking for an array property named "rates"
- * whose elements match the RateRecord shape { buy, sell, currencyType, date }.
+ * Recursively walk the parsed JSON, collecting entries from every array named "rates"
+ * whose elements match the RateEntry shape { buy, sell, currency, updateDate }.
+ * Traverses both objects and arrays to handle nested structures.
  */
-function findRatesArray(obj: unknown, depth: number): RateRecord[] | null {
-  if (depth > 10 || obj === null || obj === undefined || typeof obj !== 'object') return null;
+function collectRatesEntries(obj: unknown, depth: number, out: RateEntry[]): void {
+  if (depth > 10 || obj === null || obj === undefined || typeof obj !== 'object') return;
+
+  if (Array.isArray(obj)) {
+    // Traverse array elements
+    for (const item of obj) {
+      if (typeof item === 'object' && item !== null) {
+        collectRatesEntries(item, depth + 1, out);
+      }
+    }
+    return;
+  }
 
   const o = obj as Record<string, unknown>;
 
-  // Check if this object has a "rates" property that is a valid rates array
-  if (Array.isArray(o.rates) && o.rates.length > 0 && isRateRecord(o.rates[0])) {
-    return o.rates as RateRecord[];
-  }
-
-  // Recurse into child values
-  for (const val of Object.values(o)) {
-    if (typeof val === 'object' && val !== null) {
-      const found = findRatesArray(val, depth + 1);
-      if (found) return found;
+  // If this object has a "rates" property that is an array of RateEntry, collect its entries
+  if (Array.isArray(o.rates) && o.rates.length > 0 && isRateEntry(o.rates[0])) {
+    for (const entry of o.rates) {
+      if (isRateEntry(entry)) {
+        out.push(entry);
+      }
     }
   }
 
-  return null;
+  // Recurse into all child values
+  for (const val of Object.values(o)) {
+    if (typeof val === 'object' && val !== null) {
+      collectRatesEntries(val, depth + 1, out);
+    }
+  }
 }
 
 /**
- * Check if a value looks like a RateRecord { buy: number, sell: number, currencyType: string, date: string }
+ * Check if a value matches the RateEntry shape: { buy: number, sell: number, currency: string, updateDate: string }
  */
-function isRateRecord(val: unknown): val is RateRecord {
+function isRateEntry(val: unknown): val is RateEntry {
   if (typeof val !== 'object' || val === null) return false;
   const r = val as Record<string, unknown>;
   return (
     typeof r.buy === 'number' &&
     typeof r.sell === 'number' &&
-    typeof r.currencyType === 'string' &&
-    typeof r.date === 'string'
+    typeof r.currency === 'string' &&
+    typeof r.updateDate === 'string'
   );
 }
