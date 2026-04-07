@@ -75,9 +75,14 @@ function ResultColumn({ title, result, currencyCode, rates }: ResultColumnProps)
           <p className="text-lg font-bold text-primary">{formatPrice(totalWithSbkts)}</p>
         </div>
       </div>
-      <p className="mt-3 text-xs text-text-muted">
-        Курс ЦБ: 1 {currencyCode} = {rates[currencyCode].toFixed(currencyCode === "KRW" ? 4 : 2)} ₽ | 1 EUR = {rates.EUR.toFixed(2)} ₽
-      </p>
+      <div className="mt-3 text-xs text-text-muted space-y-1">
+        <p>
+          Ориентировочный курс: 1 {currencyCode} ≈ {rates[currencyCode].toFixed(currencyCode === "KRW" ? 4 : 2)} ₽ | 1 EUR ≈ {rates.EUR.toFixed(2)} ₽
+        </p>
+        <p>
+          Расчёт ориентировочный. Реальный курс уточняется при оформлении заявки — он зависит от дня сделки и канала перевода.
+        </p>
+      </div>
     </div>
   );
 }
@@ -209,7 +214,7 @@ export default function CustomsClient() {
                   <ResultColumn title="Юридическое лицо" result={companyResult} currencyCode={currencyCode} rates={rates} />
                 </div>
                 <p className="mt-4 text-center text-xs text-text-muted">
-                  Ставки актуальны на {TARIFF_META.lastUpdated} | Курс ЦБ РФ на {rates.date}
+                  Ставки актуальны на {TARIFF_META.lastUpdated} | Ориентировочный курс на {rates.date}
                 </p>
               </motion.div>
             ) : (

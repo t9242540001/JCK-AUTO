@@ -314,7 +314,10 @@ export default function EncarClient() {
                 </div>
                 <p className="mt-2 text-xs text-text-muted">
                   {cost.deliveryCity && `Доставка до ${cost.deliveryCity} | `}
-                  Курс ЦБ на {cost.currencyRate.date}: 1 KRW = {cost.currencyRate.rate.toFixed(4)} ₽
+                  Ориентировочный курс: 1 KRW ≈ {cost.currencyRate.rate.toFixed(4)} ₽
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  Расчёт ориентировочный. Реальный курс уточняется при оформлении заявки — он зависит от дня сделки и канала перевода.
                 </p>
               </div>
             ) : (
