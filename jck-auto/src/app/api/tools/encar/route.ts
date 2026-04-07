@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { extractCarId, fetchVehicle, fetchInspection, mapToResult, estimateEnginePower } from '@/lib/encarClient';
+import { extractCarId, fetchVehicle, fetchInspection, mapToResult, estimateEnginePower, translateEncarFields } from '@/lib/encarClient';
 import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
 import { calculateTotal, type CarAge, type EngineType } from '@/lib/calculator';
 import { fetchCBRRates } from '@/lib/currencyRates';
@@ -88,35 +88,50 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'encar_unavailable', message: 'Encar API временно недоступен.' }, { status: 502 });
   }
 
-  // Determine engine power: user > AI > null
+  // Run AI calls in parallel: power estimation + translation
   let enginePowerHp: number | undefined;
 
+  const [powerEstimate, translation] = await Promise.all([
+    body.enginePower && body.enginePower > 0
+      ? Promise.resolve(null)
+      : estimateEnginePower({
+          make: result.make,
+          model: result.model,
+          grade: result.grade,
+          year: result.year,
+          displacement: result.displacement,
+          fuelType: result.fuelType,
+        }),
+    translateEncarFields({
+      carId: carid,
+      description: result.description,
+      dealerName: result.dealerName,
+      dealerFirm: result.dealerFirm,
+      address: result.region,
+    }),
+  ]);
+
+  // Apply translation
+  result.descriptionRu = translation.description;
+  result.dealerName = translation.dealerName ?? result.dealerName;
+  result.dealerFirm = translation.dealerFirm ?? result.dealerFirm;
+  result.city = translation.city;
+  if (translation.failed) result.translationFailed = true;
+
+  // Determine engine power: user > AI > null
   if (body.enginePower && body.enginePower > 0) {
-    // User-provided power takes priority
     enginePowerHp = body.enginePower;
     result.enginePower = enginePowerHp;
     result.enginePowerSource = 'user';
-  } else {
-    // AI estimation
-    const estimate = await estimateEnginePower({
-      make: result.make,
-      model: result.model,
-      grade: result.grade,
-      year: result.year,
-      displacement: result.displacement,
-      fuelType: result.fuelType,
-    });
+  } else if (powerEstimate) {
+    const hp = powerEstimate.unit === 'kw' ? Math.round(powerEstimate.power * KW_TO_HP) : powerEstimate.power;
+    result.enginePower = hp;
+    result.enginePowerSource = 'ai';
+    result.enginePowerConfidence = powerEstimate.confidence;
+    enginePowerHp = hp;
 
-    if (estimate) {
-      const hp = estimate.unit === 'kw' ? Math.round(estimate.power * KW_TO_HP) : estimate.power;
-      result.enginePower = hp;
-      result.enginePowerSource = 'ai';
-      result.enginePowerConfidence = estimate.confidence;
-      enginePowerHp = hp;
-
-      if (fuelToEngineType(result.fuelType) === 'electric') {
-        result.enginePowerKw = estimate.unit === 'kw' ? estimate.power : Math.round(estimate.power / KW_TO_HP);
-      }
+    if (fuelToEngineType(result.fuelType) === 'electric') {
+      result.enginePowerKw = powerEstimate.unit === 'kw' ? powerEstimate.power : Math.round(powerEstimate.power / KW_TO_HP);
     }
   }
 
