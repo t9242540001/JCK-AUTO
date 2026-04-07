@@ -36,6 +36,10 @@ export interface EncarResult {
   description: string | null;
   sourceUrl: string;
   confidence: 'high' | 'medium';
+  city: string | null;
+  dealerFirm: string | null;
+  descriptionRu: string | null;
+  translationFailed?: boolean;
   enginePower?: number;
   enginePowerKw?: number;
   enginePowerSource?: 'ai' | 'user';
@@ -49,6 +53,8 @@ interface EncarVehicleRaw {
     modelGroupEnglishName?: string;
     gradeName?: string;
     gradeDetailName?: string;
+    gradeEnglishName?: string;
+    gradeDetailEnglishName?: string;
     formYear?: number;
   };
   spec?: {
@@ -64,6 +70,12 @@ interface EncarVehicleRaw {
   photos?: Array<{ path?: string }>;
   contact?: { userId?: string; address?: string; no?: string };
   contents?: { text?: string };
+  partnership?: {
+    dealer?: {
+      name?: string;
+      firm?: { name?: string };
+    };
+  };
 }
 
 interface EncarInspectionRaw {
@@ -195,7 +207,10 @@ export function mapToResult(
   return {
     make: cat?.manufacturerEnglishName ?? 'Unknown',
     model: cat?.modelGroupEnglishName ?? 'Unknown',
-    grade: [cat?.gradeName, cat?.gradeDetailName].filter(Boolean).join(' ') || null,
+    grade: [
+      cat?.gradeEnglishName ?? cat?.gradeName,
+      cat?.gradeDetailEnglishName ?? cat?.gradeDetailName,
+    ].filter(Boolean).join(' ') || null,
     year: cat?.formYear ?? 0,
     mileage: spec?.mileage ?? 0,
     priceKRW: priceManwon * 10_000,
@@ -207,14 +222,113 @@ export function mapToResult(
     vin: raw.vin ?? inspection?.vin ?? null,
     photoUrls: photos.slice(0, 10),
     region: raw.contact?.address ?? null,
-    dealerName: raw.contact?.userId ?? null,
+    dealerName: raw.partnership?.dealer?.name ?? raw.contact?.userId ?? null,
     dealerPhone: raw.contact?.no ?? null,
     accidentFree,
     inspectionSummary,
     description: raw.contents?.text ?? null,
     sourceUrl: `https://fem.encar.com/cars/detail/${carid}`,
     confidence: photos.length > 0 && spec?.mileage ? 'high' : 'medium',
+    city: null,
+    dealerFirm: raw.partnership?.dealer?.firm?.name ?? null,
+    descriptionRu: null,
   };
+}
+
+// ─── AI TRANSLATION ──────────────────────────────────────────────────────
+
+const TRANSLATION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const translationCache = new Map<number, {
+  data: { description: string | null; dealerName: string | null; dealerFirm: string | null; city: string | null };
+  expiresAt: number;
+}>();
+
+const TRANSLATE_SYSTEM_PROMPT = 'Ты переводчик с корейского на русский. Переведи все предоставленные поля. Правила:\n- Имена людей и фирм транслитерируй на русский естественно для русского читателя\n- Для поля "address" верни ТОЛЬКО город и провинцию на русском (например "Ансан, Кёнгидо"), без улиц и номеров\n- Поле "description" переведи полностью на русский\n- Ответь ТОЛЬКО валидным JSON с теми же ключами что на входе. Без пояснений.';
+
+/**
+ * Перевести корейские поля через DeepSeek (batch, один вызов)
+ * @input carId, корейские строки (description, dealerName, dealerFirm, address)
+ * @output переведённые строки + city (извлечённый из address) + failed flag
+ * @rule Никогда не бросает исключений — при ошибке возвращает оригиналы с failed: true
+ * @cost ~$0.001 за вызов (DeepSeek, ~500 токенов)
+ */
+export async function translateEncarFields(params: {
+  carId: number;
+  description: string | null;
+  dealerName: string | null;
+  dealerFirm: string | null;
+  address: string | null;
+}): Promise<{
+  description: string | null;
+  dealerName: string | null;
+  dealerFirm: string | null;
+  city: string | null;
+  failed: boolean;
+}> {
+  const { carId, description, dealerName, dealerFirm, address } = params;
+
+  // Short-circuit if nothing to translate
+  if (!description && !dealerName && !dealerFirm && !address) {
+    return { description: null, dealerName: null, dealerFirm: null, city: null, failed: false };
+  }
+
+  // Check cache
+  const cached = translationCache.get(carId);
+  if (cached && Date.now() < cached.expiresAt) {
+    console.log(`[encar] translateEncarFields: carId=${carId} cache hit`);
+    return { ...cached.data, failed: false };
+  }
+
+  try {
+    // Build input with only non-null fields
+    const input: Record<string, string> = {};
+    if (description) input.description = description;
+    if (dealerName) input.dealerName = dealerName;
+    if (dealerFirm) input.dealerFirm = dealerFirm;
+    if (address) input.address = address;
+
+    const userPrompt = JSON.stringify(input, null, 2);
+
+    const response = await callDeepSeek(userPrompt, {
+      temperature: 0.1,
+      maxTokens: 2000,
+      systemPrompt: TRANSLATE_SYSTEM_PROMPT,
+    });
+
+    const text = response.content.trim();
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON block in DeepSeek response');
+
+    const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+
+    // Validate: each field must be string or absent
+    const validStr = (v: unknown): string | null => (typeof v === 'string' && v.length > 0) ? v : null;
+
+    const result = {
+      description: validStr(parsed.description),
+      dealerName: validStr(parsed.dealerName),
+      dealerFirm: validStr(parsed.dealerFirm),
+      city: validStr(parsed.address),
+    };
+
+    const translatedCount = [result.description, result.dealerName, result.dealerFirm, result.city].filter(Boolean).length;
+    console.log(`[encar] translateEncarFields: carId=${carId} translated ${translatedCount} fields`);
+
+    // Cache successful result
+    translationCache.set(carId, { data: result, expiresAt: Date.now() + TRANSLATION_CACHE_TTL });
+
+    return { ...result, failed: false };
+  } catch (err) {
+    console.warn('[encar] translateEncarFields failed:', err instanceof Error ? err.message : err);
+    // Return original Korean values as fallback
+    return {
+      description,
+      dealerName,
+      dealerFirm,
+      city: null,
+      failed: true,
+    };
+  }
 }
 
 // ─── AI POWER ESTIMATION ──────────────────────────────────────────────────
