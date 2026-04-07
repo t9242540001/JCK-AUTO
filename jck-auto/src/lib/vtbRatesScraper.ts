@@ -1,12 +1,14 @@
 /**
  * @file vtbRatesScraper.ts
- * @description Parses VTB sell rate from sravni.ru bank pages. Pure fetch + regex, no DOM parser.
+ * @description Parses VTB sell rate from sravni.ru bank pages. Pure fetch + JSON parse, no DOM parser.
  * @runs VDS
  * @input Currency code (USD, EUR, CNY, JPY, KRW)
  * @output ScrapeResult — ok with rate, no-data, or error
  * @rule One unified flow for all currencies. NO branches by currency name.
- * @rule KRW naturally returns 'no-data' (page exists but no banks list it).
+ * @rule KRW naturally returns 'no-data' (page exists but rates[] is empty after filtering).
  * @rule Two failure modes — 'no-data' is silent, 'error' triggers console.warn in consumer.
+ * @rule Parse rates[] array from __NEXT_DATA__ JSON. Filter by currencyType === 'offlineInTheBranch'.
+ *       Take most recent by date. NO regex fallbacks — they cause cross-currency false positives.
  * @lastModified 2026-04-07
  */
 
@@ -16,6 +18,13 @@ export type ScrapeResult =
   | { status: 'ok'; rate: number }
   | { status: 'no-data' }
   | { status: 'error'; reason: string };
+
+interface RateRecord {
+  buy: number;
+  sell: number;
+  currencyType: string;
+  date: string;
+}
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 
@@ -58,102 +67,60 @@ export async function scrapeVtbRate(currency: keyof typeof SRAVNI_URLS): Promise
 
     const html = await res.text();
 
-    // Strategy 1: Parse __NEXT_DATA__ JSON blob (most reliable)
-    const nextDataRate = parseNextData(html);
-    if (nextDataRate !== null) {
-      return { status: 'ok', rate: nextDataRate };
+    // Extract __NEXT_DATA__ JSON blob
+    const scriptMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (!scriptMatch) return { status: 'no-data' };
+
+    let data: unknown;
+    try {
+      data = JSON.parse(scriptMatch[1]);
+    } catch {
+      return { status: 'no-data' };
     }
 
-    // Strategy 2: Regex on rendered HTML — look for sell rate pattern
-    const htmlRate = parseHtmlRate(html);
-    if (htmlRate !== null) {
-      return { status: 'ok', rate: htmlRate };
-    }
+    // Find the "rates" array recursively
+    const ratesArray = findRatesArray(data, 0);
+    if (!ratesArray || ratesArray.length === 0) return { status: 'no-data' };
 
-    // Page loaded but no rate found — legitimate 'no-data'
-    return { status: 'no-data' };
+    // Filter to offlineInTheBranch entries only
+    const branchRates = ratesArray.filter(r => r.currencyType === 'offlineInTheBranch');
+    if (branchRates.length === 0) return { status: 'no-data' };
+
+    // Sort by date descending (most recent first)
+    branchRates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Take most recent, validate sell is a finite positive number
+    const latest = branchRates[0];
+    if (!Number.isFinite(latest.sell) || latest.sell <= 0) return { status: 'no-data' };
+
+    return { status: 'ok', rate: latest.sell };
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     return { status: 'error', reason };
   }
 }
 
-// ─── PARSERS ──────────────────────────────────────────────────────────────
+// ─── HELPERS ──────────────────────────────────────────────────────────────
 
 /**
- * Try to extract VTB sell rate from __NEXT_DATA__ JSON embedded in the page.
- * Sravni.ru is a Next.js app that embeds page props in a script tag.
+ * Recursively walk an object looking for an array property named "rates"
+ * whose elements match the RateRecord shape { buy, sell, currencyType, date }.
  */
-function parseNextData(html: string): number | null {
-  const match = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-  if (!match) return null;
-
-  try {
-    const data = JSON.parse(match[1]);
-    // Navigate the pageProps structure to find bank rates
-    const pageProps = data?.props?.pageProps;
-    if (!pageProps) return null;
-
-    // Sravni.ru typically stores rates in various nested structures.
-    // Look for sell rate in common locations:
-    const sellRate = findSellRate(pageProps);
-    if (sellRate !== null && isReasonableRate(sellRate)) return sellRate;
-  } catch {
-    // JSON parse failed — fall through to next strategy
-  }
-
-  return null;
-}
-
-/**
- * Recursively search pageProps for a VTB sell rate value.
- * Looks for objects with sale/sell rate properties.
- */
-function findSellRate(obj: unknown, depth = 0): number | null {
-  if (depth > 8 || obj === null || obj === undefined) return null;
-  if (typeof obj !== 'object') return null;
+function findRatesArray(obj: unknown, depth: number): RateRecord[] | null {
+  if (depth > 10 || obj === null || obj === undefined || typeof obj !== 'object') return null;
 
   const o = obj as Record<string, unknown>;
 
-  // Check for direct rate properties (common sravni.ru patterns)
-  for (const key of ['sale', 'sell', 'saleRate', 'sellRate', 'rateSale', 'rateSell']) {
-    const val = o[key];
-    if (typeof val === 'number' && isReasonableRate(val)) return val;
-    if (typeof val === 'string') {
-      const num = parseFloat(val);
-      if (isReasonableRate(num)) return num;
-    }
+  // Check if this object has a "rates" property that is a valid rates array
+  if (Array.isArray(o.rates) && o.rates.length > 0 && isRateRecord(o.rates[0])) {
+    return o.rates as RateRecord[];
   }
 
-  // Check for bankRates/rates arrays with VTB entries
-  for (const key of ['bankRates', 'rates', 'banks', 'items', 'data']) {
-    const arr = o[key];
-    if (Array.isArray(arr)) {
-      for (const item of arr) {
-        if (typeof item === 'object' && item !== null) {
-          const rec = item as Record<string, unknown>;
-          // Check if this entry is VTB
-          const name = String(rec.bankName ?? rec.name ?? rec.bank ?? '');
-          if (/втб|vtb/i.test(name)) {
-            for (const rk of ['sale', 'sell', 'saleRate', 'sellRate', 'rateSale']) {
-              const rv = rec[rk];
-              if (typeof rv === 'number' && isReasonableRate(rv)) return rv;
-              if (typeof rv === 'string') {
-                const num = parseFloat(rv);
-                if (isReasonableRate(num)) return num;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Recurse into child objects (limited depth)
+  // Recurse into child values
   for (const val of Object.values(o)) {
     if (typeof val === 'object' && val !== null) {
-      const found = findSellRate(val, depth + 1);
-      if (found !== null) return found;
+      const found = findRatesArray(val, depth + 1);
+      if (found) return found;
     }
   }
 
@@ -161,33 +128,15 @@ function findSellRate(obj: unknown, depth = 0): number | null {
 }
 
 /**
- * Fallback: Extract sell rate from rendered HTML using regex.
- * Looks for patterns near "Продажа" or "продаёт" with a numeric rate.
+ * Check if a value looks like a RateRecord { buy: number, sell: number, currencyType: string, date: string }
  */
-function parseHtmlRate(html: string): number | null {
-  // Pattern 1: "Продажа" followed by a rate like "12.45" or "0.0636"
-  const sellPatterns = [
-    /(?:Продажа|продаёт|Курс продажи)[^]*?(\d{1,4}[.,]\d{1,6})\s*(?:₽|руб)/gi,
-    /(?:ВТБ|VTB)[^]{0,500}?(?:Продажа|продаёт|sell)[^]{0,200}?(\d{1,4}[.,]\d{1,6})/gi,
-    /(?:Продажа|sell)\s*(?:<[^>]*>)*\s*(\d{1,4}[.,]\d{1,6})/gi,
-  ];
-
-  for (const re of sellPatterns) {
-    re.lastIndex = 0;
-    const m = re.exec(html);
-    if (m?.[1]) {
-      const rate = parseFloat(m[1].replace(',', '.'));
-      if (isReasonableRate(rate)) return rate;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Sanity check: rate must be a finite positive number in a plausible range.
- * Covers everything from KRW (~0.06 RUB) to EUR (~100+ RUB).
- */
-function isReasonableRate(rate: number): boolean {
-  return Number.isFinite(rate) && rate > 0.001 && rate < 1_000_000;
+function isRateRecord(val: unknown): val is RateRecord {
+  if (typeof val !== 'object' || val === null) return false;
+  const r = val as Record<string, unknown>;
+  return (
+    typeof r.buy === 'number' &&
+    typeof r.sell === 'number' &&
+    typeof r.currencyType === 'string' &&
+    typeof r.date === 'string'
+  );
 }
