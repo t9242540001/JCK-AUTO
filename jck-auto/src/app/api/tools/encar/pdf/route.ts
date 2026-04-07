@@ -7,6 +7,7 @@
  */
 
 import PDFDocument from 'pdfkit';
+import path from 'path';
 import { CONTACTS } from '@/lib/constants';
 
 export async function POST(request: Request) {
@@ -21,20 +22,23 @@ export async function POST(request: Request) {
   if (!d) return new Response('missing data', { status: 400 });
 
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const fontDir = path.join(process.cwd(), 'public', 'fonts');
+  doc.registerFont('Body', path.join(fontDir, 'Roboto-Regular.ttf'));
+  doc.registerFont('BodyBold', path.join(fontDir, 'Roboto-Bold.ttf'));
   const chunks: Buffer[] = [];
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
   const done = new Promise<Buffer>((resolve) => { doc.on('end', () => resolve(Buffer.concat(chunks))); });
 
   // Header
-  doc.fontSize(18).font('Helvetica-Bold').text('Анализ автомобиля с Encar.com', { align: 'center' });
-  doc.fontSize(10).font('Helvetica').text('JCK AUTO — импорт авто из Китая, Кореи, Японии', { align: 'center' });
+  doc.fontSize(18).font('BodyBold').text('Анализ автомобиля с Encar.com', { align: 'center' });
+  doc.fontSize(10).font('Body').text('JCK AUTO — импорт авто из Китая, Кореи, Японии', { align: 'center' });
   doc.moveDown();
   doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#cccccc');
   doc.moveDown();
 
   // Car
-  doc.fontSize(14).font('Helvetica-Bold').text('Автомобиль');
-  doc.fontSize(10).font('Helvetica');
+  doc.fontSize(14).font('BodyBold').text('Автомобиль');
+  doc.fontSize(10).font('Body');
   const fields: [string, unknown][] = [
     ['Марка', d.make], ['Модель', d.model], ['Комплектация', d.grade], ['Год', d.year],
     ['Пробег', d.mileage ? `${Number(d.mileage).toLocaleString('ru-RU')} км` : null],
@@ -48,40 +52,40 @@ export async function POST(request: Request) {
   // Condition
   const accidentFree = d.accidentFree as boolean | undefined;
   if (d.inspectionSummary || accidentFree !== undefined) {
-    doc.fontSize(14).font('Helvetica-Bold').text('Состояние');
-    doc.fontSize(10).font('Helvetica');
+    doc.fontSize(14).font('BodyBold').text('Состояние');
+    doc.fontSize(10).font('Body');
     if (accidentFree !== undefined) doc.text(accidentFree ? 'ДТП: не зафиксировано' : 'ДТП: имеются');
     if (d.inspectionSummary) doc.text(`${d.inspectionSummary}`);
     doc.moveDown();
   }
 
   // Price
-  doc.fontSize(14).font('Helvetica-Bold').text('Цена');
-  doc.fontSize(10).font('Helvetica');
+  doc.fontSize(14).font('BodyBold').text('Цена');
+  doc.fontSize(10).font('Body');
   const priceKRW = d.priceKRW as number | undefined;
   if (priceKRW) doc.text(`Цена на Encar: ${priceKRW.toLocaleString('ru-RU')} ₩`);
 
   const cb = body.costBreakdown as { totalRub?: number; breakdown?: Array<{ label: string; value: number; details?: string }>; currencyRate?: { date?: string; rate?: number } } | undefined;
   if (cb?.breakdown) {
     doc.moveDown(0.5);
-    doc.font('Helvetica-Bold').text('Расчёт стоимости в РФ:');
-    doc.font('Helvetica');
+    doc.font('BodyBold').text('Расчёт стоимости в РФ:');
+    doc.font('Body');
     for (const item of cb.breakdown) {
       doc.text(`  ${item.label}: ${item.value.toLocaleString('ru-RU')} ₽${item.details ? ` (${item.details})` : ''}`);
     }
     if (cb.totalRub) {
       doc.moveDown(0.3);
-      doc.font('Helvetica-Bold').text(`  ИТОГО: ${cb.totalRub.toLocaleString('ru-RU')} ₽`);
+      doc.font('BodyBold').text(`  ИТОГО: ${cb.totalRub.toLocaleString('ru-RU')} ₽`);
     }
     if (cb.currencyRate?.date) {
-      doc.font('Helvetica').text(`  Курс ЦБ на ${cb.currencyRate.date}`);
+      doc.font('Body').text(`  Курс ЦБ на ${cb.currencyRate.date}`);
     }
   }
   doc.moveDown();
 
   // Source
   if (d.sourceUrl) {
-    doc.fontSize(10).font('Helvetica').text(`Источник: ${d.sourceUrl}`);
+    doc.fontSize(10).font('Body').text(`Источник: ${d.sourceUrl}`);
     doc.moveDown();
   }
 
@@ -89,7 +93,7 @@ export async function POST(request: Request) {
   doc.moveDown(2);
   doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#cccccc');
   doc.moveDown(0.5);
-  doc.fontSize(9).font('Helvetica').fillColor('#666666');
+  doc.fontSize(9).font('Body').fillColor('#666666');
   doc.text(`${CONTACTS.company} | ${CONTACTS.phone} | ${CONTACTS.telegramHandle}`, { align: 'center' });
   doc.text('Импорт автомобилей из Китая, Кореи и Японии', { align: 'center' });
 

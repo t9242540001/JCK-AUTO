@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import PDFDocument from 'pdfkit';
+import path from 'path';
 import { CONTACTS } from '@/lib/constants';
 
 export async function POST(request: Request) {
@@ -23,6 +24,9 @@ export async function POST(request: Request) {
   }
 
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const fontDir = path.join(process.cwd(), 'public', 'fonts');
+  doc.registerFont('Body', path.join(fontDir, 'Roboto-Regular.ttf'));
+  doc.registerFont('BodyBold', path.join(fontDir, 'Roboto-Bold.ttf'));
   const chunks: Buffer[] = [];
 
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -32,8 +36,8 @@ export async function POST(request: Request) {
   });
 
   // Header
-  doc.fontSize(18).font('Helvetica-Bold').text('Расшифровка аукционного листа', { align: 'center' });
-  doc.fontSize(10).font('Helvetica').text('JCK AUTO — импорт авто из Китая, Кореи, Японии', { align: 'center' });
+  doc.fontSize(18).font('BodyBold').text('Расшифровка аукционного листа', { align: 'center' });
+  doc.fontSize(10).font('Body').text('JCK AUTO — импорт авто из Китая, Кореи, Японии', { align: 'center' });
   doc.moveDown();
   doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#cccccc');
   doc.moveDown();
@@ -41,18 +45,18 @@ export async function POST(request: Request) {
   // Auction & Grade
   const grade = data.overallGrade as string | null;
   const interior = data.interiorGrade as string | null;
-  doc.fontSize(14).font('Helvetica-Bold').text('Аукцион и оценка');
-  doc.fontSize(10).font('Helvetica');
+  doc.fontSize(14).font('BodyBold').text('Аукцион и оценка');
+  doc.fontSize(10).font('Body');
   if (data.auctionName) doc.text(`Аукцион: ${data.auctionName}`);
   if (data.lotNumber) doc.text(`Лот: ${data.lotNumber}`);
   if (grade) doc.text(`Общая оценка: ${grade}`);
   if (interior) doc.text(`Салон: ${interior}`);
-  if (data.recommendation) { doc.moveDown(0.5); doc.font('Helvetica-Oblique').text(`${data.recommendation}`).font('Helvetica'); }
+  if (data.recommendation) { doc.moveDown(0.5); doc.font('Body').text(`${data.recommendation}`).font('Body'); }
   doc.moveDown();
 
   // Car
-  doc.fontSize(14).font('Helvetica-Bold').text('Автомобиль');
-  doc.fontSize(10).font('Helvetica');
+  doc.fontSize(14).font('BodyBold').text('Автомобиль');
+  doc.fontSize(10).font('Body');
   const fields: [string, unknown][] = [
     ['Марка', data.make], ['Модель', data.model], ['Год', data.year],
     ['Двигатель', data.engineVolume ? `${data.engineVolume} см³` : null],
@@ -67,8 +71,8 @@ export async function POST(request: Request) {
 
   // Damages
   const damages = data.bodyDamages as Array<{ location: string; code: string; description: string; severity: string }> | undefined;
-  doc.fontSize(14).font('Helvetica-Bold').text('Состояние кузова');
-  doc.fontSize(10).font('Helvetica');
+  doc.fontSize(14).font('BodyBold').text('Состояние кузова');
+  doc.fontSize(10).font('Body');
   if (damages && damages.length > 0) {
     for (const d of damages) {
       doc.text(`• ${d.location} — ${d.code}: ${d.description} (${d.severity})`);
@@ -81,23 +85,23 @@ export async function POST(request: Request) {
   // Equipment
   const equipment = data.equipment as string[] | undefined;
   if (equipment && equipment.length > 0) {
-    doc.fontSize(14).font('Helvetica-Bold').text('Комплектация');
-    doc.fontSize(10).font('Helvetica').text(equipment.join(', '));
+    doc.fontSize(14).font('BodyBold').text('Комплектация');
+    doc.fontSize(10).font('Body').text(equipment.join(', '));
     doc.moveDown();
   }
 
   // Comments
   if (data.expertComments) {
-    doc.fontSize(14).font('Helvetica-Bold').text('Комментарии эксперта');
-    doc.fontSize(10).font('Helvetica').text(data.expertComments as string);
+    doc.fontSize(14).font('BodyBold').text('Комментарии эксперта');
+    doc.fontSize(10).font('Body').text(data.expertComments as string);
     doc.moveDown();
   }
 
   // Warnings
   const warnings = data.warnings as string[] | undefined;
   if (warnings && warnings.length > 0) {
-    doc.fontSize(14).font('Helvetica-Bold').text('Предупреждения');
-    doc.fontSize(10).font('Helvetica');
+    doc.fontSize(14).font('BodyBold').text('Предупреждения');
+    doc.fontSize(10).font('Body');
     for (const w of warnings) doc.text(`⚠ ${w}`);
     doc.moveDown();
   }
@@ -105,8 +109,8 @@ export async function POST(request: Request) {
   // Unrecognized
   const unrecognized = data.unrecognized as string[] | undefined;
   if (unrecognized && unrecognized.length > 0) {
-    doc.fontSize(14).font('Helvetica-Bold').text('Не распознано');
-    doc.fontSize(10).font('Helvetica');
+    doc.fontSize(14).font('BodyBold').text('Не распознано');
+    doc.fontSize(10).font('Body');
     for (const u of unrecognized) doc.text(`• ${u}`);
     doc.moveDown();
   }
@@ -115,7 +119,7 @@ export async function POST(request: Request) {
   doc.moveDown(2);
   doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#cccccc');
   doc.moveDown(0.5);
-  doc.fontSize(9).font('Helvetica').fillColor('#666666');
+  doc.fontSize(9).font('Body').fillColor('#666666');
   doc.text(`${CONTACTS.company} | ${CONTACTS.phone} | ${CONTACTS.telegramHandle}`, { align: 'center' });
   doc.text('Импорт автомобилей из Китая, Кореи и Японии', { align: 'center' });
 
