@@ -118,10 +118,14 @@ export async function POST(request: Request) {
   // Footer
   doc.moveDown(2);
   doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#cccccc');
-  doc.moveDown(0.5);
+  doc.moveDown(0.8);
+  doc.fontSize(12).font('BodyBold').fillColor('#1e3a8a');
+  doc.text('jckauto.ru', { align: 'center', link: 'https://jckauto.ru', underline: true });
+  doc.moveDown(0.4);
   doc.fontSize(9).font('Body').fillColor('#666666');
   doc.text(`${CONTACTS.company} | ${CONTACTS.phone} | ${CONTACTS.telegramHandle}`, { align: 'center' });
   doc.text('Импорт автомобилей из Китая, Кореи и Японии', { align: 'center' });
+  doc.fillColor('black');
 
   doc.end();
   const pdfBuffer = await done;
