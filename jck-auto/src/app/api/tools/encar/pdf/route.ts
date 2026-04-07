@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     ['Пробег', d.mileage ? `${Number(d.mileage).toLocaleString('ru-RU')} км` : null],
     ['Двигатель', d.displacement ? `${d.displacement} см³` : null],
     ['Топливо', d.fuelType], ['КПП', d.transmission], ['Кузов', d.bodyType],
-    ['Цвет', d.color], ['VIN', d.vin], ['Регион', d.region],
+    ['Цвет', d.color], ['VIN', d.vin], ['Город', d.city ?? d.region], ['Автосалон', d.dealerFirm],
   ];
   for (const [label, value] of fields) { if (value) doc.text(`${label}: ${value}`); }
   doc.moveDown();

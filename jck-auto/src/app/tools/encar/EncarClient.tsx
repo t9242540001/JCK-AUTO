@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle, Zap } from "lucide-react";
+import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle, Zap, X } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -14,6 +14,8 @@ interface EncarResult {
   region: string | null; dealerName: string | null; dealerPhone: string | null;
   accidentFree: boolean; inspectionSummary: string | null; description: string | null;
   sourceUrl: string; confidence: string;
+  city: string | null; dealerFirm: string | null; descriptionRu: string | null;
+  translationFailed?: boolean;
   enginePower?: number; enginePowerKw?: number;
   enginePowerSource?: 'ai' | 'user'; enginePowerConfidence?: 'high' | 'medium' | 'low';
 }
@@ -50,6 +52,19 @@ export default function EncarClient() {
   const [manualPower, setManualPower] = useState("");
   const [manualUnit, setManualUnit] = useState<"hp" | "kw">("hp");
   const [descExpanded, setDescExpanded] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxOpen(false); };
+    window.addEventListener('keydown', handleKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [lightboxOpen]);
 
   const handleAnalyze = async (overridePower?: number) => {
     if (!url.trim()) return;
@@ -133,9 +148,22 @@ export default function EncarClient() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Главное фото */}
           {result.photoUrls[0] && (
-            <div className="overflow-hidden rounded-2xl w-full max-h-80">
-              <img src={result.photoUrls[0]} alt={`${result.make} ${result.model}`} className="w-full h-full object-cover" />
-            </div>
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              className="group relative mx-auto block aspect-[4/3] w-full max-w-md cursor-zoom-in overflow-hidden rounded-2xl bg-neutral-100 transition-shadow hover:shadow-lg"
+              aria-label="Открыть фото на весь экран"
+            >
+              <img
+                src={result.photoUrls[0]}
+                alt={`${result.make} ${result.model}`}
+                className="h-full w-full object-contain"
+                loading="lazy"
+              />
+              <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-2 py-1 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                Нажмите, чтобы увеличить
+              </span>
+            </button>
           )}
 
           {/* Автомобиль */}
@@ -205,20 +233,26 @@ export default function EncarClient() {
           )}
 
           {/* Продавец */}
-          {(result.dealerName || result.region) && (
+          {(result.dealerName || result.dealerFirm || result.city) && (
             <div className="rounded-2xl border border-border bg-surface p-6">
               <h3 className="font-heading text-lg font-semibold text-text">Продавец</h3>
               <div className="mt-3 grid gap-2">
                 {result.dealerName && (
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between gap-4 text-sm">
                     <span className="text-text-muted">Имя</span>
-                    <span className="font-medium text-text">{result.dealerName}</span>
+                    <span className="text-right font-medium text-text">{result.dealerName}</span>
                   </div>
                 )}
-                {result.region && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-text-muted">Регион</span>
-                    <span className="font-medium text-text">{result.region}</span>
+                {result.dealerFirm && (
+                  <div className="flex justify-between gap-4 text-sm">
+                    <span className="text-text-muted">Автосалон</span>
+                    <span className="text-right font-medium text-text">{result.dealerFirm}</span>
+                  </div>
+                )}
+                {result.city && (
+                  <div className="flex justify-between gap-4 text-sm">
+                    <span className="text-text-muted">Город</span>
+                    <span className="text-right font-medium text-text">{result.city}</span>
                   </div>
                 )}
               </div>
@@ -226,21 +260,27 @@ export default function EncarClient() {
           )}
 
           {/* Описание от продавца */}
-          {result.description && (
-            <div className="rounded-2xl border border-border bg-surface p-6">
-              <h3 className="font-heading text-lg font-semibold text-text">Описание от продавца</h3>
-              <p className="mt-3 text-sm text-text-muted whitespace-pre-line">
-                {descExpanded || result.description.length <= 200
-                  ? result.description
-                  : result.description.slice(0, 200) + "..."}
-              </p>
-              {result.description.length > 200 && (
-                <button onClick={() => setDescExpanded(!descExpanded)} className="mt-2 text-sm text-primary hover:underline">
-                  {descExpanded ? "Свернуть" : "Показать полностью"}
-                </button>
-              )}
-            </div>
-          )}
+          {(() => {
+            const desc = result.descriptionRu ?? result.description;
+            if (!desc) return null;
+            const isOriginal = !result.descriptionRu && result.description;
+            return (
+              <div className="rounded-2xl border border-border bg-surface p-6">
+                <h3 className="font-heading text-lg font-semibold text-text">Описание от продавца</h3>
+                {isOriginal && (
+                  <p className="mt-1 text-xs text-amber-700">Перевод временно недоступен — показан оригинал</p>
+                )}
+                <p className="mt-3 whitespace-pre-line text-sm text-text-muted">
+                  {descExpanded || desc.length <= 200 ? desc : desc.slice(0, 200) + "..."}
+                </p>
+                {desc.length > 200 && (
+                  <button onClick={() => setDescExpanded(!descExpanded)} className="mt-2 text-sm text-primary hover:underline">
+                    {descExpanded ? "Свернуть" : "Показать полностью"}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Ссылка на Encar.com */}
           {result.sourceUrl && (
@@ -300,6 +340,32 @@ export default function EncarClient() {
           </div>
 
           {meta && <p className="text-center text-xs text-text-muted">Осталось анализов: {meta.remaining}</p>}
+
+          {/* Lightbox */}
+          {lightboxOpen && result.photoUrls[0] && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+              onClick={() => setLightboxOpen(false)}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Фото автомобиля"
+            >
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(false)}
+                className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+                aria-label="Закрыть"
+              >
+                <X className="h-6 w-6" />
+              </button>
+              <img
+                src={result.photoUrls[0]}
+                alt={`${result.make} ${result.model}`}
+                className="max-h-[90vh] max-w-[90vw] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
         </motion.div>
       )}
 
