@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Calculator as CalcIcon, Loader2 } from "lucide-react";
 import { calculateTotal, type CalcResult, type CarAge, type EngineType } from "@/lib/calculator";
-import { fetchCBRRates, type CBRRates, CURRENCIES, type CurrencyCode } from "@/lib/currencyRates";
+import { type CBRRates, CURRENCIES, type CurrencyCode } from "@/lib/currencyRates";
 import { TARIFF_META } from "@/lib/tariffs";
 
 function formatPrice(value: number): string {
@@ -99,10 +99,24 @@ export default function CustomsClient() {
   const [personalUse, setPersonalUse] = useState(true);
   const [individualResult, setIndividualResult] = useState<CalcResult | null>(null);
   const [companyResult, setCompanyResult] = useState<CalcResult | null>(null);
+  const [ratesError, setRatesError] = useState<boolean>(false);
 
   const isElectric = engineType === "electric";
 
-  useEffect(() => { fetchCBRRates().then(setRates); }, []);
+  useEffect(() => {
+    fetch('/api/exchange-rates')
+      .then((r) => {
+        if (!r.ok) throw new Error('rates_unavailable');
+        return r.json();
+      })
+      .then((data: CBRRates) => {
+        setRates(data);
+        setRatesError(false);
+      })
+      .catch(() => {
+        setRatesError(true);
+      });
+  }, []);
 
   const handleEngineTypeChange = (val: EngineType) => {
     setEngineType(val);
@@ -148,9 +162,14 @@ export default function CustomsClient() {
   return (
     <div className="mx-auto mt-12 max-w-5xl px-4">
       <div className="rounded-2xl border border-border bg-surface p-6 md:p-10">
-        {!rates ? (
+        {ratesError ? (
+          <div className="py-16 text-center text-text-muted">
+            <p>Не удалось загрузить курсы валют. Попробуйте обновить страницу через минуту.</p>
+            <p className="mt-2 text-xs">Если ошибка повторяется — свяжитесь с менеджером для расчёта вручную.</p>
+          </div>
+        ) : !rates ? (
           <div className="flex items-center justify-center gap-2 py-16 text-text-muted">
-            <Loader2 className="h-5 w-5 animate-spin" /><span>Загрузка курсов ЦБ РФ...</span>
+            <Loader2 className="h-5 w-5 animate-spin" /><span>Загрузка курсов валют...</span>
           </div>
         ) : (
           <>

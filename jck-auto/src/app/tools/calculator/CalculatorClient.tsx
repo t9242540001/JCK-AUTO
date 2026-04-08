@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Calculator as CalcIcon, Check, Phone, Loader2, Send } from "lucide-react";
 import { calculateTotal, type CalcResult, type CarAge, type EngineType } from "@/lib/calculator";
-import { fetchCBRRates, type CBRRates, COUNTRY_CURRENCY } from "@/lib/currencyRates";
+import { type CBRRates, COUNTRY_CURRENCY } from "@/lib/currencyRates";
 import { CONTACTS, type Country } from "@/lib/constants";
 import { DELIVERY_CITY } from "@/lib/tariffs";
 import { BetaBadge } from "@/components/BetaBadge";
@@ -59,11 +59,23 @@ export default function CalculatorClient() {
   const [powerUnit, setPowerUnit] = useState<"hp" | "kw">("hp");
   const [age, setAge] = useState<CarAge>("3to5");
   const [result, setResult] = useState<CalcResult | null>(null);
+  const [ratesError, setRatesError] = useState<boolean>(false);
 
   const isElectric = engineType === "electric";
 
   useEffect(() => {
-    fetchCBRRates().then(setRates);
+    fetch('/api/exchange-rates')
+      .then((r) => {
+        if (!r.ok) throw new Error('rates_unavailable');
+        return r.json();
+      })
+      .then((data: CBRRates) => {
+        setRates(data);
+        setRatesError(false);
+      })
+      .catch(() => {
+        setRatesError(true);
+      });
   }, []);
 
   const handleEngineTypeChange = (val: EngineType) => {
@@ -142,9 +154,14 @@ export default function CalculatorClient() {
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mx-auto mt-12 max-w-5xl px-4">
         <div className="rounded-2xl border border-border bg-surface p-6 md:p-10">
-          {!rates ? (
+          {ratesError ? (
+            <div className="py-16 text-center text-text-muted">
+              <p>Не удалось загрузить курсы валют. Попробуйте обновить страницу через минуту.</p>
+              <p className="mt-2 text-xs">Если ошибка повторяется — свяжитесь с менеджером для расчёта вручную.</p>
+            </div>
+          ) : !rates ? (
             <div className="flex items-center justify-center gap-2 py-16 text-text-muted">
-              <Loader2 className="h-5 w-5 animate-spin" /><span>Загрузка курсов ЦБ РФ...</span>
+              <Loader2 className="h-5 w-5 animate-spin" /><span>Загрузка курсов валют...</span>
             </div>
           ) : (
             <div className="grid gap-10 md:grid-cols-2">
@@ -169,7 +186,7 @@ export default function CalculatorClient() {
                   <label className="text-sm font-medium text-text">Цена автомобиля</label>
                   <input type="number" value={price} onChange={(e) => { setPrice(e.target.value); setResult(null); }} placeholder={pricePlaceholder[country]} className={inputClass} />
                   <p className="mt-1 text-xs text-text-muted">
-                    1 {curr.code} = {rates[curr.code].toFixed(curr.code === "KRW" ? 4 : 2)} {"\u20BD"}
+                    Ориентировочный курс: 1 {curr.code} ≈ {rates[curr.code].toFixed(curr.code === "KRW" ? 4 : 2)} {"\u20BD"}
                   </p>
                 </div>
 
