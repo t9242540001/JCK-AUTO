@@ -4,7 +4,7 @@
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-08
   @version:     1.0
-  @lines:       41
+  @lines:       43
 -->
 
 # Knowledge Base — JCK AUTO
@@ -31,6 +31,8 @@
 | [catalog.md](catalog.md) | Drive naming conventions, 5-step sync chain, screenshot priority (English, with headers) | 2026-04-08 |
 | [shared-mechanics.md](shared-mechanics.md) | Rate limiter, BetaBadge, PDF generation, design system colors/fonts, navigation config | 2026-04-08 |
 | [telegram-bot.md](telegram-bot.md) | Bot commands, admin IDs, config, limitations, restart commands | 2026-04-08 |
+| [noscut-spec.md](noscut-spec.md) | ТЗ ноускаты: бизнес-логика, структуры данных, URL, компоненты, форма захвата | 2026-04-08 |
+| [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
 
 ## Quick Links
 

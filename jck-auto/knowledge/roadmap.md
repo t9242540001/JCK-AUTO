@@ -34,6 +34,8 @@
 - [~] Phase 5: Finalization (SEO audit, mobile check, sitemap)
 - [~] Merge all branches into main
 
+- [ ] Каталог ноускатов (10 промптов): /catalog/noscut, LeadForm, рефакторинг URL, AI-pipeline — knowledge/noscut-spec.md + noscut-plan.md
+
 ## Planned — Site
 
 - [ ] Mobile responsiveness — full page-by-page audit
