@@ -100,7 +100,7 @@ function carKeyboard(
   return [
     nav,
     [
-      { text: "\u{1F517} На сайте", url: `https://jckauto.ru/catalog/${carId}` },
+      { text: "\u{1F517} На сайте", url: `https://jckauto.ru/catalog/cars/${carId}` },
       { text: "\u{1F697} Заказать", callback_data: getOrderId(carId) },
     ],
     [{ text: "\u21A9\uFE0F К списку марок", callback_data: "catalog_brands" }],
@@ -369,7 +369,7 @@ export function registerCatalogHandler(bot: TelegramBot, groupChatId: string) {
         });
         return;
       }
-      pendingSource.set(chatId, `https://jckauto.ru/catalog/${carId}`);
+      pendingSource.set(chatId, `https://jckauto.ru/catalog/cars/${carId}`);
       handleRequestCommand(bot, chatId, groupChatId);
       return;
     }

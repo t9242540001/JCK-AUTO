@@ -61,7 +61,7 @@
 |-----|-------------|
 | `/` | Homepage (Hero → Countries → HowItWorks → Calculator → Values → Warranty → FAQ → CTA) |
 | `/catalog` | Car catalog (ISR 1h) |
-| `/catalog/[id]` | Car detail page |
+| `/catalog/cars/[id]` | Car detail page |
 | `/tools` | Tools hub (4 cards) |
 | `/tools/calculator` | "Pod klyuch" calculator |
 | `/tools/customs` | Customs duty calculator (individual vs company) |
