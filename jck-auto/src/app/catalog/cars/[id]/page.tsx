@@ -64,7 +64,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         : [{ url: "/images/og-image.jpg", width: 1200, height: 630, alt: "JCK AUTO" }],
     },
     alternates: {
-      canonical: `https://jckauto.ru/catalog/${id}`,
+      canonical: `https://jckauto.ru/catalog/cars/${id}`,
     },
   };
 }

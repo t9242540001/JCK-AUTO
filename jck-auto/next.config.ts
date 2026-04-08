@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
         destination: '/tools/calculator',
         permanent: true,
       },
+      {
+        source: '/catalog/:id',
+        destination: '/catalog/cars/:id',
+        permanent: true,
+      },
     ];
   },
 };

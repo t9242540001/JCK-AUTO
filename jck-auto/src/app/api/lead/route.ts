@@ -7,11 +7,11 @@ const TG_API_BASE = process.env.TELEGRAM_API_BASE_URL || "https://api.telegram.o
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, phone, message, source } = body;
+    const { name, phone, message, source, subject } = body;
 
-    if (!name || !phone) {
+    if (!phone) {
       return NextResponse.json(
-        { error: "name и phone обязательны" },
+        { error: "phone обязателен" },
         { status: 400 },
       );
     }
@@ -27,8 +27,9 @@ export async function POST(request: Request) {
     const text = [
       "\u{1F514} Новая заявка с сайта!",
       "",
-      `\u{1F464} Имя: ${name}`,
+      name ? `\u{1F464} Имя: ${name}` : "",
       `\u{1F4F1} Телефон: ${phone}`,
+      subject ? `\u{1F4CC} Тема: ${subject}` : "",
       message ? `\u{1F4AC} Сообщение: ${message}` : "",
       "",
       `Источник: ${source || "сайт jckauto.ru"}`,
