@@ -1,3 +1,12 @@
+/**
+ * @file calculator.ts
+ * @description Telegram bot /calc command — interactive calculator session per chat. Uses fetchCBRRates() to get operational exchange rates (VTB sell + fallback to CBR + markup).
+ * @runs VDS (jckauto-bot pm2 process)
+ * @rule Rate label MUST say "Ориентировочный курс", not "Курс ЦБ РФ" — the rate already includes bank markup, calling it "ЦБ" misleads customers.
+ * @rule Disclaimer text and rate formatting MUST match what the site shows in CalculatorCore.tsx — bot and site are two faces of the same calculator.
+ * @lastModified 2026-04-08
+ */
+
 import TelegramBot from "node-telegram-bot-api";
 import { calculateTotal, formatPrice, type CalcInput, type CarAge } from "../../lib/calculator";
 import { fetchCBRRates, COUNTRY_CURRENCY } from "../../lib/currencyRates";
@@ -174,11 +183,11 @@ async function finishCalc(bot: TelegramBot, chatId: number, state: CalcState) {
     lines.push(`\u{1F4B0} Итого под ключ: \u2248 ${formatPrice(result.totalRub)}`);
     lines.push("");
     lines.push(
-      `Курс ${curr.code}: ${result.currencyRate.rate.toFixed(2)} \u20BD (ЦБ РФ от ${result.currencyRate.date})`,
+      `Ориентировочный курс: 1 ${curr.code} \u2248 ${result.currencyRate.rate.toFixed(curr.code === "KRW" ? 4 : 2)} \u20BD`,
     );
     lines.push("");
     lines.push(
-      "* Цена может измениться как в меньшую, так и в большую сторону в зависимости от курса валют и других факторов. Точную стоимость уточняйте у менеджера.",
+      "Расчёт ориентировочный. Реальный курс уточняется при оформлении заявки — он зависит от дня сделки и канала перевода.",
     );
 
     bot.sendMessage(chatId, lines.join("\n"), {
@@ -188,7 +197,7 @@ async function finishCalc(bot: TelegramBot, chatId: number, state: CalcState) {
             { text: "Оставить заявку", callback_data: "request_start" },
             { text: "Рассчитать ещё", callback_data: "calc_again" },
           ],
-          [{ text: "На сайт", url: "https://jckauto.ru/calculator" }],
+          [{ text: "На сайт", url: "https://jckauto.ru/tools/calculator" }],
         ],
       },
     });
