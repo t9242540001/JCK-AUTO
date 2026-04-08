@@ -1,58 +1,68 @@
-# Архитектурные решения (ADR)
-> Обновлено: 2026-04-08
+<!--
+  @file:        knowledge/decisions.md
+  @project:     JCK AUTO
+  @description: Architectural Decision Records (ADR log)
+  @updated:     2026-04-08
+  @version:     1.0
+  @lines:       120
+-->
 
-## [2026-01] DashScope вместо Anthropic для AI на VDS
+# Architectural Decisions
 
-**Контекст:** Сайту нужны AI-возможности (vision, text, image) на VDS.
-**Решение:** Использовать Alibaba DashScope (Qwen) вместо Claude для всех VDS-side AI-вызовов.
-**Причина:** Anthropic API возвращает 403 с российских IP. DashScope (Singapore region) работает без ограничений.
-**Альтернативы:** Прокси через US (латентность, стоимость), OpenAI (тоже geo-restricted).
+## [2026-01] DashScope over Anthropic for VDS AI calls
 
-## [2026-01] JSON-файлы вместо базы данных
+**Context:** Site needs AI capabilities (vision, text generation) running on the VDS.
+**Decision:** Use Alibaba DashScope (Qwen models) instead of Anthropic Claude for all VDS-side AI.
+**Rationale:** Anthropic API returns 403 from Russian IPs. DashScope Singapore region has no IP restrictions.
+**Alternatives:** Proxy through US server (latency, cost), OpenAI (also geo-restricted).
 
-**Контекст:** Нужно хранить каталог, пользователей, новости.
-**Решение:** JSON файлы на диске (/var/www/jckauto/storage/).
-**Причина:** Масштаб (~50 авто, ~500 юзеров) не требует БД. JSON читаемый, без конфигурации.
-**Альтернативы:** SQLite, PostgreSQL — избыточно на текущем этапе.
+## [2026-01] JSON file storage instead of database
 
-## [2026-02] calculator.ts — единый движок для сайта и бота
+**Context:** Site needs to persist catalog data, user records, news articles.
+**Decision:** Use JSON files on disk (`/var/www/jckauto/storage/`).
+**Rationale:** Current scale (~50 cars, ~500 bot users) doesn't justify database overhead. JSON is human-readable, easy to debug, zero config.
+**Alternatives:** SQLite (overkill for now), PostgreSQL (unnecessary complexity).
 
-**Контекст:** Логика расчёта была дублирована — на сайте своя, в боте своя.
-**Решение:** Единая функция `calculateTotal()` в `src/lib/calculator.ts`.
-**Причина:** Единый источник правды, нет дрифта формул/ставок между потребителями.
+## [2026-02] calculator.ts as single engine for both site and bot
 
-## [2026-03] Переименование файлов
+**Context:** Calculator logic was duplicated — site had its own implementation, bot had another.
+**Decision:** Unified `calculateTotal()` function in `src/lib/calculator.ts` consumed by both.
+**Rationale:** Single source of truth prevents rate/formula drift. Both consumers get identical results.
 
-- `calculator-data.ts` → `tariffs.ts` (содержит тарифные данные, не калькулятор)
-- `currency.ts` → `currencyRates.ts` (содержит курсы валют)
-**Причина:** Имена отражают содержимое, не контекст использования.
+## [2026-03] Rename tariffs.ts and currencyRates.ts
 
-## [2026-03] GitHub Actions runner для Anthropic API
+**Context:** Files were named `calculator-data.ts` and `currency.ts` — unclear purpose.
+**Decision:** Renamed to `tariffs.ts` and `currencyRates.ts`.
+**Rationale:** Names now describe content, not usage context.
 
-**Контекст:** Claude Vision нужен для парсинга скриншотов каталога. Нельзя с VDS (403).
-**Решение:** AI-скрипты на GitHub Actions runner (US IP), SCP для передачи файлов.
-**Причина:** Бесплатные минуты runner, US IP обходит гео-блок.
+## [2026-03] GitHub Actions runner for Anthropic API calls
 
-## [2026-04] VTB sell rate из sravni.ru как основной источник курсов
+**Context:** Claude Vision API needed for catalog screenshot parsing. Can't call from VDS (403).
+**Decision:** Run AI processing scripts on GitHub Actions runner (US IP), SCP files to/from VDS.
+**Rationale:** Free GitHub runner minutes, US IP bypasses geo-block. 5-step sync chain handles data transfer.
 
-**Контекст:** Курсы ЦБ занижают реальную стоимость на 3-7%.
-**Решение:** Парсить VTB sell rate из sravni.ru, fallback на CBR × настраиваемый markup.
-**Причина:** VTB sell rate отражает реальную банковскую цену. Per-currency fallback = нет single point of failure.
+## [2026-04] VTB sell rate from sravni.ru as primary exchange rate source
 
-## [2026-04] /api/exchange-rates для клиентских компонентов
+**Context:** CBR rates understate real cost by 3-7%. Customers see unrealistically low prices.
+**Decision:** Scrape VTB sell rate from sravni.ru as primary source. Fall back to CBR × configurable markup per currency.
+**Rationale:** VTB sell rate reflects actual bank pricing. Per-currency fallback ensures no single point of failure.
+**Alternatives:** Hardcoded markup only (less accurate), multiple bank scraping (over-engineering).
 
-**Контекст:** fetchCBRRates() в клиентских компонентах → CORS с sravni.ru в браузере.
-**Решение:** Серверный GET endpoint `/api/exchange-rates`. Клиенты fetch оттуда.
-**Причина:** Server-side fetch без CORS. Cache-Control 5min.
+## [2026-04] /api/exchange-rates endpoint for client components
 
-## [2026-04] CalculatorCore — shared компонент
+**Context:** Client components importing fetchCBRRates() directly caused sravni.ru CORS errors in browser.
+**Decision:** Created `/api/exchange-rates` server route. Client components fetch from there.
+**Rationale:** Server-side fetch has no CORS. Cache-Control headers (5min) reduce load. Bot still calls fetchCBRRates() directly (server-side, no CORS).
 
-**Контекст:** Калькулятор на главной и на /tools/calculator — дублированный код.
-**Решение:** Извлечь `CalculatorCore.tsx`, обе страницы — тонкие обёртки.
-**Причина:** Единый источник для формы/результата. Устраняет CORS-баг на главной.
+## [2026-04] CalculatorCore as shared component
 
-## [2026-04] PDFKit + Roboto TTF для кириллицы
+**Context:** Homepage calculator section and /tools/calculator page had duplicated calculator code.
+**Decision:** Extract `CalculatorCore.tsx` as shared body. Both pages are thin wrappers.
+**Rationale:** Single source of truth for form state, rate loading, and result rendering. Eliminates homepage CORS bug (old section imported fetchCBRRates directly).
 
-**Контекст:** Helvetica в PDFKit не поддерживает кириллицу — мусорные символы.
-**Решение:** Roboto-Regular.ttf + Roboto-Bold.ttf в public/fonts/, зарегистрированы как Body/BodyBold.
-**Причина:** Полная кириллица, бесплатно (Google Fonts), +1MB к репо.
+## [2026-04] PDFKit with Roboto TTF for Cyrillic
+
+**Context:** PDFKit default Helvetica has no Cyrillic glyphs — all Russian text rendered as garbage.
+**Decision:** Bundle Roboto-Regular.ttf and Roboto-Bold.ttf in `public/fonts/`, register as Body/BodyBold.
+**Rationale:** Roboto has full Cyrillic coverage, is free (Google Fonts), and adds only ~1MB to repo.
+**Alternatives:** System fonts (unreliable in Docker/server), custom font subset (complex build).

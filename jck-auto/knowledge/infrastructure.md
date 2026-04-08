@@ -1,24 +1,32 @@
-# Инфраструктура
-> Обновлено: 2026-04-08
+<!--
+  @file:        knowledge/infrastructure.md
+  @project:     JCK AUTO
+  @description: Server config, PM2 processes, deploy procedures, constraints
+  @updated:     2026-04-08
+  @version:     1.0
+  @lines:       80
+-->
 
-## Сервер
+# Infrastructure
+
+## Server
 
 - **IP:** 94.250.249.104
 - **OS:** Ubuntu 24.04
 - **Node:** v20.20.0
-- **Рабочая директория:** `/var/www/jckauto/app/jck-auto`
-- **Хранилище:** `/var/www/jckauto/storage/` (catalog/, news/, articles/, users.json)
+- **Working directory:** `/var/www/jckauto/app/jck-auto`
+- **Storage:** `/var/www/jckauto/storage/` (catalog JSON, user data, news)
 - **GitHub:** https://github.com/t9242540001/JCK-AUTO
-- **Сайт:** https://jckauto.ru
+- **Site URL:** https://jckauto.ru
 
-## PM2 процессы
+## PM2 Processes
 
-| Процесс | Назначение | Порт |
-|---------|------------|------|
-| jckauto | Next.js сайт | 3000 |
-| jckauto-bot | Telegram бот (polling) | 8443 |
+| Process | Purpose | Port |
+|---------|---------|------|
+| jckauto | Next.js site | 3000 |
+| jckauto-bot | Telegram bot (polling) | — |
 
-## Деплой — Сайт
+## Deploy — Site
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
@@ -26,9 +34,9 @@ git pull origin claude/news-pipeline
 npm run build && pm2 restart jckauto
 ```
 
-## Деплой — Бот
+## Deploy — Bot
 
-**ВАЖНО:** `pm2 restart` НЕ перечитывает `.env.local`. Только delete + start:
+**IMPORTANT:** `pm2 restart` does NOT reload `.env.local`. Must use delete + start:
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
@@ -38,7 +46,7 @@ pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env
 pm2 save
 ```
 
-## Деплой — Полный (сайт + бот)
+## Deploy — Full (site + bot)
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
@@ -51,34 +59,16 @@ pm2 status
 
 ## Nginx
 
-- Reverse proxy: 80/443 → localhost:3000
-- SSL: Let's Encrypt (auto-renewal)
-- Маршрутизация — через Next.js, кастомных rewrite нет
+- Reverse proxy: port 80/443 → localhost:3000
+- SSL: Let's Encrypt auto-renewal
+- No custom rewrite rules — Next.js handles routing
 
-## Ключевые ограничения
+## Known Constraints
 
-| Ограничение | Последствие |
-|------------|-------------|
-| Anthropic API заблокирован с VDS (403) | Claude Vision/Text — только на GitHub Actions runner |
-| Telegram API заблокирован на VDS | Бот через Worker URL: `https://tg-proxy.t9242540001.workers.dev` |
-| DashScope работает с VDS | Singapore region, без ограничений |
-| DeepSeek работает с VDS | Без geo-ограничений |
-| `pm2 restart` не перечитывает `.env.local` | Бот: только `pm2 delete` + `pm2 start` |
-| На VDS нет GitHub credentials | Git push только через Claude Code |
-| Курсы валют кэшируются 6 часов | Sravni.ru VTB scraper + CBR fallback с markup |
-
-## Env-переменные (имена, НЕ значения)
-
-```
-DEEPSEEK_API_KEY
-DASHSCOPE_API_KEY
-TELEGRAM_BOT_TOKEN
-GOOGLE_DRIVE_FOLDER_ID
-GOOGLE_SERVICE_ACCOUNT_KEY
-ANTHROPIC_API_KEY          # только на GitHub Actions runner
-EXCHANGE_MARKUP_USD=3.0
-EXCHANGE_MARKUP_EUR=3.0
-EXCHANGE_MARKUP_CNY=4.5
-EXCHANGE_MARKUP_JPY=7.0
-EXCHANGE_MARKUP_KRW=5.0
-```
+| Constraint | Impact |
+|-----------|--------|
+| Anthropic API blocked from Russian IP (403) | All Claude API calls run on GitHub Actions runner only |
+| DashScope API works from VDS | Singapore region, no IP restrictions |
+| `pm2 restart` doesn't reload `.env.local` | Must `pm2 delete` + `pm2 start` for bot |
+| Bot uses polling, not webhook | No inbound port/nginx config needed for bot |
+| Exchange rates cached 6 hours | Sravni.ru VTB scraper + CBR fallback with markup |

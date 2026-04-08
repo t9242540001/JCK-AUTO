@@ -1,75 +1,100 @@
-# Архитектура — навигатор по файлам и URL
-> Обновлено: 2026-04-08
+<!--
+  @file:        knowledge/architecture.md
+  @project:     JCK AUTO
+  @description: Stack, file navigator, URL structure, key file relationships
+  @updated:     2026-04-08
+  @version:     1.0
+  @lines:       130
+-->
 
-## Навигатор по файлам
+# Architecture
 
-| Задача | Файл |
-|--------|------|
-| Навигация сайта | src/lib/navigation.ts |
-| Расчёт цены (единый движок) | src/lib/calculator.ts |
-| Тарифные данные | src/lib/tariffs.ts |
-| Курсы валют (VTB + CBR fallback) | src/lib/currencyRates.ts |
-| VTB rate scraper (sravni.ru) | src/lib/vtbRatesScraper.ts |
-| Обёртка для бота/скриптов | src/lib/priceCalculator.ts |
-| Rate limiter AI-инструментов | src/lib/rateLimiter.ts |
-| DashScope клиент (Qwen) | src/lib/dashscope.ts |
-| DeepSeek клиент | src/lib/deepseek.ts |
-| Encar API клиент | src/lib/encarClient.ts |
-| Генератор обложек | src/lib/coverGenerator.ts |
-| Транслитерация URL | src/lib/transliterate.ts |
-| Перелинковка разделов | src/lib/crossLinker.ts |
-| Маппинг тегов новостей | src/lib/newsTagColors.ts |
-| Синхронизация каталога | src/lib/catalogSync.ts |
-| AI-парсинг скриншотов | src/lib/screenshotParser.ts |
-| Константы / контакты | src/lib/constants.ts |
-| Калькулятор (shared UI) | src/components/calculator/CalculatorCore.tsx |
-| Beta badge система | src/components/BetaBadge.tsx |
-| API: заявки | src/app/api/lead/route.ts |
-| API: курсы валют | src/app/api/exchange-rates/route.ts |
-| API: Encar анализ | src/app/api/tools/encar/route.ts |
-| API: Encar PDF | src/app/api/tools/encar/pdf/route.ts |
-| API: аукционные листы | src/app/api/tools/auction-sheet/route.ts |
-| API: аукционные листы PDF | src/app/api/tools/auction-sheet/pdf/route.ts |
-| API: новости | src/app/api/news/route.ts |
-| Бот: обработчики | src/bot/handlers/*.ts |
-| Бот: хранилище пользователей | src/bot/store/users.ts |
+## Stack
 
-## URL-структура сайта
+- **Framework:** Next.js 15, App Router, TypeScript strict
+- **Styling:** Tailwind CSS 4, shadcn/ui, Framer Motion
+- **Bot:** node-telegram-bot-api (polling mode)
+- **Storage:** JSON files on VDS (`/var/www/jckauto/storage/`)
+- **AI:** DashScope (Qwen Vision/Text), DeepSeek (deepseek-chat)
+- **PDF:** PDFKit (server-side, Roboto TTF for Cyrillic)
+- **Fonts:** Space Grotesk (headings) + Inter (body)
 
-| URL | Описание |
-|-----|----------|
-| `/` | Главная (Hero → Countries → HowItWorks → Calculator → Values → Warranty → FAQ → CTA) |
-| `/catalog` | Каталог авто (ISR 1ч) |
-| `/catalog/[id]` | Страница авто |
-| `/tools` | Хаб сервисов (4 карточки) |
-| `/tools/calculator` | Калькулятор «под ключ» |
-| `/tools/customs` | Калькулятор пошлин (физ/юр) |
-| `/tools/auction-sheet` | AI-расшифровка аукционных листов |
-| `/tools/encar` | Анализатор Encar.com |
+## Design System
+
+- Primary: #1E3A5F (navy), Secondary: #C9A84C (gold)
+- Country accents: China #DE2910, Korea #003478, Japan #BC002D
+
+## File Navigator
+
+| Task | File |
+|------|------|
+| Site navigation config | src/lib/navigation.ts |
+| Price calculation (single engine) | src/lib/calculator.ts |
+| Tariff reference data | src/lib/tariffs.ts |
+| Currency rates (VTB + CBR fallback) | src/lib/currencyRates.ts |
+| VTB rate scraper | src/lib/vtbRatesScraper.ts |
+| Legacy price wrapper (bot/scripts) | src/lib/priceCalculator.ts |
+| Rate limiter (AI tools) | src/lib/rateLimiter.ts |
+| DashScope client | src/lib/dashscope.ts |
+| DeepSeek client | src/lib/deepseek.ts |
+| Encar API client | src/lib/encarClient.ts |
+| Cover image generator | src/lib/coverGenerator.ts |
+| URL transliteration | src/lib/transliterate.ts |
+| Cross-linking helper | src/lib/crossLinker.ts |
+| News tag colors | src/lib/newsTagColors.ts |
+| Catalog sync / cover selection | src/lib/catalogSync.ts |
+| Screenshot AI parsing | src/lib/screenshotParser.ts |
+| Constants / contacts | src/lib/constants.ts |
+| Lead API | src/app/api/lead/route.ts |
+| Exchange rates API | src/app/api/exchange-rates/route.ts |
+| Encar analysis API | src/app/api/tools/encar/route.ts |
+| Auction sheet API | src/app/api/tools/auction-sheet/route.ts |
+| News API | src/app/api/news/route.ts |
+| Bot handlers | src/bot/handlers/*.ts |
+| Bot user store | src/bot/store/users.ts |
+| Calculator core (shared UI) | src/components/calculator/CalculatorCore.tsx |
+| Beta badge system | src/components/BetaBadge.tsx |
+
+## URL Structure
+
+| URL | Description |
+|-----|-------------|
+| `/` | Homepage (Hero → Countries → HowItWorks → Calculator → Values → Warranty → FAQ → CTA) |
+| `/catalog` | Car catalog (ISR 1h) |
+| `/catalog/[id]` | Car detail page |
+| `/tools` | Tools hub (4 cards) |
+| `/tools/calculator` | "Pod klyuch" calculator |
+| `/tools/customs` | Customs duty calculator (individual vs company) |
+| `/tools/auction-sheet` | AI auction sheet decoder |
+| `/tools/encar` | Encar.com analyzer |
 | `/calculator` | 301 → /tools/calculator |
-| `/about` | О компании |
-| `/blog` | Блог (32+ MDX статей) |
-| `/blog/[slug]` | Статья блога |
-| `/news` | Новости (каталог) |
-| `/news/[slug]` | Новость дня |
-| `/news/tag/[tag]` | Фильтр по тегу |
+| `/about` | About company |
+| `/blog` | Blog (32+ MDX articles) |
+| `/blog/[slug]` | Blog article |
+| `/news` | News catalog |
+| `/news/[slug]` | Daily news digest |
+| `/news/tag/[tag]` | News by tag |
+| `/api/lead` | POST — lead to Telegram group |
+| `/api/exchange-rates` | GET — operational exchange rates |
+| `/api/news` | GET — news feed |
+| `/api/tools/encar` | POST — Encar analysis |
+| `/api/tools/encar/pdf` | POST — Encar PDF report |
+| `/api/tools/auction-sheet` | POST — auction sheet decode |
+| `/api/tools/auction-sheet/pdf` | POST — auction sheet PDF |
 
-## Ключевые связи модулей
+## Key Relationships
 
 ```
-CalculatorCore.tsx ──→ /api/exchange-rates ──→ currencyRates.ts ──→ vtbRatesScraper.ts (sravni.ru)
+CalculatorCore.tsx ──→ /api/exchange-rates ──→ currencyRates.ts ──→ vtbRatesScraper.ts
                                                                   └──→ CBR API (fallback)
                    ──→ calculator.ts ──→ tariffs.ts
 
-CustomsClient.tsx ──→ /api/exchange-rates (тот же endpoint)
-                  ──→ calculator.ts (buyerType: individual + company)
-
 EncarClient.tsx ──→ /api/tools/encar ──→ encarClient.ts ──→ Encar API
-                                       ├──→ deepseek.ts (мощность + перевод)
-                                       └──→ calculator.ts (расчёт стоимости)
+                                       └──→ deepseek.ts (power + translation)
+                                       └──→ calculator.ts (cost breakdown)
 
-Bot /calc ──→ fetchCBRRates() (напрямую, server-side)
+Bot /calc ──→ fetchCBRRates() (direct, server-side)
            └──→ calculator.ts
 
-News: rssParser → collector → processor (DeepSeek) → coverGenerator (DashScope) → publisher
+News pipeline: rssParser → collector → processor (DeepSeek) → coverGenerator (DashScope) → publisher
 ```
