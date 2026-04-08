@@ -57,30 +57,34 @@ function makeSlug(make: string, model: string, generation: string): string {
   return `${make}-${model}-${generation}`.toLowerCase().replace(/[\s\/]+/g, "-");
 }
 
+// ─── BRAND BUCKETS ───────────────────────────────────────────────────────
+
+const BRAND_BUCKETS: { label: string; brands: string[]; country: "japan" | "korea" | "china" }[] = [
+  { label: "toyota-lexus",    brands: ["Toyota", "Lexus"],            country: "japan" },
+  { label: "honda-nissan",    brands: ["Honda", "Nissan"],            country: "japan" },
+  { label: "mitsubishi",      brands: ["Mitsubishi"],                 country: "japan" },
+  { label: "hyundai-kia",     brands: ["Hyundai", "Kia"],             country: "korea" },
+  { label: "genesis",         brands: ["Genesis"],                    country: "korea" },
+  { label: "haval-chery",     brands: ["Haval", "Chery"],             country: "china" },
+  { label: "geely-byd",       brands: ["Geely", "BYD"],               country: "china" },
+  { label: "li-nio-changan",  brands: ["Li Auto", "NIO", "Changan"], country: "china" },
+];
+
 // ─── TASK A: models.json ──────────────────────────────────────────────────
 
 async function buildModels(): Promise<void> {
-  console.log("[models] Requesting model list from DeepSeek...");
+  console.log(`[models] Requesting models from ${BRAND_BUCKETS.length} brand buckets...`);
 
-  const prompt = `Return a JSON array of 100–120 unique car models popular as imports in Russia.
-Each object must have: make (string), model (string), generation (string, e.g. "XA50"),
-yearStart (number), yearEnd (number — use ${CURRENT_YEAR} if still in production),
-country ("japan"|"korea"|"china").
+  const bucketPromises = BRAND_BUCKETS.map(async (bucket) => {
+    const prompt = `Return a JSON array of all major generations of ${bucket.brands.join(", ")} cars popular as imports in Russia (2021–${CURRENT_YEAR}).
+Each object: make, model, generation (e.g. "XA50"), yearStart, yearEnd (use ${CURRENT_YEAR} if still in production), country ("${bucket.country}").
+Include every distinct body generation released since 2010.
+Return ONLY a valid JSON array, no markdown, no explanation.`;
 
-Cover these brands:
-- Japan: Toyota, Lexus, Honda, Nissan, Mitsubishi
-- Korea: Hyundai, Kia, Genesis
-- China: Haval, Chery, Geely, BYD, Li Auto, NIO, Changan
-
-Include multiple generations per model where relevant.
-Response must be ONLY a valid JSON array, no markdown fences, no explanation.`;
-
-  let researchModels: NoscutModel[] = [];
-  try {
     const { content } = await callDeepSeek(prompt, {
-      temperature: 0.4,
-      maxTokens: 8192,
-      systemPrompt: "You are a car data expert. Return only valid JSON.",
+      temperature: 0.2,
+      maxTokens: 2048,
+      systemPrompt: "You are a car data expert. Return only valid JSON array.",
     });
 
     const cleaned = content.replace(/^```(?:json)?\s*/, "").replace(/```\s*$/, "").trim();
@@ -93,23 +97,36 @@ Response must be ONLY a valid JSON array, no markdown fences, no explanation.`;
       country: "japan" | "china" | "korea";
     }>;
 
-    researchModels = parsed
-      .filter((r) => r.yearEnd >= MIN_YEAR_END)
-      .map((r) => ({
-        ...r,
-        slug: makeSlug(r.make, r.model, r.generation),
-      }));
+    return { label: bucket.label, records: parsed };
+  });
 
-    console.log(`[models] DeepSeek returned ${parsed.length} records, ${researchModels.length} after year filter`);
-  } catch (err) {
-    console.error("[models] DeepSeek parse failed, using seed only:", (err as Error).message);
+  const settled = await Promise.allSettled(bucketPromises);
+
+  let allBucketResults: NoscutModel[] = [];
+
+  for (let i = 0; i < settled.length; i++) {
+    const result = settled[i];
+    const label = BRAND_BUCKETS[i].label;
+
+    if (result.status === "fulfilled") {
+      const filtered = result.value.records
+        .filter((r) => r.yearEnd >= MIN_YEAR_END)
+        .map((r) => ({
+          ...r,
+          slug: makeSlug(r.make, r.model, r.generation),
+        }));
+      console.log(`[models] bucket=${label} returned ${filtered.length} records`);
+      allBucketResults.push(...filtered);
+    } else {
+      console.error(`[models] bucket=${label} FAILED: ${result.reason}`);
+    }
   }
 
   // Merge: seed first, then research — deduplicate by slug
   const seen = new Set<string>();
   const merged: NoscutModel[] = [];
 
-  for (const item of [...SEED_LIST, ...researchModels]) {
+  for (const item of [...SEED_LIST, ...allBucketResults]) {
     if (!seen.has(item.slug)) {
       seen.add(item.slug);
       merged.push(item);
