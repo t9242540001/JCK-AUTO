@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
-        source: '/catalog/:id',
+        source: '/catalog/:id((?!noscut|cars).*)',
         destination: '/catalog/cars/:id',
         permanent: true,
       },
