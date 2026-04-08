@@ -30,7 +30,7 @@
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
-git pull origin claude/news-pipeline
+git pull origin claude/review-project-structure-RtYyX
 npm run build && pm2 restart jckauto
 ```
 
@@ -40,7 +40,7 @@ npm run build && pm2 restart jckauto
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
-git pull origin claude/news-pipeline
+git pull origin claude/review-project-structure-RtYyX
 pm2 delete jckauto-bot
 pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
 pm2 save
@@ -50,7 +50,7 @@ pm2 save
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
-git fetch origin && git reset --hard origin/claude/news-pipeline
+git fetch origin && git reset --hard origin/claude/review-project-structure-RtYyX
 rm -rf .next && npm run build
 pm2 delete jckauto && pm2 start "npm start" --name jckauto
 pm2 delete jckauto-bot && pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
