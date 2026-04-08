@@ -4,7 +4,7 @@
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-08
   @version:     1.0
-  @lines:       75
+  @lines:       64
 -->
 
 # Critical Rules
@@ -55,3 +55,10 @@
 | Don't re-process data already in catalog.json | process-ai-pending.ts | Wasted Claude Vision credits |
 | Cache results: rates (6h TTL), translation (24h TTL) | currencyRates.ts, encarClient.ts | Unnecessary API calls and latency |
 | Compare hashes before downloading from Drive | googleDrive.ts | Re-downloads unchanged files |
+
+## Git & Prompt Rules
+
+| Rule | Location | Consequence |
+|------|----------|-------------|
+| Always specify branch in CONTEXT block of every Claude Code prompt | Every prompt | Claude Code creates a new branch instead of working in the target branch → merge conflict, extra PR, lost time |
+| First command in every Claude Code session: `git checkout <branch> && git pull origin <branch>` | Every prompt CONTEXT block | Same as above |
