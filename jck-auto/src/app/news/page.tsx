@@ -7,11 +7,11 @@
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Send } from 'lucide-react';
 import { getNewsDaysPaginated, getAllTags } from '@/services/news/reader';
 import { getTagStyle } from '@/lib/newsTagColors';
-import { CONTACTS } from '@/lib/constants';
 import NewsDayCard from '@/components/news/NewsDayCard';
+import LeadFormTrigger from '@/components/LeadFormTrigger';
+import SocialFollow from '@/components/sections/SocialFollow';
 
 export const revalidate = 3600;
 
@@ -131,18 +131,17 @@ export default async function NewsPage({ searchParams }: PageProps) {
             >
               Рассчитать стоимость
             </Link>
-            <a
-              href={CONTACTS.telegram}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-3 font-medium text-white transition-colors hover:bg-[#229ED9]"
-            >
-              <Send className="h-4 w-4" />
-              Написать в Telegram
-            </a>
+            <LeadFormTrigger
+              subject="Заявка с раздела Новости"
+              triggerLabel="Оставить заявку"
+              ctaLabel="Отправить заявку"
+              modalTitle="Хотите привезти автомобиль?"
+              triggerVariant="primary"
+            />
           </div>
         </div>
       </div>
+      <SocialFollow />
     </div>
   );
 }
