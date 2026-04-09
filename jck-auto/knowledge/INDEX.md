@@ -13,7 +13,7 @@
 
 | File | Description | Updated |
 |------|-------------|---------|
-| [infrastructure.md](infrastructure.md) | Server, PM2, deploy commands, nginx, constraints | 2026-04-08 |
+| [infrastructure.md](infrastructure.md) | Server, PM2, deploy commands, nginx, constraints | 2026-04-09 |
 | [architecture.md](architecture.md) | Stack, file navigator, URL structure, key relationships | 2026-04-08 |
 | [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek, CBR, Google Drive, Telegram | 2026-04-08 |
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
@@ -27,7 +27,7 @@
 | [customs-reference.md](customs-reference.md) | ETS brackets, recycling fee conditions, legal entity logic, normative sources | 2026-04-08 |
 | [encar-analyzer.md](encar-analyzer.md) | Encar API data flow, Korean→Russian translation, power estimation, rate limiter | 2026-04-08 |
 | [news-pipeline.md](news-pipeline.md) | RSS → DeepSeek → covers → JSON pipeline, article generator, page URLs, costs | 2026-04-08 |
-| [catalog-pipeline.md](catalog-pipeline.md) | Drive naming conventions, 5-step sync chain, screenshot priority (Russian) | 2026-04-08 |
+| [catalog-pipeline.md](catalog-pipeline.md) | Drive naming conventions, 4-step sync chain, screenshot priority (Russian) | 2026-04-09 |
 | [catalog.md](catalog.md) | Drive naming conventions, 5-step sync chain, screenshot priority (English, with headers) | 2026-04-08 |
 | [shared-mechanics.md](shared-mechanics.md) | Rate limiter, BetaBadge, PDF generation, design system colors/fonts, navigation config | 2026-04-08 |
 | [telegram-bot.md](telegram-bot.md) | Bot commands, admin IDs, config, limitations, restart commands | 2026-04-08 |

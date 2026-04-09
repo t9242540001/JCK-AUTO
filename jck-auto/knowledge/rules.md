@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-09
-  @version:     1.0
-  @lines:       64
+  @version:     1.1
+  @lines:       81
 -->
 
 # Critical Rules
@@ -28,6 +28,8 @@
 | DashScope runs from VDS (Singapore region) | dashscope.ts | No issue, just documenting the allowed path |
 | serverExternalPackages: ['pdfkit'] in next.config.ts | next.config.ts | PDFKit ENOENT on Helvetica.afm if removed |
 | New /catalog/* subcategory segments must be added to EXCLUDED_SEGMENTS | src/middleware.ts | Segment gets redirected to /catalog/cars/* (404) |
+| After post-commit crash: first check GitHub Actions deploy log, NOT pm2 logs | deploy.yml / GitHub Actions | pm2 logs show symptom only; Actions log shows root cause (tsc/turbopack error) |
+| deploy.yml does NOT isolate build from live PM2 — a bad build crashes the running process | deploy.yml | No rollback = immediate outage until hotfix is deployed |
 
 ## Code Standards
 
@@ -63,6 +65,8 @@
 |------|----------|-------------|
 | Always specify branch in CONTEXT block of every Claude Code prompt | Every prompt | Claude Code creates a new branch instead of working in the target branch → merge conflict, extra PR, lost time |
 | First command in every Claude Code session: `git checkout <branch> && git pull origin <branch>` | Every prompt CONTEXT block | Same as above |
+| Any prompt modifying .ts/.tsx must include `npm run build` as acceptance criterion | Every prompt | Build errors (tsc/turbopack) are invisible until deploy → production crash |
+| Prompts removing wrapper blocks must explicitly verify BOTH the opening AND closing brace are deleted | Every prompt | Stray closing brace at module scope → Turbopack parse error → site down |
 
 ## Noscut Business Rules
 
