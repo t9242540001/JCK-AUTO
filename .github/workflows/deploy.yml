@@ -22,9 +22,9 @@ jobs:
           host: ${{ secrets.VDS_HOST }}
           username: root
           key: ${{ secrets.VDS_SSH_KEY }}
-          script_stop: true
           command_timeout: 20m
           script: |
+            set -e
             source /root/.bashrc 2>/dev/null || source /root/.profile 2>/dev/null || true
             cd /var/www/jckauto/app/jck-auto
             git fetch origin
