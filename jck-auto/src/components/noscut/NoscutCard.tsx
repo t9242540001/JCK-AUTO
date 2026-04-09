@@ -46,10 +46,10 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
       viewport={{ once: true }}
       transition={{ delay: Math.min(index, 4) * 0.08 }}
     >
-      <div className="relative">
+      <div className="relative overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md">
         <Link
           href={`/catalog/noscut/${entry.slug}`}
-          className="group block overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md"
+          className="group block"
         >
           <div className="relative aspect-[4/3] overflow-hidden">
             <Image
