@@ -12,11 +12,12 @@ export interface DeliveryCity {
   daysMax: number;
 }
 
+// @important: Vladivostok excluded — company location. Replaced with Krasnodar.
 export const DELIVERY_CITIES: DeliveryCity[] = [
   { name: "Москва", priceFrom: 15000, daysMin: 25, daysMax: 35 },
   { name: "Санкт-Петербург", priceFrom: 16000, daysMin: 27, daysMax: 37 },
   { name: "Новосибирск", priceFrom: 12000, daysMin: 20, daysMax: 30 },
-  { name: "Владивосток", priceFrom: 8000, daysMin: 14, daysMax: 21 },
+  { name: "Краснодар", priceFrom: 13000, daysMin: 22, daysMax: 32 },
   { name: "Екатеринбург", priceFrom: 14000, daysMin: 23, daysMax: 33 },
   { name: "Минск", priceFrom: 20000, daysMin: 30, daysMax: 40 },
   { name: "Алматы", priceFrom: 18000, daysMin: 28, daysMax: 38 },
