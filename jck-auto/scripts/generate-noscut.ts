@@ -126,7 +126,27 @@ async function main(): Promise<void> {
 
     // a. DeepSeek description
     try {
-      const descPrompt = `Напиши описание ноуската для ${m.make} ${m.model} ${m.generation} (${m.yearStart}–${m.yearEnd}).\nНоускат — это комплект для восстановления передней части автомобиля. Состав комплекта строго фиксирован: бампер, оптика (фары и противотуманки), радиатор, телевизор (рамка радиатора), датчики, камера. Никаких других деталей — только эти шесть позиций.\nНапиши 80–120 слов на русском без заголовков. Структура:\n1. Состав комплекта (перечисли именно эти 6 деталей в тексте)\n2. Совместимость с модификациями ${m.model} ${m.generation}\n3. Срок поставки 30 дней под заказ\n4. Условия для оптовых покупателей\nТолько текст, без заголовков.`;
+      const descPrompt = `Write a product page description for a noscut kit: ${m.make} ${m.model} ${m.generation} (${m.yearStart}–${m.yearEnd}).
+
+Context: a noscut is a ready-made set of front-end parts for vehicle restoration. We supply it from Asia to order in approximately 30 days. The kit has a fixed composition — exactly six items: front bumper, headlights with foglights, cooling radiator, front panel frame (called "televizor"), parking sensors, front-facing camera.
+
+Your task: calmly explain to the visitor what they get, what it is for, and why they should order from us. No advertising rhetoric — facts only, honest description.
+
+Write in Russian. 80–150 words. You may use short paragraphs or a bullet list — whichever reads more naturally. Write like a real person, not a corporate catalog.
+
+You must mention:
+- all six kit components by name
+- compatibility with ${m.model} ${m.generation} modifications
+- ~30 day lead time on order
+- wholesale pricing is available (one sentence, no specific promises)
+
+Strictly forbidden:
+- superlatives or hyperbole ("best", "perfect", "guaranteed", "everything you need")
+- invented facts — mention only what is explicitly stated above
+- tables
+- bureaucratic filler words in Russian: "данный", "осуществляется", "предусмотрено", "в рамках"
+- "rear camera" — the camera in this kit is front-facing, not rear
+- any promises not present in our actual offer`;
 
       const { content } = await callDeepSeek(descPrompt, {
         temperature: 0.3,
