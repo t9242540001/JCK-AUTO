@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Clock } from "lucide-react";
 import NoscutDelivery from "@/components/noscut/NoscutDelivery";
+import NoscutCard from "@/components/noscut/NoscutCard";
 import NoModelFound from "@/components/noscut/NoModelFound";
 import LeadForm from "@/components/LeadForm";
 import LeadFormTrigger from "@/components/LeadFormTrigger";
@@ -102,6 +103,9 @@ export default async function NoscutDetailPage({ params }: PageProps) {
 
   const fullName = `${entry.make} ${entry.model} ${entry.generation}`;
   const subject = `${fullName} ноускат`;
+  const related = loadCatalog()
+    .filter((e) => e.slug !== entry.slug)
+    .slice(0, 4);
 
   const productJsonLd = {
     "@context": "https://schema.org",
@@ -268,6 +272,27 @@ export default async function NoscutDetailPage({ params }: PageProps) {
 
           {/* Delivery */}
           <NoscutDelivery />
+
+          {/* Related noscuts */}
+          {related.length > 0 && (
+            <section className="mt-12">
+              <h2 className="font-heading text-2xl font-bold text-text">Другие ноускаты</h2>
+              <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {related.map((item, i) => (
+                  <NoscutCard key={item.slug} entry={item} index={i} />
+                ))}
+              </div>
+              <div className="mt-8 text-center">
+                <Link
+                  href="/catalog/noscut"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-primary px-8 py-4 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+                >
+                  Все ноускаты
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </section>
+          )}
 
           {/* Wholesale CTA */}
           <section className="mt-12 rounded-2xl bg-surface p-6 md:p-10">
