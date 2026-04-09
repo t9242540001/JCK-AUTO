@@ -132,10 +132,10 @@ export default async function NoscutCatalogPage({ searchParams }: PageProps) {
             <span className="text-text">Ноускаты</span>
           </nav>
 
-          <h1 className="mt-4 font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
+          <h1 className="mt-4 text-center font-heading text-2xl font-bold text-text sm:text-3xl md:text-4xl lg:text-5xl">
             Ноускаты из Азии
           </h1>
-          <p className="mx-auto mt-4 max-w-3xl text-base text-text-muted sm:text-lg">
+          <p className="mx-auto mt-4 max-w-3xl text-center text-base text-text-muted sm:text-lg">
             Комплект деталей передней части — бампер, оптика, радиатор, телевизор, датчики,
             камера. Поставка под заказ ~30 дней. Цена в 2–3 раза ниже российского рынка.
           </p>
@@ -213,6 +213,15 @@ export default async function NoscutCatalogPage({ searchParams }: PageProps) {
                 </span>
               )}
             </button>
+
+            {activeFilterCount > 0 && (
+              <Link
+                href="/catalog/noscut"
+                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-gray-50"
+              >
+                Сбросить
+              </Link>
+            )}
           </form>
 
           {/* Results */}
