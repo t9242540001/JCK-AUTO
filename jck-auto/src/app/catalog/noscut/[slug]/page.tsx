@@ -35,23 +35,6 @@ interface NoscutEntry {
 
 const CATALOG_PATH = "/var/www/jckauto/storage/noscut/noscut-catalog.json";
 
-const COUNTRY_BG: Record<string, string> = {
-  china: "bg-china",
-  korea: "bg-korea",
-  japan: "bg-japan",
-};
-
-const COUNTRY_FLAG: Record<string, string> = {
-  japan: "\u{1F1EF}\u{1F1F5}",
-  korea: "\u{1F1F0}\u{1F1F7}",
-  china: "\u{1F1E8}\u{1F1F3}",
-};
-
-const COUNTRY_LABEL: Record<string, string> = {
-  japan: "Япония",
-  korea: "Корея",
-  china: "Китай",
-};
 
 function loadCatalog(): NoscutEntry[] {
   try {
@@ -191,11 +174,6 @@ export default async function NoscutDetailPage({ params }: PageProps) {
             <div className="lg:col-span-2">
               {/* Badges */}
               <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium text-white ${COUNTRY_BG[entry.country] ?? "bg-gray-500"}`}
-                >
-                  {COUNTRY_FLAG[entry.country]} {COUNTRY_LABEL[entry.country]}
-                </span>
                 {entry.inStock && (
                   <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-medium text-white">
                     В наличии
