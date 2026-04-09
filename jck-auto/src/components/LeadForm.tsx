@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, CheckCircle } from "lucide-react";
-import { CONTACTS } from "@/lib/constants";
+import InputMask from "react-input-mask";
 
 const leadSchema = z.object({
-  phone: z.string().min(1, "Введите телефон"),
+  phone: z.string().refine(
+    (val) => val.replace(/\D/g, "").length >= 11,
+    "Введите телефон",
+  ),
   name: z.string().optional(),
   comment: z.string().optional(),
 });
@@ -31,9 +34,11 @@ export default function LeadForm({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
+    defaultValues: { phone: "" },
   });
 
   const inputCls = compact
@@ -74,11 +79,28 @@ export default function LeadForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className={`space-y-3 ${compact ? "text-sm" : ""}`}>
       <div>
-        <input
-          {...register("phone")}
-          type="tel"
-          placeholder="+7 (___) ___-__-__"
-          className={inputCls}
+        <Controller
+          name="phone"
+          control={control}
+          render={({ field }) => (
+            <InputMask
+              mask="+7 (999) 999-99-99"
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+            >
+              {/* @ts-expect-error react-input-mask children render prop */}
+              {(inputProps: React.InputHTMLAttributes<HTMLInputElement>) => (
+                <input
+                  {...inputProps}
+                  ref={field.ref}
+                  type="tel"
+                  placeholder="+7 (___) ___-__-__"
+                  className={inputCls}
+                />
+              )}
+            </InputMask>
+          )}
         />
         {errors.phone && (
           <p className="mt-1 text-xs text-red-500">{errors.phone.message}</p>
@@ -122,18 +144,6 @@ export default function LeadForm({
         <p className="text-center text-sm text-red-500">Ошибка отправки. Попробуйте позже.</p>
       )}
 
-      {!compact && (
-        <p className="text-center text-xs text-gray-400">
-          <a
-            href={CONTACTS.telegram}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline-offset-2 hover:underline"
-          >
-            Вы представляете СТО? Условия для оптовых покупателей →
-          </a>
-        </p>
-      )}
     </form>
   );
 }
