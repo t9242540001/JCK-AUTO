@@ -1,8 +1,14 @@
 import { MetadataRoute } from "next";
+import fs from "fs";
 import { getAllPosts } from "@/lib/blog";
 import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import { getAllNewsDays, getAllTags } from "@/services/news/reader";
+
+interface NoscutEntry {
+  slug: string;
+  updatedAt: string;
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
@@ -80,7 +86,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   const catalogPages: MetadataRoute.Sitemap = cars.map((car) => ({
-    url: `https://jckauto.ru/catalog/${car.id}`,
+    url: `https://jckauto.ru/catalog/cars/${car.id}`,
     lastModified: new Date(car.createdAt),
     changeFrequency: "daily" as const,
     priority: 0.6,
@@ -91,6 +97,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(post.date),
     changeFrequency: "weekly",
     priority: 0.6,
+  }));
+
+  // Noscut catalog
+  let noscutEntries: NoscutEntry[] = [];
+  try {
+    const raw = fs.readFileSync("/var/www/jckauto/storage/noscut/noscut-catalog.json", "utf-8");
+    noscutEntries = JSON.parse(raw) as NoscutEntry[];
+  } catch {
+    noscutEntries = [];
+  }
+
+  const noscutIndex: MetadataRoute.Sitemap = [
+    {
+      url: "https://jckauto.ru/catalog/noscut",
+      lastModified: new Date(),
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+    },
+  ];
+
+  const noscutPages: MetadataRoute.Sitemap = noscutEntries.map((entry) => ({
+    url: `https://jckauto.ru/catalog/noscut/${entry.slug}`,
+    lastModified: new Date(entry.updatedAt),
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
   }));
 
   // News pages
@@ -117,5 +148,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticPages, ...catalogPages, ...blogPages, ...newsIndex, ...newsTagPages, ...newsDayPages];
+  return [...staticPages, ...catalogPages, ...noscutIndex, ...noscutPages, ...blogPages, ...newsIndex, ...newsTagPages, ...newsDayPages];
 }
