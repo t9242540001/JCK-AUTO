@@ -66,3 +66,10 @@
 **Decision:** Bundle Roboto-Regular.ttf and Roboto-Bold.ttf in `public/fonts/`, register as Body/BodyBold.
 **Rationale:** Roboto has full Cyrillic coverage, is free (Google Fonts), and adds only ~1MB to repo.
 **Alternatives:** System fonts (unreliable in Docker/server), custom font subset (complex build).
+
+## [2026-04] GitHub Actions auto-merge for claude/** branches
+
+**Context:** All development happens on `claude/**` branches. Merging into `main` was manual and often forgotten.
+**Decision:** Add `.github/workflows/auto-merge.yml` that triggers on push to `claude/**` branches and merges into `main` with `--no-ff`.
+**Rationale:** Zero manual merge steps. Every push to a claude branch automatically lands in main. Uses GITHUB_TOKEN (no extra secrets). Workflow fails gracefully on merge conflicts — developer resolves manually.
+**Alternatives:** Branch protection with auto-merge PRs (more ceremony), manual merges (status quo, error-prone).

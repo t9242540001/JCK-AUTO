@@ -85,3 +85,7 @@ pm2 status
 | `pm2 restart` doesn't reload `.env.local` | Must `pm2 delete` + `pm2 start` for bot |
 | Bot uses polling, not webhook | No inbound port/nginx config needed for bot |
 | Exchange rates cached 6 hours | Sravni.ru VTB scraper + CBR fallback with markup |
+
+## CI/CD
+
+- **Auto-merge:** GitHub Actions workflow `.github/workflows/auto-merge.yml` merges `claude/**` branches into `main` on every push. No manual merge needed.
