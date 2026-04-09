@@ -2,7 +2,7 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources
-  @updated:     2026-04-08
+  @updated:     2026-04-09
   @version:     1.0
   @lines:       65
 -->
@@ -27,14 +27,13 @@
 - [x] CalculatorCore shared component (homepage + /tools/calculator)
 - [x] PDF reports with Roboto TTF (Cyrillic support) + jckauto.ru link
 - [x] Encar Korean→Russian translation via DeepSeek (batch, cached 24h)
+- [x] Каталог ноускатов: /catalog/noscut, /catalog/noscut/[slug], LeadForm, URL рефакторинг, AI-pipeline (research + generate + price-update)
 
 ## In Progress
 
 - [~] Phase 2: Tariff monitoring (check-tariffs.ts + cron)
 - [~] Phase 5: Finalization (SEO audit, mobile check, sitemap)
 - [~] Merge all branches into main
-
-- [ ] Каталог ноускатов (10 промптов): /catalog/noscut, LeadForm, рефакторинг URL, AI-pipeline — knowledge/noscut-spec.md + noscut-plan.md
 
 ## Planned — Site
 

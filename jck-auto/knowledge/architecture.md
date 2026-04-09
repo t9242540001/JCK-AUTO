@@ -2,7 +2,7 @@
   @file:        knowledge/architecture.md
   @project:     JCK AUTO
   @description: Stack, file navigator, URL structure, key file relationships
-  @updated:     2026-04-08
+  @updated:     2026-04-09
   @version:     1.0
   @lines:       130
 -->
@@ -11,7 +11,7 @@
 
 ## Stack
 
-- **Framework:** Next.js 15, App Router, TypeScript strict
+- **Framework:** Next.js 16.1.6, App Router, TypeScript strict
 - **Styling:** Tailwind CSS 4, shadcn/ui, Framer Motion
 - **Bot:** node-telegram-bot-api (polling mode)
 - **Storage:** JSON files on VDS (`/var/www/jckauto/storage/`)
@@ -54,14 +54,27 @@
 | Bot user store | src/bot/store/users.ts |
 | Calculator core (shared UI) | src/components/calculator/CalculatorCore.tsx |
 | Beta badge system | src/components/BetaBadge.tsx |
+| Noscut delivery config | src/lib/deliveryConfig.ts |
+| Inline lead form (noscut pages) | src/components/LeadForm.tsx |
+| Noscut card component | src/components/noscut/NoscutCard.tsx |
+| Noscut grid (pagination) | src/components/noscut/NoscutGrid.tsx |
+| Noscut delivery table | src/components/noscut/NoscutDelivery.tsx |
+| No model found CTA | src/components/noscut/NoModelFound.tsx |
+| Catalog redirect middleware | src/middleware.ts |
+| Noscut model research script | scripts/research-noscut-models.ts |
+| Noscut catalog generator | scripts/generate-noscut.ts |
+| Noscut price updater (weekly cron) | scripts/update-noscut-prices.ts |
 
 ## URL Structure
 
 | URL | Description |
 |-----|-------------|
-| `/` | Homepage (Hero → Countries → HowItWorks → Calculator → Values → Warranty → FAQ → CTA) |
+| `/` | Homepage (Hero → Countries → CatalogPreview → NoscutPreview → HowItWorks → Calculator → Values → Warranty → FAQ → CTA) |
 | `/catalog` | Car catalog (ISR 1h) |
 | `/catalog/cars/[id]` | Car detail page |
+| `/catalog/noscut` | Noscut catalog (~131 models, ISR 1h) |
+| `/catalog/noscut/[slug]` | Noscut detail page |
+| `/catalog/[id]` | 308 redirect → /catalog/cars/[id] (via middleware) |
 | `/tools` | Tools hub (4 cards) |
 | `/tools/calculator` | "Pod klyuch" calculator |
 | `/tools/customs` | Customs duty calculator (individual vs company) |

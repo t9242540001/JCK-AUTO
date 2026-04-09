@@ -2,7 +2,7 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-08
+  @updated:     2026-04-09
   @version:     1.0
   @lines:       64
 -->
@@ -27,6 +27,7 @@
 | Anthropic API: calls ONLY from GitHub Actions runner | scripts/process-ai-pending.ts | 403 error from Russian VDS IP |
 | DashScope runs from VDS (Singapore region) | dashscope.ts | No issue, just documenting the allowed path |
 | serverExternalPackages: ['pdfkit'] in next.config.ts | next.config.ts | PDFKit ENOENT on Helvetica.afm if removed |
+| New /catalog/* subcategory segments must be added to EXCLUDED_SEGMENTS | src/middleware.ts | Segment gets redirected to /catalog/cars/* (404) |
 
 ## Code Standards
 

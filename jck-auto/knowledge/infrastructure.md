@@ -2,7 +2,7 @@
   @file:        knowledge/infrastructure.md
   @project:     JCK AUTO
   @description: Server config, PM2 processes, deploy procedures, constraints
-  @updated:     2026-04-08
+  @updated:     2026-04-09
   @version:     1.0
   @lines:       80
 -->
@@ -43,7 +43,7 @@
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
-git pull origin claude/review-project-structure-RtYyX
+git pull origin claude/init-nextjs-project-iK26t
 npm run build && pm2 restart jckauto
 ```
 
@@ -53,7 +53,7 @@ npm run build && pm2 restart jckauto
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
-git pull origin claude/review-project-structure-RtYyX
+git pull origin claude/init-nextjs-project-iK26t
 pm2 delete jckauto-bot
 pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
 pm2 save
@@ -63,7 +63,7 @@ pm2 save
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
-git fetch origin && git reset --hard origin/claude/review-project-structure-RtYyX
+git fetch origin && git reset --hard origin/claude/init-nextjs-project-iK26t
 rm -rf .next && npm run build
 pm2 delete jckauto && pm2 start "npm start" --name jckauto
 pm2 delete jckauto-bot && pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
