@@ -40,6 +40,7 @@ export default function LeadForm({
   compact = false,
 }: LeadFormProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const {
     register,
@@ -56,6 +57,7 @@ export default function LeadForm({
 
   const onSubmit = async (data: LeadFormData) => {
     setStatus("loading");
+    setErrorMessage(null);
     try {
       const res = await fetch("/api/lead", {
         method: "POST",
@@ -68,9 +70,19 @@ export default function LeadForm({
           subject: subject || undefined,
         }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        try {
+          const body = await res.json();
+          setErrorMessage(body.error || "Ошибка отправки. Попробуйте позже.");
+        } catch {
+          setErrorMessage("Ошибка отправки. Попробуйте позже.");
+        }
+        setStatus("error");
+        return;
+      }
       setStatus("success");
     } catch {
+      setErrorMessage("Ошибка отправки. Попробуйте позже.");
       setStatus("error");
     }
   };
@@ -137,8 +149,8 @@ export default function LeadForm({
         )}
       </button>
 
-      {status === "error" && (
-        <p className="text-center text-sm text-red-500">Ошибка отправки. Попробуйте позже.</p>
+      {status === "error" && errorMessage && (
+        <p className="text-center text-sm text-red-500">{errorMessage}</p>
       )}
 
     </form>
