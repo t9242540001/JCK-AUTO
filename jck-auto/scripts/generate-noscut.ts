@@ -3,6 +3,7 @@
  * @description Generates noscut-catalog.json with descriptions (DeepSeek) and images (DashScope)
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --limit=5
+ * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --force --limit=2
  */
 
 import fs from "fs";
@@ -59,6 +60,10 @@ function parseLimit(): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
+function parseForce(): boolean {
+  return process.argv.includes("--force");
+}
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
 async function downloadImage(url: string, dest: string): Promise<void> {
@@ -73,6 +78,7 @@ async function downloadImage(url: string, dest: string): Promise<void> {
 async function main(): Promise<void> {
   const start = Date.now();
   const limit = parseLimit();
+  const force = parseForce();
 
   // 1. Read source data
   const models: NoscutModel[] = JSON.parse(fs.readFileSync(MODELS_PATH, "utf-8"));
@@ -104,7 +110,7 @@ async function main(): Promise<void> {
     const imagePath = path.join(STORAGE_DIR, `${m.slug}.jpg`);
 
     // Resume check
-    if (fs.existsSync(imagePath)) {
+    if (!force && fs.existsSync(imagePath)) {
       const existing = existingMap.get(m.slug);
       if (existing) {
         catalog.push(existing);
@@ -120,7 +126,7 @@ async function main(): Promise<void> {
 
     // a. DeepSeek description
     try {
-      const descPrompt = `Напиши описание ноуската для ${m.make} ${m.model} ${m.generation} (${m.yearStart}–${m.yearEnd}) для каталога автозапчастей. 80–120 слов на русском. Структура: состав комплекта → совместимость и особенности → срок поставки 30 дней → опт для СТО. Только текст, без заголовков.`;
+      const descPrompt = `Напиши описание ноуската для ${m.make} ${m.model} ${m.generation} (${m.yearStart}–${m.yearEnd}).\nНоускат — это комплект для восстановления передней части автомобиля. Состав комплекта строго фиксирован: бампер, оптика (фары и противотуманки), радиатор, телевизор (рамка радиатора), датчики, камера. Никаких других деталей — только эти шесть позиций.\nНапиши 80–120 слов на русском без заголовков. Структура:\n1. Состав комплекта (перечисли именно эти 6 деталей в тексте)\n2. Совместимость с модификациями ${m.model} ${m.generation}\n3. Срок поставки 30 дней под заказ\n4. Условия для оптовых покупателей\nТолько текст, без заголовков.`;
 
       const { content } = await callDeepSeek(descPrompt, {
         temperature: 0.3,
@@ -134,7 +140,7 @@ async function main(): Promise<void> {
 
     // b. DashScope image
     try {
-      const imagePrompt = `Exploded view technical illustration of ${m.make} ${m.model} ${m.generation} front end noscut kit on light gray background. Show 6 labeled components: front bumper, headlights, radiator, front panel frame, sensors, camera. The rest of the car body is transparent/faded. Clean technical style, numbered callouts, white background, no text.`;
+      const imagePrompt = `Technical exploded-view illustration of ${m.make} ${m.model} ${m.generation} front end noscut kit. Light gray neutral background. Show the vehicle silhouette in 3/4 front angle. The 6 noscut components are visually separated and floating slightly away from the car body: front bumper, headlights pair, radiator, front panel frame, parking sensors, front camera. All other parts of the car body are faded/transparent. Clean technical product illustration style. No text, no numbers, no labels, no callouts whatsoever. High quality, sharp edges, professional catalog look.`;
 
       const { imageUrl } = await generateImage(imagePrompt, {
         size: "1024*1024",
