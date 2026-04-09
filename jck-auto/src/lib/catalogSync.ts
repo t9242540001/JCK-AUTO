@@ -368,7 +368,6 @@ export async function syncCatalog(): Promise<SyncResult> {
         result.errors.push({ folder: car.folderName, error: err instanceof Error ? err.message : String(err) });
       }
     }
-  }
 
   // 5. Remove deleted cars
   for (const car of removedCars) {
