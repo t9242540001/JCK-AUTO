@@ -89,7 +89,10 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
           </div>
 
           <div className="p-4">
-            <h3 className="font-heading text-lg font-bold text-text">
+            <p className="text-xs font-medium uppercase tracking-wider text-secondary">
+              Ноускат
+            </p>
+            <h3 className="mt-0.5 font-heading text-lg font-bold text-text">
               {entry.make} {entry.model} {entry.generation}
             </h3>
             <p className="mt-1 text-sm text-text-muted">
