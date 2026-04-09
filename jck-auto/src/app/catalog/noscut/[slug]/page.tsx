@@ -200,11 +200,14 @@ export default async function NoscutDetailPage({ params }: PageProps) {
               </div>
 
               {/* Title */}
-              <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl">
+              <p className="mt-3 text-sm font-medium uppercase tracking-wider text-secondary">
+                Ноускат
+              </p>
+              <h1 className="mt-1 font-heading text-2xl font-bold text-text sm:text-3xl">
                 {fullName}
               </h1>
               <p className="mt-1 text-sm text-text-muted">
-                {entry.yearStart}–{entry.yearEnd}
+                Комплект восстановления передней части • {entry.yearStart}–{entry.yearEnd}
               </p>
 
               {/* Price */}
