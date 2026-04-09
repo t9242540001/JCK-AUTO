@@ -29,7 +29,7 @@ jobs:
             cd /var/www/jckauto/app/jck-auto
             git fetch origin
             git reset --hard origin/main
-            npm install --no-audit --no-fund
+            npm ci --no-audit --no-fund
 
             # Two-slot atomic build: build into inactive slot, swap symlink, restart
             # First-time migration: convert .next directory into slot .next-a + symlink
