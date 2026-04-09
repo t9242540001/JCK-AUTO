@@ -115,19 +115,19 @@ export default async function CarDetailPage({ params }: PageProps) {
       />
       <div className="mx-auto max-w-7xl px-4">
         {/* Breadcrumbs */}
-        <nav className="flex items-center gap-1 text-sm text-text-muted">
-          <Link href="/" className="transition-colors hover:text-primary">
+        <nav className="flex min-w-0 items-center gap-1 text-sm text-text-muted overflow-hidden">
+          <Link href="/" className="shrink-0 transition-colors hover:text-primary">
             Главная
           </Link>
-          <ChevronRight className="h-3.5 w-3.5" />
+          <ChevronRight className="shrink-0 h-3.5 w-3.5" />
           <Link
             href="/catalog"
-            className="transition-colors hover:text-primary"
+            className="shrink-0 transition-colors hover:text-primary"
           >
             Каталог
           </Link>
-          <ChevronRight className="h-3.5 w-3.5" />
-          <span className="text-text">
+          <ChevronRight className="shrink-0 h-3.5 w-3.5" />
+          <span className="truncate min-w-0 text-text">
             {cleanBrand(car.brand)} {car.model} {car.year}
           </span>
         </nav>
@@ -156,17 +156,17 @@ export default async function CarDetailPage({ params }: PageProps) {
 
             {car.priceRub ? (
               <div className="mt-4">
-                <p className="font-heading text-3xl font-bold text-primary sm:text-4xl">
+                <p className="font-heading text-2xl font-bold text-primary sm:text-3xl lg:text-4xl">
                   ≈ {car.priceRub.toLocaleString("ru-RU")} ₽<sup className="text-xs text-gray-400 ml-0.5">*</sup>
                 </p>
               </div>
             ) : car.price > 0 ? (
-              <p className="mt-4 font-heading text-3xl font-bold text-primary sm:text-4xl">
+              <p className="mt-4 font-heading text-2xl font-bold text-primary sm:text-3xl lg:text-4xl">
                 {formatPrice(car.price, car.currency)}
               </p>
             ) : (
               <div className="mt-4">
-                <p className="font-heading text-2xl font-bold text-text sm:text-3xl">
+                <p className="font-heading text-xl font-bold text-text sm:text-2xl">
                   Цена по запросу
                 </p>
                 <div className="mt-3">
@@ -197,7 +197,7 @@ export default async function CarDetailPage({ params }: PageProps) {
             )}
 
             {car.condition && (
-              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 pr-14 text-sm text-gray-600 break-words [overflow-wrap:anywhere]">
+              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 text-sm text-gray-600 break-words [overflow-wrap:anywhere]">
                 Отметки: {car.condition}
               </div>
             )}
@@ -310,7 +310,7 @@ export default async function CarDetailPage({ params }: PageProps) {
           <div className="mt-6 space-y-4">
             <Link
               href="/calculator"
-              className="flex items-center justify-center gap-2 rounded-xl border-2 border-white/30 px-8 py-4 font-medium text-white transition-colors hover:bg-white/10"
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-white/30 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10 sm:px-8 sm:py-4 sm:text-base"
             >
               <Calculator className="h-5 w-5" />
               Рассчитать на калькуляторе
