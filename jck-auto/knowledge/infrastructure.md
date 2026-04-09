@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Server config, PM2 processes, deploy procedures, constraints
   @updated:     2026-04-09
-  @version:     1.0
-  @lines:       138
+  @version:     1.1
+  @lines:       109
 -->
 
 # Infrastructure
@@ -48,7 +48,7 @@ Push to any `claude/**` branch — GitHub Actions handles everything:
 2. `deploy.yml` SSHs into VDS and runs:
    - `git fetch origin && git reset --hard origin/main`
    - `npm install`
-   - `NODE_OPTIONS="--max-old-space-size=1536" npm run build`
+   - `npm run build` (no heap cap — spill to swap permitted)
    - `pm2 restart jckauto`
    - `pm2 delete jckauto-bot` + `pm2 start` (bot requires delete+start, never restart)
    - `pm2 save`
@@ -87,7 +87,7 @@ Always use `pm2 delete` + `pm2 start` for jckauto-bot.
 | `pm2 restart` doesn't reload `.env.local` | Must `pm2 delete` + `pm2 start` for bot |
 | Bot uses polling, not webhook | No inbound port/nginx config needed for bot |
 | Exchange rates cached 6 hours | Sravni.ru VTB scraper + CBR fallback with markup |
-| VDS has only 1.8 GB RAM | `NODE_OPTIONS="--max-old-space-size=1536"` may cause incomplete Next.js builds — manifests missing for some routes. See Active Bug below. |
+| VDS has only 1.8 GB RAM | Build uses uncapped V8 heap with swap fallback (2.9 GB swap available). Never add `--max-old-space-size=*` below measured build peak — it silently truncates Turbopack manifest writes on the final phase. |
 | PM2 jckauto runs as `bash -c npm start` (not node directly) | 29+ restarts observed after failed builds — process crashes on missing .next manifests |
 
 ## CI/CD
@@ -97,42 +97,13 @@ Always use `pm2 delete` + `pm2 start` for jckauto-bot.
 
 ## Active Bugs
 
-### Internal Server Error — missing client reference manifests (OPEN)
+### Internal Server Error — missing client reference manifests (RESOLVED 2026-04-09)
 
-**Symptom:** All routes return 500 "Internal Server Error". PM2 logs show:
-Error [InvariantError]: Invariant: The client reference manifest for route "/tools" does not exist.
-Process jckauto restarts 29+ times with ~70s uptime cycles.
+**Symptom:** All routes returned HTTP 500 with `InvariantError: The client reference manifest for route X does not exist`. PM2 process `jckauto` looped with ~70s uptime cycles.
 
-**Root cause (hypothesis):** Next.js 16.1.6 production build with
-`NODE_OPTIONS="--max-old-space-size=1536"` on a 1.8 GB RAM VDS runs out of heap
-during the client reference manifest generation phase. The build exits 0 (no error)
-but produces an incomplete `.next` — route manifests exist on disk at
-`.next/server/app/{route}/page_client-reference-manifest.js` but the runtime
-cannot resolve them. The `.next/turbopack` marker file and `_xx._.js` chunk naming
-suggest Next.js 16 uses Turbopack-style output even in production webpack mode,
-which may have a different manifest resolution path than what `next start` expects.
+**Root cause:** `deploy.yml` ran `next build` with `NODE_OPTIONS="--max-old-space-size=1536"` on a 1.8 GB RAM VDS. Next.js 16 Turbopack writes `page_client-reference-manifest.js` files in the FINAL phase of the build. The 1536 MB heap cap caused V8 to OOM mid-phase. `npm run build` exited with code 0 but `.next/server/app/<route>/page_client-reference-manifest.js` was missing for most routes. `next start` crashed on first request.
 
-**What was tried:**
-- Added `rm -rf .next` before build in deploy.yml — did not fix (build still OOMs)
-- Increased NODE_OPTIONS — not yet tried
-- Manual build without NODE_OPTIONS on VDS — not yet tried
+**Fix (2026-04-09):** Removed `NODE_OPTIONS` from `.github/workflows/deploy.yml` — V8 now uses uncapped heap with swap fallback. Also removed `rm -rf .next` (was a workaround for the broken-state symptom) and bumped `command_timeout: 15m → 20m` to accommodate slower swap-using builds. Commit: `fix(deploy): remove heap cap causing Turbopack manifest OOM truncation`. Verified: 21 route manifests present, all production URLs return 200.
 
-**Diagnostic commands:**
-```bash
-# Check if build completes cleanly without memory constraint
-cd /var/www/jckauto/app/jck-auto && npm run build 2>&1 | tail -30
-
-# Check RAM during build
-watch -n2 free -h
-
-# Verify manifests after build
-ls .next/server/app/tools/
-# Should contain: page_client-reference-manifest.js
-```
-
-**Next steps to try (in order):**
-1. Run `npm run build` WITHOUT `NODE_OPTIONS` on VDS — check if build completes and site works
-2. If that works: remove `NODE_OPTIONS` from deploy.yml entirely
-3. If OOM without NODE_OPTIONS: add swap or upgrade RAM
-4. If manifests still missing: investigate Next.js 16 Turbopack/webpack manifest resolution
+**Prevention rule:** Do NOT re-introduce any `--max-old-space-size=*` cap to the production build without first measuring the actual build peak via `/usr/bin/time -v npx next build` and setting the cap at least 30% above that peak. A slow build is always preferable to a truncated one.
 
