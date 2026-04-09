@@ -4,7 +4,7 @@
   @description: Server config, PM2 processes, deploy procedures, constraints
   @updated:     2026-04-09
   @version:     1.0
-  @lines:       93
+  @lines:       138
 -->
 
 # Infrastructure
@@ -14,6 +14,7 @@
 - **IP:** 94.250.249.104
 - **OS:** Ubuntu 24.04
 - **Node:** v20.20.0
+- **RAM:** 1.8 GB total / ~1.1 GB available (swap: 2.9 GB)
 - **Working directory:** `/var/www/jckauto/app/jck-auto`
 - **Storage:** `/var/www/jckauto/storage/` (catalog JSON, user data, news)
 - **GitHub:** https://github.com/t9242540001/JCK-AUTO
@@ -86,9 +87,52 @@ Always use `pm2 delete` + `pm2 start` for jckauto-bot.
 | `pm2 restart` doesn't reload `.env.local` | Must `pm2 delete` + `pm2 start` for bot |
 | Bot uses polling, not webhook | No inbound port/nginx config needed for bot |
 | Exchange rates cached 6 hours | Sravni.ru VTB scraper + CBR fallback with markup |
+| VDS has only 1.8 GB RAM | `NODE_OPTIONS="--max-old-space-size=1536"` may cause incomplete Next.js builds — manifests missing for some routes. See Active Bug below. |
+| PM2 jckauto runs as `bash -c npm start` (not node directly) | 29+ restarts observed after failed builds — process crashes on missing .next manifests |
 
 ## CI/CD
 
 - **Auto-merge:** GitHub Actions workflow `.github/workflows/auto-merge.yml` merges `claude/**` branches into `main` on every push. No manual merge needed.
 - **Auto-deploy:** GitHub Actions workflow `.github/workflows/deploy.yml` deploys to VDS after every successful auto-merge (via `workflow_run` trigger) or direct push to `main`. SSHs into VDS, pulls code, builds with `NODE_OPTIONS="--max-old-space-size=1536"`, restarts site (`pm2 restart jckauto`) and bot (`pm2 delete` + `pm2 start` — never `pm2 restart` for bot due to .env.local not reloading).
+
+## Active Bugs
+
+### Internal Server Error — missing client reference manifests (OPEN)
+
+**Symptom:** All routes return 500 "Internal Server Error". PM2 logs show:
+Error [InvariantError]: Invariant: The client reference manifest for route "/tools" does not exist.
+Process jckauto restarts 29+ times with ~70s uptime cycles.
+
+**Root cause (hypothesis):** Next.js 16.1.6 production build with
+`NODE_OPTIONS="--max-old-space-size=1536"` on a 1.8 GB RAM VDS runs out of heap
+during the client reference manifest generation phase. The build exits 0 (no error)
+but produces an incomplete `.next` — route manifests exist on disk at
+`.next/server/app/{route}/page_client-reference-manifest.js` but the runtime
+cannot resolve them. The `.next/turbopack` marker file and `_xx._.js` chunk naming
+suggest Next.js 16 uses Turbopack-style output even in production webpack mode,
+which may have a different manifest resolution path than what `next start` expects.
+
+**What was tried:**
+- Added `rm -rf .next` before build in deploy.yml — did not fix (build still OOMs)
+- Increased NODE_OPTIONS — not yet tried
+- Manual build without NODE_OPTIONS on VDS — not yet tried
+
+**Diagnostic commands:**
+```bash
+# Check if build completes cleanly without memory constraint
+cd /var/www/jckauto/app/jck-auto && npm run build 2>&1 | tail -30
+
+# Check RAM during build
+watch -n2 free -h
+
+# Verify manifests after build
+ls .next/server/app/tools/
+# Should contain: page_client-reference-manifest.js
+```
+
+**Next steps to try (in order):**
+1. Run `npm run build` WITHOUT `NODE_OPTIONS` on VDS — check if build completes and site works
+2. If that works: remove `NODE_OPTIONS` from deploy.yml entirely
+3. If OOM without NODE_OPTIONS: add swap or upgrade RAM
+4. If manifests still missing: investigate Next.js 16 Turbopack/webpack manifest resolution
 
