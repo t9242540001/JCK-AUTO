@@ -36,11 +36,14 @@ export default async function CatalogPage() {
       {/* Category cards */}
       <section className="bg-white pb-4 pt-24">
         <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:grid-cols-2">
-          <div className="rounded-xl border-2 border-primary bg-white p-5 shadow-sm">
+          <Link
+            href="#catalog"
+            className="block rounded-xl border-2 border-primary bg-white p-5 shadow-sm transition-colors hover:border-primary/70"
+          >
             <span className="text-2xl">🚗</span>
             <h2 className="mt-2 font-heading text-lg font-bold text-text">Автомобили</h2>
             <p className="mt-1 text-sm text-text-muted">Авто из Китая, Кореи и Японии</p>
-          </div>
+          </Link>
           <Link
             href="/catalog/noscut"
             className="rounded-xl border-2 border-border bg-white p-5 shadow-sm transition-colors hover:border-primary"
@@ -68,7 +71,7 @@ export default async function CatalogPage() {
       </section>
 
       {/* Filters + Grid */}
-      <section className="bg-white py-12 sm:py-16 md:py-20">
+      <section id="catalog" className="bg-white py-12 sm:py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-4">
           <CatalogClient cars={cars} />
         </div>
