@@ -7,18 +7,10 @@ import { motion } from "framer-motion";
 import type { Car } from "@/types/car";
 import {
   formatPrice,
-  getCountryLabel,
-  getCountryFlag,
   getTransmissionLabel,
   cleanBrand,
 } from "@/lib/carUtils";
 import LeadForm from "@/components/LeadForm";
-
-const COUNTRY_BG: Record<string, string> = {
-  china: "bg-china",
-  korea: "bg-korea",
-  japan: "bg-japan",
-};
 
 interface CarCardProps {
   car: Car;
@@ -62,11 +54,6 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
               className="object-cover transition-transform duration-300 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
-            <span
-              className={`absolute top-3 left-3 rounded-full px-3 py-1 text-xs font-medium text-white ${COUNTRY_BG[car.country]}`}
-            >
-              {getCountryFlag(car.country)} {getCountryLabel(car.country)}
-            </span>
           </div>
 
           <div className="p-4">

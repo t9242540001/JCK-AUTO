@@ -6,8 +6,6 @@ import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import {
   formatPrice,
-  getCountryLabel,
-  getCountryFlag,
   getCountryGenitive,
   cleanBrand,
 } from "@/lib/carUtils";
@@ -81,12 +79,6 @@ export default async function CarDetailPage({ params }: PageProps) {
     .filter((c) => c.id !== car.id)
     .slice(0, 3);
 
-  const COUNTRY_BG: Record<string, string> = {
-    china: "bg-china",
-    korea: "bg-korea",
-    japan: "bg-japan",
-  };
-
   const brand = cleanBrand(car.brand);
   const countryGen = getCountryGenitive(car.country);
   const productJsonLd = {
@@ -144,12 +136,6 @@ export default async function CarDetailPage({ params }: PageProps) {
 
           {/* Info sidebar — 2/5 width on desktop */}
           <div className="lg:col-span-2">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium text-white ${COUNTRY_BG[car.country]}`}
-            >
-              {getCountryFlag(car.country)} {getCountryLabel(car.country)}
-            </span>
-
             <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl break-words [overflow-wrap:anywhere]">
               {car.folderName.replace(/^Used\s+/i, "")}
             </h1>
