@@ -60,10 +60,10 @@ export default function Home() {
           <div className="mx-auto max-w-7xl px-4">
             <div className="text-center">
               <h2 className="font-heading text-2xl font-bold text-text sm:text-3xl">
-                Ноускаты из Азии
+                Ноускаты из Китая
               </h2>
               <p className="mx-auto mt-3 max-w-2xl text-text-muted">
-                Комплекты для восстановления передней части — от 199 000 ₽
+                Комплекты деталей передней части авто. В наличии и под заказ ~30 дней. От 199 000 ₽
               </p>
             </div>
 
