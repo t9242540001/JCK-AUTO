@@ -26,6 +26,19 @@
 | jckauto | Next.js site | 3000 |
 | jckauto-bot | Telegram bot (polling) | — |
 
+## Cron Jobs
+
+| Script | Schedule | Log |
+|--------|----------|-----|
+| generate-news.ts | daily 07:00 MSK (cron: `0 4 * * *`) | /var/log/jckauto-news.log |
+| generate-article.ts | every 3 days 09:00 MSK (cron: `0 6 */3 * *`) | /var/log/jckauto-articles.log |
+| update-noscut-prices.ts | Sunday 10:00 MSK (cron: `0 7 * * 0`) | /var/log/jckauto-noscut-prices.log |
+
+```bash
+# Noscut price update cron (add to VDS crontab):
+0 7 * * 0 cd /var/www/jckauto/app/jck-auto && npx tsx -r dotenv/config scripts/update-noscut-prices.ts dotenv_config_path=.env.local >> /var/log/jckauto-noscut-prices.log 2>&1
+```
+
 ## Deploy — Site
 
 ```bash
