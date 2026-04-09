@@ -23,15 +23,14 @@ jobs:
           username: root
           key: ${{ secrets.VDS_SSH_KEY }}
           script_stop: true
-          command_timeout: 15m
+          command_timeout: 20m
           script: |
             source /root/.bashrc 2>/dev/null || source /root/.profile 2>/dev/null || true
             cd /var/www/jckauto/app/jck-auto
             git fetch origin
             git reset --hard origin/main
             npm install
-            rm -rf .next
-            NODE_OPTIONS="--max-old-space-size=1536" npm run build
+            npm run build
             pm2 restart jckauto
             pm2 delete jckauto-bot || true
             pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
