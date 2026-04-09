@@ -63,3 +63,14 @@
 |------|----------|-------------|
 | Always specify branch in CONTEXT block of every Claude Code prompt | Every prompt | Claude Code creates a new branch instead of working in the target branch → merge conflict, extra PR, lost time |
 | First command in every Claude Code session: `git checkout <branch> && git pull origin <branch>` | Every prompt CONTEXT block | Same as above |
+
+## Noscut Business Rules
+
+| Rule | Location | Consequence |
+|------|----------|-------------|
+| Market price line shown ONLY when marketPriceRu > priceFrom | [slug]/page.tsx, NoscutCard.tsx | Otherwise page shows "we are more expensive than market" |
+| No Telegram links in page body — only header, footer, floating button | All noscut components | Breaks lead funnel — user leaves site instead of filling form |
+| Wholesale CTA audience: B2B broadly (dealers, resellers, fleet) — NOT "СТО" only | [slug]/page.tsx | Undersells wholesale channel |
+| deliveryConfig.ts: Vladivostok excluded (company location) | deliveryConfig.ts | Illogical to list home city as delivery destination |
+| Image prompts: NEVER request text, numbers, labels or callouts | generate-noscut.ts | Diffusion models produce unreadable garbage text in images |
+| Price research: ask for SUM of 6 individual parts, NOT "noscut kit" price | update-noscut-prices.ts | "Noscut" keyword finds used parts at 100–180k — lower than our price |

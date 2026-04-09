@@ -21,7 +21,7 @@
 | [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-08 |
 | [roadmap.md](roadmap.md) | Done / In progress / Planned features | 2026-04-08 |
 | [decisions.md](decisions.md) | Architectural Decision Records (ADR log) | 2026-04-08 |
-| [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-08 |
+| [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-09 |
 | [stack.md](stack.md) | Tech stack: Next.js 15, Node.js, AI services (DashScope/DeepSeek/Claude), storage, key configs | 2026-04-08 |
 | [exchange-rates.md](exchange-rates.md) | VTB scraper + CBR fallback, markups, /api/exchange-rates endpoint, UI labels, CORS rules | 2026-04-08 |
 | [customs-reference.md](customs-reference.md) | ETS brackets, recycling fee conditions, legal entity logic, normative sources | 2026-04-08 |
@@ -31,9 +31,9 @@
 | [catalog.md](catalog.md) | Drive naming conventions, 5-step sync chain, screenshot priority (English, with headers) | 2026-04-08 |
 | [shared-mechanics.md](shared-mechanics.md) | Rate limiter, BetaBadge, PDF generation, design system colors/fonts, navigation config | 2026-04-08 |
 | [telegram-bot.md](telegram-bot.md) | Bot commands, admin IDs, config, limitations, restart commands | 2026-04-08 |
-| [noscut-spec.md](noscut-spec.md) | ТЗ ноускаты: бизнес-логика, структуры данных, URL, компоненты, форма захвата | 2026-04-08 |
+| [noscut-spec.md](noscut-spec.md) | ТЗ ноускаты: бизнес-логика, структуры данных, URL, компоненты, форма захвата | 2026-04-09 |
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
-| [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. 12 prompts execution plan | 2026-04-09 |
+| [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 
 ## Quick Links
 
