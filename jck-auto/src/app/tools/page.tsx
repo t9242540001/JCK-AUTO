@@ -8,9 +8,9 @@
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Calculator, Receipt, FileSearch, Car, Send } from 'lucide-react';
-import { CONTACTS } from '@/lib/constants';
+import { Calculator, Receipt, FileSearch, Car } from 'lucide-react';
 import { BetaBadge, BetaBanner } from '@/components/BetaBadge';
+import LeadFormTrigger from '@/components/LeadFormTrigger';
 
 export const metadata: Metadata = {
   title: { absolute: 'Калькуляторы и сервисы для импорта авто — JCK AUTO' },
@@ -152,15 +152,17 @@ export default function ToolsPage() {
           <p className="mt-2 text-white/70">
             Рассчитаем стоимость, найдём авто, сопроводим на всех этапах
           </p>
-          <a
-            href={CONTACTS.telegram}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-3 font-medium text-white transition-colors hover:bg-[#229ED9]"
-          >
-            <Send className="h-4 w-4" />
-            Написать в Telegram
-          </a>
+          <div className="mt-6 flex justify-center">
+            <div className="w-full max-w-sm">
+              <LeadFormTrigger
+                subject="Заявка с раздела Сервисы"
+                triggerLabel="Оставить заявку"
+                ctaLabel="Отправить заявку"
+                modalTitle="Хотите привезти авто?"
+                triggerVariant="outline"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
