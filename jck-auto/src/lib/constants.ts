@@ -8,6 +8,7 @@ export const CONTACTS = {
   phone: "+7 (914) 732-19-50",
   phoneRaw: "+79147321950",
   youtube: "https://youtube.com/@JCK_AUTO",
+  instagram: "https://www.instagram.com/jckautotrade",
 } as const;
 
 export type Country = "china" | "korea" | "japan";
