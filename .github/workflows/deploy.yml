@@ -29,18 +29,32 @@ jobs:
             cd /var/www/jckauto/app/jck-auto
             git fetch origin
             git reset --hard origin/main
-            # npm 10.8.2 has a reify exit code bug in non-TTY (Actions) context:
-            # it returns 1 even after successful install when many platform-specific
-            # optional deps fail to reify (sharp, swc, oxide, resolver-binding etc).
-            # We ignore npm's exit code and verify node_modules state instead.
-            npm ci --no-audit --no-fund || NPM_EXIT=$?
+            # npm 10.8.2 has a reify exit code bug in non-TTY (Actions) context: returns 1
+            # even after successful install when many platform-specific optional deps
+            # fail to reify (sharp, swc, oxide, resolver-binding — ~50 platform variants).
+            # appleboy/ssh-action with script_stop:true intercepts non-zero exits BEFORE
+            # bash's `||` short-circuit can catch them, so we use `if ... then ... else ... fi`.
+            # The `if` statement is one bash syntactic unit; per POSIX, errexit does NOT
+            # apply to commands inside an `if` condition, and the statement's exit code
+            # equals the last command in the executed branch (echo, returning 0).
+            echo "[wrapper] step 1: starting npm ci"
+            if npm ci --no-audit --no-fund; then
+              NPM_EXIT=0
+              echo "[wrapper] step 2: npm ci returned 0"
+            else
+              NPM_EXIT=$?
+              echo "[wrapper] step 2: npm ci returned $NPM_EXIT (will verify node_modules)"
+            fi
+            echo "[wrapper] step 3: verifying critical packages exist in node_modules"
             if [ ! -d node_modules/next ] || [ ! -d node_modules/react ] || [ ! -d node_modules/sharp ] || [ ! -d node_modules/@next/swc-linux-x64-gnu ]; then
-              echo "FATAL: node_modules incomplete after npm ci (next/react/sharp/swc-linux-x64-gnu missing)"
+              echo "[wrapper] FATAL: node_modules incomplete after npm ci (next/react/sharp/swc-linux-x64-gnu missing)"
               exit 1
             fi
-            if [ -n "$NPM_EXIT" ]; then
-              echo "Note: npm ci exited $NPM_EXIT but critical packages verified intact — npm 10.8.2 reify exit code bug, continuing"
+            echo "[wrapper] step 4: critical packages verified intact"
+            if [ "$NPM_EXIT" != "0" ]; then
+              echo "[wrapper] step 5: npm ci had non-zero exit ($NPM_EXIT) but install succeeded — npm 10.8.2 reify bug, continuing"
             fi
+            echo "[wrapper] step 6: wrapper complete, proceeding to two-slot build"
 
             # Two-slot atomic build: build into inactive slot, swap symlink, restart
             # First-time migration: convert .next directory into slot .next-a + symlink
