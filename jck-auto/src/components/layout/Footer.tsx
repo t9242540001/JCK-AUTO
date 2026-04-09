@@ -103,7 +103,7 @@ export default function Footer() {
                 aria-label="Max"
                 className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
               >
-                <span className="text-sm font-bold">M</span>
+                <Image src="/images/max-icon.svg" alt="Max" width={20} height={20} className="h-5 w-5" />
               </a>
               <a
                 href={CONTACTS.youtube}

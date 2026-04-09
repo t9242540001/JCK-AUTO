@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { MessageCircle, Send } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
@@ -9,7 +10,7 @@ const messengers = [
     name: "Max",
     href: CONTACTS.max,
     bg: "bg-[#0077FF]",
-    icon: <span className="text-lg font-bold leading-none">M</span>,
+    icon: <Image src="/images/max-icon.svg" alt="Max" width={20} height={20} className="h-5 w-5" />,
   },
   {
     name: "WhatsApp",

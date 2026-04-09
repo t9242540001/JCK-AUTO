@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Phone, Send, ChevronDown } from "lucide-react";
@@ -139,7 +140,7 @@ export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
               rel="noopener noreferrer"
               className="flex items-center gap-3 text-sm"
             >
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#0077FF] text-[9px] font-bold text-white shrink-0">M</span>
+              <Image src="/images/max-icon.svg" alt="Max" width={16} height={16} className="h-4 w-4 shrink-0" />
               <p className="font-medium text-text">Max</p>
             </a>
           </div>
@@ -181,7 +182,7 @@ export default function MobileMenu({ open, onOpenChange }: MobileMenuProps) {
                 aria-label="Max"
                 className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0077FF] text-white font-bold transition-opacity hover:opacity-90"
               >
-                M
+                <Image src="/images/max-icon.svg" alt="Max" width={20} height={20} className="h-5 w-5" />
               </a>
             </div>
           </div>

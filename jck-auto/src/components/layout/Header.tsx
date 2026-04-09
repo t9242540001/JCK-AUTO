@@ -133,7 +133,7 @@ export default function Header() {
               aria-label="Max"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0077FF] text-white transition-opacity hover:opacity-90"
             >
-              <span className="text-sm font-bold leading-none">M</span>
+              <Image src="/images/max-icon.svg" alt="Max" width={20} height={20} className="h-5 w-5" />
             </a>
           </div>
         </div>
