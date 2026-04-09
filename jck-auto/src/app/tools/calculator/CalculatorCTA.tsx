@@ -1,15 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import LeadFormTrigger from "@/components/LeadFormTrigger";
 
-interface CalculatorCTAProps {
-  contacts: {
-    telegram: string;
-    phoneRaw: string;
-  };
-}
-
-export function CalculatorCTA({ contacts }: CalculatorCTAProps) {
+export function CalculatorCTA() {
   return (
     <section className="bg-primary py-12">
       <motion.div
@@ -26,17 +20,20 @@ export function CalculatorCTA({ contacts }: CalculatorCTAProps) {
           точную стоимость
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <div className="w-full max-w-xs">
+            <LeadFormTrigger
+              subject="Заявка с раздела Калькулятор"
+              triggerLabel="Оставить заявку"
+              ctaLabel="Отправить заявку"
+              modalTitle="Точный расчёт под вашу модель"
+              triggerVariant="outline"
+            />
+          </div>
           <a
-            href={contacts.telegram}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center rounded-xl bg-white px-8 py-3 font-semibold text-primary transition-opacity hover:opacity-90"
-          >
-            Написать в Telegram
-          </a>
-          <a
-            href={`tel:${contacts.phoneRaw}`}
-            className="inline-flex items-center rounded-xl border-2 border-white px-8 py-3 font-semibold text-white transition-opacity hover:opacity-90"
+            href="tel:+79147321950"
+            className="inline-flex items-center rounded-xl border-2 border-white
+                       px-8 py-3 font-semibold text-white transition-opacity
+                       hover:opacity-90"
           >
             Позвонить
           </a>

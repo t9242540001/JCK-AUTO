@@ -6,7 +6,6 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CONTACTS } from "@/lib/constants";
 import { BetaBadge, BetaBanner } from "@/components/BetaBadge";
 import CustomsClient from "./CustomsClient";
 import { CalculatorFAQ } from "../calculator/CalculatorFAQ";
@@ -125,7 +124,7 @@ export default function CustomsPage() {
       </div>
 
       <CalculatorFAQ items={faqItems} />
-      <CalculatorCTA contacts={CONTACTS} />
+      <CalculatorCTA />
     </>
   );
 }

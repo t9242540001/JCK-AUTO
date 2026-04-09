@@ -7,7 +7,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Upload, Cpu, FileText } from "lucide-react";
-import { CONTACTS } from "@/lib/constants";
 import { BetaBadge, BetaBanner } from "@/components/BetaBadge";
 import AuctionSheetClient from "./AuctionSheetClient";
 import { CalculatorFAQ } from "../calculator/CalculatorFAQ";
@@ -148,7 +147,7 @@ export default function AuctionSheetPage() {
       </div>
 
       <CalculatorFAQ items={faqItems} />
-      <CalculatorCTA contacts={CONTACTS} />
+      <CalculatorCTA />
     </>
   );
 }
