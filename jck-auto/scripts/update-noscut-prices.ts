@@ -43,10 +43,7 @@ function parseLimit(): number | undefined {
 // ─── PRICE LOOKUP ─────────────────────────────────────────────────────────
 
 async function fetchPrice(entry: NoscutEntry): Promise<PriceResult | null> {
-  const prompt = `Найди среднюю рыночную цену ноуската (комплект: бампер, оптика, радиатор, телевизор, датчики, камера) для ${entry.make} ${entry.model} ${entry.generation} на российском рынке (Авито, Дром, exist.ru) в рублях.
-Верни ТОЛЬКО JSON объект: { "price": number | null, "sources": string[] }
-где price — медианная цена в рублях (null если данных нет или меньше 2 источников), sources — список источников где нашёл цену (1-3 строки).
-Без markdown, только JSON.`;
+  const prompt = `Найди суммарную стоимость покупки запасных частей для восстановления передней части ${entry.make} ${entry.model} ${entry.generation} на российском рынке.\nНас интересует суммарная цена этих 6 деталей, купленных по отдельности:\n1. Передний бампер в сборе\n2. Фары (комплект: левая + правая)\n3. Радиатор охлаждения\n4. Телевизор (рамка передней части / front panel)\n5. Парктроники / датчики парковки\n6. Камера переднего вида\nИсточники: exist.ru, autodoc.ru, Авито, oem.ru.\nВерни ТОЛЬКО JSON: { "price": number | null, "sources": string[] }\nгде price — суммарная медианная цена в рублях за все 6 позиций (null если меньше 2 источников дали данные хотя бы по 4 из 6 позиций), sources — список источников (1–3 строки). Без markdown, только JSON.`;
 
   const { content } = await callDeepSeek(prompt, {
     temperature: 0.2,
