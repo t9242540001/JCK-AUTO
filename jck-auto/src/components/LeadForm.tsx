@@ -1,11 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, CheckCircle } from "lucide-react";
-import InputMask from "react-input-mask";
+
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length === 0) return "";
+  let result = "+7";
+  if (digits.length > 1) result += " (" + digits.slice(1, 4);
+  if (digits.length >= 4) result += ") " + digits.slice(4, 7);
+  if (digits.length >= 7) result += "-" + digits.slice(7, 9);
+  if (digits.length >= 9) result += "-" + digits.slice(9, 11);
+  return result;
+}
 
 const leadSchema = z.object({
   phone: z.string().refine(
@@ -34,7 +44,6 @@ export default function LeadForm({
   const {
     register,
     handleSubmit,
-    control,
     formState: { errors },
   } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
@@ -79,28 +88,16 @@ export default function LeadForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className={`space-y-3 ${compact ? "text-sm" : ""}`}>
       <div>
-        <Controller
-          name="phone"
-          control={control}
-          render={({ field }) => (
-            <InputMask
-              mask="+7 (999) 999-99-99"
-              value={field.value}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-            >
-              {/* @ts-expect-error react-input-mask children render prop */}
-              {(inputProps: React.InputHTMLAttributes<HTMLInputElement>) => (
-                <input
-                  {...inputProps}
-                  ref={field.ref}
-                  type="tel"
-                  placeholder="+7 (___) ___-__-__"
-                  className={inputCls}
-                />
-              )}
-            </InputMask>
-          )}
+        <input
+          {...register("phone")}
+          type="tel"
+          placeholder="+7 (___) ___-__-__"
+          className={inputCls}
+          onChange={(e) => {
+            const formatted = formatPhone(e.target.value);
+            e.target.value = formatted;
+            register("phone").onChange(e);
+          }}
         />
         {errors.phone && (
           <p className="mt-1 text-xs text-red-500">{errors.phone.message}</p>
