@@ -117,7 +117,7 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
         <div className="px-4 pb-4">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="mt-2 w-full rounded-xl border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+            className="mt-2 w-full cursor-pointer rounded-xl border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-white"
           >
             Оставить заявку
           </button>
@@ -135,7 +135,7 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
             >
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+                className="absolute right-4 top-4 cursor-pointer text-gray-400 hover:text-gray-600"
                 aria-label="Закрыть"
               >
                 ✕

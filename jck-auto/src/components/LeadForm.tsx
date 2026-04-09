@@ -125,7 +125,7 @@ export default function LeadForm({
       <button
         type="submit"
         disabled={status === "loading"}
-        className={`flex w-full items-center justify-center gap-2 rounded-xl bg-primary font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-70 ${compact ? "px-4 py-2.5 text-sm" : "px-6 py-3.5"}`}
+        className={`cursor-pointer flex w-full items-center justify-center gap-2 rounded-xl bg-primary font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-70 ${compact ? "px-4 py-2.5 text-sm" : "px-6 py-3.5"}`}
       >
         {status === "loading" ? (
           <>
