@@ -6,23 +6,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import LeadForm from "@/components/LeadForm";
 
-const COUNTRY_BG: Record<string, string> = {
-  china: "bg-china",
-  korea: "bg-korea",
-  japan: "bg-japan",
-};
-
-const COUNTRY_FLAG: Record<string, string> = {
-  japan: "🇯🇵",
-  korea: "🇰🇷",
-  china: "🇨🇳",
-};
-
-const COUNTRY_LABEL: Record<string, string> = {
-  japan: "Япония",
-  korea: "Корея",
-  china: "Китай",
-};
 
 interface NoscutEntry {
   slug: string;
@@ -76,11 +59,6 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
               className="object-cover transition-transform duration-300 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
-            <span
-              className={`absolute top-3 left-3 rounded-full px-3 py-1 text-xs font-medium text-white ${COUNTRY_BG[entry.country] ?? "bg-gray-500"}`}
-            >
-              {COUNTRY_FLAG[entry.country]} {COUNTRY_LABEL[entry.country]}
-            </span>
             {entry.inStock && (
               <span className="absolute top-3 right-3 rounded-full bg-green-500 px-3 py-1 text-xs font-medium text-white">
                 В наличии
