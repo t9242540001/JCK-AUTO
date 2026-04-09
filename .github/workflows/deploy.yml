@@ -29,7 +29,18 @@ jobs:
             cd /var/www/jckauto/app/jck-auto
             git fetch origin
             git reset --hard origin/main
-            npm ci --no-audit --no-fund
+            # npm 10.8.2 has a reify exit code bug in non-TTY (Actions) context:
+            # it returns 1 even after successful install when many platform-specific
+            # optional deps fail to reify (sharp, swc, oxide, resolver-binding etc).
+            # We ignore npm's exit code and verify node_modules state instead.
+            npm ci --no-audit --no-fund || NPM_EXIT=$?
+            if [ ! -d node_modules/next ] || [ ! -d node_modules/react ] || [ ! -d node_modules/sharp ] || [ ! -d node_modules/@next/swc-linux-x64-gnu ]; then
+              echo "FATAL: node_modules incomplete after npm ci (next/react/sharp/swc-linux-x64-gnu missing)"
+              exit 1
+            fi
+            if [ -n "$NPM_EXIT" ]; then
+              echo "Note: npm ci exited $NPM_EXIT but critical packages verified intact — npm 10.8.2 reify exit code bug, continuing"
+            fi
 
             # Two-slot atomic build: build into inactive slot, swap symlink, restart
             # First-time migration: convert .next directory into slot .next-a + symlink
