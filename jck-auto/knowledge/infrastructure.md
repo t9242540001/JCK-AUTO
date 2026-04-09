@@ -4,7 +4,7 @@
   @description: Server config, PM2 processes, deploy procedures, constraints
   @updated:     2026-04-09
   @version:     1.0
-  @lines:       80
+  @lines:       93
 -->
 
 # Infrastructure
@@ -39,36 +39,37 @@
 0 7 * * 0 cd /var/www/jckauto/app/jck-auto && npx tsx -r dotenv/config scripts/update-noscut-prices.ts dotenv_config_path=.env.local >> /var/log/jckauto-noscut-prices.log 2>&1
 ```
 
-## Deploy — Site
+## Deploy
+
+### Automatic (normal workflow)
+Push to any `claude/**` branch — GitHub Actions handles everything:
+1. `auto-merge.yml` merges the branch into `main`
+2. `deploy.yml` SSHs into VDS and runs:
+   - `git fetch origin && git reset --hard origin/main`
+   - `npm install`
+   - `NODE_OPTIONS="--max-old-space-size=1536" npm run build`
+   - `pm2 restart jckauto`
+   - `pm2 delete jckauto-bot` + `pm2 start` (bot requires delete+start, never restart)
+   - `pm2 save`
+
+**Never push directly to `main`** — always use `claude/**` branches.
+
+### Emergency manual deploy (fallback only)
 
 ```bash
 cd /var/www/jckauto/app/jck-auto
-git pull origin claude/init-nextjs-project-iK26t
-npm run build && pm2 restart jckauto
-```
-
-## Deploy — Bot
-
-**IMPORTANT:** `pm2 restart` does NOT reload `.env.local`. Must use delete + start:
-
-```bash
-cd /var/www/jckauto/app/jck-auto
-git pull origin claude/init-nextjs-project-iK26t
+git fetch origin && git reset --hard origin/main
+npm install
+NODE_OPTIONS="--max-old-space-size=1536" npm run build
+pm2 restart jckauto
 pm2 delete jckauto-bot
 pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
 pm2 save
-```
-
-## Deploy — Full (site + bot)
-
-```bash
-cd /var/www/jckauto/app/jck-auto
-git fetch origin && git reset --hard origin/claude/init-nextjs-project-iK26t
-rm -rf .next && npm run build
-pm2 delete jckauto && pm2 start "npm start" --name jckauto
-pm2 delete jckauto-bot && pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
 pm2 status
 ```
+
+**IMPORTANT:** `pm2 restart` does NOT reload `.env.local` for the bot.
+Always use `pm2 delete` + `pm2 start` for jckauto-bot.
 
 ## Nginx
 
