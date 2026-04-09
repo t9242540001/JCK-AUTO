@@ -128,29 +128,37 @@ async function main(): Promise<void> {
     try {
       const descPrompt = `Write a product page description for a noscut kit: ${m.make} ${m.model} ${m.generation} (${m.yearStart}–${m.yearEnd}).
 
-Context: a noscut is a ready-made set of front-end parts for vehicle restoration. We supply it from Asia to order in approximately 30 days. The kit has a fixed composition — exactly six items: front bumper, headlights with foglights, cooling radiator, front panel frame (called "televizor"), parking sensors, front-facing camera.
+Context: A noscut is a set of front-end parts for vehicle restoration after a front-end collision. Parts are sourced from China. The kit includes exactly six positions: front bumper, headlights with foglights, cooling radiator, front panel frame ("televizor"), parking sensors, front-facing camera.
 
-Your task: calmly explain to the visitor what they get, what it is for, and why they should order from us. No advertising rhetoric — facts only, honest description.
+Parts condition: the kit can be assembled from new parts, quality used parts, or a mix — selected based on the customer's budget and requirements. Do NOT imply that all parts are always new. The word "новые" is allowed only when describing the choice between new and used, not as the default.
 
-Write in Russian. 80–150 words. You may use short paragraphs or a bullet list — whichever reads more naturally. Write like a real person, not a corporate catalog.
+Your task: write a natural, honest product description in Russian. No advertising language. Useful information that helps the reader understand what they are getting and whether it suits them.
 
-You must mention:
-- all six kit components by name
+The text should organically mention 3 to 4 different buyer types — do NOT list them as bullet points, weave them naturally into the prose. Choose from: car owners after a front-end accident, auto repair shops, car resellers, auto parts stores, wholesale buyers, entrepreneurs. Pick different combinations for each model to make texts feel unique.
+
+Write in Russian. 80–150 words. Use short paragraphs or a dash-list where items start with "–". Write like a knowledgeable person, not a corporate catalog.
+
+Required — all must appear in the text:
+- all six kit components named
 - compatibility with ${m.model} ${m.generation} modifications
-- ~30 day lead time on order
-- wholesale pricing is available (one sentence, no specific promises)
+- sourced from China, lead time approximately 30 days
+- kit composition (new or used parts) and pricing are discussed individually with the manager
+
+End with this exact sentence as a separate paragraph:
+"Цвет и комплектация деталей на фото — ориентировочные. Точный подбор под ваш VIN и фотографии реального комплекта отправим при оформлении заказа."
 
 Strictly forbidden:
-- superlatives or hyperbole ("best", "perfect", "guaranteed", "everything you need")
-- invented facts — mention only what is explicitly stated above
-- tables
-- bureaucratic filler words in Russian: "данный", "осуществляется", "предусмотрено", "в рамках"
-- "rear camera" — the camera in this kit is front-facing, not rear
-- any promises not present in our actual offer`;
+- Markdown: no **, no *, no #. Only "–" is allowed for lists
+- Superlatives: "лучший", "идеальный", "гарантированно", "всё необходимое"
+- "из Азии" — write "из Китая" instead
+- "задняя камера" — the camera is front-facing, not rear
+- Bureaucratic words: "данный", "осуществляется", "предусмотрено", "в рамках"
+- Invented facts not stated above
+- Any promises not in our actual offer`;
 
       const { content } = await callDeepSeek(descPrompt, {
         temperature: 0.3,
-        maxTokens: 300,
+        maxTokens: 500,
       });
       description = content.trim();
       console.log(`[${idx}] ${m.slug} — description OK`);
@@ -160,7 +168,7 @@ Strictly forbidden:
 
     // b. DashScope image
     try {
-      const imagePrompt = `Technical exploded-view illustration of ${m.make} ${m.model} ${m.generation} front end noscut kit. Light gray neutral background. Show the vehicle silhouette in 3/4 front angle. The 6 noscut components are visually separated and floating slightly away from the car body: front bumper, headlights pair, radiator, front panel frame, parking sensors, front camera. All other parts of the car body are faded/transparent. Clean technical product illustration style. No text, no numbers, no labels, no callouts whatsoever. High quality, sharp edges, professional catalog look.`;
+      const imagePrompt = `Product flat lay photograph on neutral light gray background. Six automotive parts neatly arranged: front bumper assembly at the top, headlights pair left and right in the second row, cooling radiator in the center, front panel frame below it, parking sensors set on the lower left, front camera on the lower right. Parts are for ${m.make} ${m.model} ${m.generation}. Professional product photography style, soft even lighting, top-down view, no shadows, no text, no labels, no watermarks.`;
 
       const { imageUrl } = await generateImage(imagePrompt, {
         size: "1024*1024",
