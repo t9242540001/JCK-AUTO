@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Server config, PM2 processes, deploy procedures, constraints
   @updated:     2026-04-09
-  @version:     1.1
+  @version:     1.2
   @lines:       109
 -->
 
@@ -61,7 +61,7 @@ Push to any `claude/**` branch — GitHub Actions handles everything:
 cd /var/www/jckauto/app/jck-auto
 git fetch origin && git reset --hard origin/main
 npm install
-NODE_OPTIONS="--max-old-space-size=1536" npm run build
+npm run build
 pm2 restart jckauto
 pm2 delete jckauto-bot
 pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
@@ -93,7 +93,7 @@ Always use `pm2 delete` + `pm2 start` for jckauto-bot.
 ## CI/CD
 
 - **Auto-merge:** GitHub Actions workflow `.github/workflows/auto-merge.yml` merges `claude/**` branches into `main` on every push. No manual merge needed.
-- **Auto-deploy:** GitHub Actions workflow `.github/workflows/deploy.yml` deploys to VDS after every successful auto-merge (via `workflow_run` trigger) or direct push to `main`. SSHs into VDS, pulls code, builds with `NODE_OPTIONS="--max-old-space-size=1536"`, restarts site (`pm2 restart jckauto`) and bot (`pm2 delete` + `pm2 start` — never `pm2 restart` for bot due to .env.local not reloading).
+- **Auto-deploy:** GitHub Actions workflow `.github/workflows/deploy.yml` deploys to VDS after every successful auto-merge (via `workflow_run` trigger) or direct push to `main`. SSHs into VDS, pulls code, builds with `npm run build` (uncapped V8 heap, spill to swap allowed), restarts site (`pm2 restart jckauto`) and bot (`pm2 delete` + `pm2 start` — never `pm2 restart` for bot due to .env.local not reloading).
 
 ## Active Bugs
 
