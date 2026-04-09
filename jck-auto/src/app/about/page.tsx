@@ -354,36 +354,57 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Block 7 — CTA */}
-      <section className="bg-surface-alt py-10 sm:py-16">
-        <div className="mx-auto max-w-3xl px-4 text-center">
-          <h2 className="font-heading text-2xl font-bold text-text md:text-3xl">
-            Готовы обсудить ваш автомобиль?
-          </h2>
-          <p className="mt-4 text-base text-text-muted sm:text-lg">
-            Свяжитесь с нами или рассчитайте стоимость прямо сейчас
-          </p>
-          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <a
-              href={CONTACTS.telegram}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
-            >
-              <Send className="h-5 w-5" />
-              Написать в Telegram
-            </a>
+      <SocialFollow />
+
+      {/* Crosslink — Cars */}
+      <section className="bg-white py-10 sm:py-14">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="flex flex-col items-center gap-6 rounded-2xl border border-border bg-surface p-8 text-center sm:flex-row sm:text-left md:p-10">
+            <div className="flex-1">
+              <p className="text-sm font-medium uppercase tracking-wider text-secondary">
+                Каталог
+              </p>
+              <h2 className="mt-2 font-heading text-xl font-bold text-text sm:text-2xl">
+                Автомобили в наличии
+              </h2>
+              <p className="mt-2 text-text-muted">
+                Актуальные предложения из Китая, Кореи и Японии — с ценами под ключ в рублях
+              </p>
+            </div>
             <Link
-              href="/calculator"
-              className="rounded-xl border-2 border-primary px-8 py-4 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+              href="/catalog"
+              className="shrink-0 rounded-xl bg-primary px-8 py-3 font-medium text-white transition-colors hover:bg-primary/90"
             >
-              Калькулятор
+              Смотреть каталог →
             </Link>
           </div>
         </div>
       </section>
 
-      <SocialFollow />
+      {/* Crosslink — Noscuts */}
+      <section className="bg-surface-alt pb-16 pt-0 sm:pb-20">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="flex flex-col items-center gap-6 rounded-2xl border border-border bg-white p-8 text-center sm:flex-row sm:text-left md:p-10">
+            <div className="flex-1">
+              <p className="text-sm font-medium uppercase tracking-wider text-secondary">
+                Запчасти
+              </p>
+              <h2 className="mt-2 font-heading text-xl font-bold text-text sm:text-2xl">
+                Ноускаты из Китая
+              </h2>
+              <p className="mt-2 text-text-muted">
+                Комплекты деталей передней части авто — бампер, оптика, радиатор. От 199 000 ₽
+              </p>
+            </div>
+            <Link
+              href="/catalog/noscut"
+              className="shrink-0 rounded-xl border-2 border-primary px-8 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+            >
+              Смотреть ноускаты →
+            </Link>
+          </div>
+        </div>
+      </section>
     </>
   );
 }
