@@ -57,30 +57,31 @@ jobs:
             echo "[wrapper] step 6: wrapper complete, proceeding to two-slot build"
 
             # Two-slot atomic build: build into inactive slot, swap symlink, restart
-            # First-time migration: convert .next directory into slot .next-a + symlink
-            if [ -d ".next" ] && [ ! -L ".next" ]; then
-              echo "Migrating .next/ to two-slot setup..."
-              mv .next .next-a
-              ln -sfn .next-a .next
-            fi
 
             # Determine which slot is currently active, build into the other
+            echo "[build] step 1: determining active slot"
             CURRENT_SLOT=$(readlink .next 2>/dev/null || echo "none")
             if [ "$CURRENT_SLOT" = ".next-a" ]; then
               NEXT_SLOT=".next-b"
             else
               NEXT_SLOT=".next-a"
             fi
-            echo "Active slot: $CURRENT_SLOT → building into: $NEXT_SLOT"
+            echo "[build] step 2: active=$CURRENT_SLOT, building into=$NEXT_SLOT"
 
             # Clean inactive slot and build into it (server keeps reading active slot)
+            echo "[build] step 3: cleaning inactive slot $NEXT_SLOT"
             rm -rf "$NEXT_SLOT"
+            echo "[build] step 4: starting next build into $NEXT_SLOT"
             NEXT_DIST_DIR="$NEXT_SLOT" npm run build
+            echo "[build] step 5: build complete, swapping symlink"
 
             # Atomic symlink swap + short restart (~5-10s downtime)
             ln -sfn "$NEXT_SLOT" .next
+            echo "[build] step 6: symlink swapped, restarting jckauto"
             pm2 restart jckauto
+            echo "[build] step 7: restarting jckauto-bot"
             pm2 delete jckauto-bot || true
             pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
             pm2 save
+            echo "[build] step 8: deploy complete"
             pm2 status
