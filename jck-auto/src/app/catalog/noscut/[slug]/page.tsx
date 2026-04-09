@@ -7,7 +7,6 @@ import { ChevronRight, Clock } from "lucide-react";
 import NoscutDelivery from "@/components/noscut/NoscutDelivery";
 import NoModelFound from "@/components/noscut/NoModelFound";
 import LeadForm from "@/components/LeadForm";
-import { CONTACTS } from "@/lib/constants";
 
 export const revalidate = 3600;
 
@@ -212,7 +211,7 @@ export default async function NoscutDetailPage({ params }: PageProps) {
                 <p className="font-heading text-3xl font-bold text-primary">
                   от {entry.priceFrom.toLocaleString("ru-RU")} ₽
                 </p>
-                {entry.marketPriceRu && (
+                {entry.marketPriceRu && entry.marketPriceRu > entry.priceFrom && (
                   <p className="mt-1 text-sm text-text-muted">
                     Рынок: ~{entry.marketPriceRu.toLocaleString("ru-RU")} ₽
                     {savings && (
@@ -266,20 +265,16 @@ export default async function NoscutDetailPage({ params }: PageProps) {
           {/* Delivery */}
           <NoscutDelivery />
 
-          {/* CTA for СТО */}
+          {/* Wholesale CTA */}
           <section className="mt-12 rounded-2xl bg-surface p-6 md:p-10">
-            <h2 className="font-heading text-2xl font-bold text-text">Вы представляете СТО?</h2>
+            <h2 className="font-heading text-2xl font-bold text-text">Для оптовых покупателей</h2>
             <p className="mt-2 text-text-muted">
-              Работаем с мастерскими по всей России — оптовые цены, отсрочка платежа, персональный менеджер.
+              Поставляем от одного ноуската до контейнерных партий. Подберём любую модель
+              из Азии — не только то, что есть в каталоге. Цена зависит от объёма и обсуждается персонально.
             </p>
-            <a
-              href={CONTACTS.telegram}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 inline-block font-medium text-primary underline-offset-2 hover:underline"
-            >
-              Условия для оптовых покупателей →
-            </a>
+            <div className="mt-4">
+              <LeadForm compact subject="Оптовые условия" ctaLabel="Узнать условия" />
+            </div>
           </section>
 
           {/* Not found block */}
