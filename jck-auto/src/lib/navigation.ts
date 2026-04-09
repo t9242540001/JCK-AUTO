@@ -13,7 +13,14 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Главная', href: '/' },
-  { label: 'Каталог', href: '/catalog' },
+  {
+    label: 'Каталог',
+    href: '/catalog',
+    children: [
+      { label: 'Автомобили', href: '/catalog' },
+      { label: 'Ноускаты', href: '/catalog/noscut' },
+    ],
+  },
   {
     label: 'Сервисы',
     href: '/tools',
