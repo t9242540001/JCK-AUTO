@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { checkRateLimit, recordUsage } from "@/lib/rateLimiter";
+import { CONTACTS } from "@/lib/constants";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GROUP_CHAT_ID = process.env.TELEGRAM_GROUP_CHAT_ID;
@@ -9,12 +11,37 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, phone, message, source, subject } = body;
 
+    const ip =
+      (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const leadKey = `lead:${ip}`;
+    const limit = checkRateLimit(leadKey);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: `Слишком много запросов. Попробуйте позже или позвоните нам напрямую: ${CONTACTS.phone}` },
+        { status: 429 },
+      );
+    }
+
     if (!phone) {
       return NextResponse.json(
         { error: "phone обязателен" },
         { status: 400 },
       );
     }
+    const cleanPhone = phone.replace(/[^\d\s\+\-\(\)]/g, "");
+    const digits = cleanPhone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      return NextResponse.json(
+        { error: "Некорректный номер телефона" },
+        { status: 400 },
+      );
+    }
+
+    const safeName    = name    ? String(name).slice(0, 100)    : undefined;
+    const safeMessage = message ? String(message).slice(0, 1000) + (String(message).length > 1000 ? " [truncated]" : "") : undefined;
+    const safeSubject = subject ? String(subject).slice(0, 200)  : undefined;
 
     if (!BOT_TOKEN || !GROUP_CHAT_ID) {
       console.error("TELEGRAM_BOT_TOKEN or TELEGRAM_GROUP_CHAT_ID not configured");
@@ -27,10 +54,10 @@ export async function POST(request: Request) {
     const text = [
       "\u{1F514} Новая заявка с сайта!",
       "",
-      name ? `\u{1F464} Имя: ${name}` : "",
-      `\u{1F4F1} Телефон: ${phone}`,
-      subject ? `\u{1F4CC} Тема: ${subject}` : "",
-      message ? `\u{1F4AC} Сообщение: ${message}` : "",
+      safeName ? `\u{1F464} Имя: ${safeName}` : "",
+      `\u{1F4F1} Телефон: ${cleanPhone}`,
+      safeSubject ? `\u{1F4CC} Тема: ${safeSubject}` : "",
+      safeMessage ? `\u{1F4AC} Сообщение: ${safeMessage}` : "",
       "",
       `Источник: ${source || "сайт jckauto.ru"}`,
     ]
@@ -57,6 +84,7 @@ export async function POST(request: Request) {
       );
     }
 
+    recordUsage(leadKey);
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error(`[lead] API error: ${err?.message || err}`);
