@@ -7,6 +7,7 @@ import { ChevronRight, Clock } from "lucide-react";
 import NoscutDelivery from "@/components/noscut/NoscutDelivery";
 import NoModelFound from "@/components/noscut/NoModelFound";
 import LeadForm from "@/components/LeadForm";
+import LeadFormTrigger from "@/components/LeadFormTrigger";
 
 export const revalidate = 3600;
 
@@ -272,8 +273,14 @@ export default async function NoscutDetailPage({ params }: PageProps) {
               Поставляем от одного ноуската до контейнерных партий. Подберём любую модель
               из Азии — не только то, что есть в каталоге. Цена зависит от объёма и обсуждается персонально.
             </p>
-            <div className="mt-4">
-              <LeadForm compact subject="Оптовые условия" ctaLabel="Узнать условия" />
+            <div className="mt-6">
+              <LeadFormTrigger
+                subject="Оптовые условия"
+                triggerLabel="Узнать условия"
+                ctaLabel="Отправить заявку"
+                modalTitle="Условия для оптовых покупателей"
+                triggerVariant="outline"
+              />
             </div>
           </section>
 
