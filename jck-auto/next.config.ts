@@ -11,11 +11,6 @@ const nextConfig: NextConfig = {
         destination: '/tools/calculator',
         permanent: true,
       },
-      {
-        source: '/catalog/:id((?!noscut|cars).*)',
-        destination: '/catalog/cars/:id',
-        permanent: true,
-      },
     ];
   },
 };
