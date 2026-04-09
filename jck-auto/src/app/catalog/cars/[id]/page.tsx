@@ -30,6 +30,8 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+export const dynamic = 'force-dynamic';
+
 async function getAllCars() {
   const blobCars = await readCatalogJson();
   return blobCars.length > 0 ? blobCars : mockCars;
@@ -67,10 +69,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       canonical: `https://jckauto.ru/catalog/cars/${id}`,
     },
   };
-}
-
-export function generateStaticParams() {
-  return [];
 }
 
 export default async function CarDetailPage({ params }: PageProps) {
