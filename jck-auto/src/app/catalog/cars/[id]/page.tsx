@@ -19,6 +19,7 @@ import CarCard from "@/components/catalog/CarCard";
 import CarSidebarActions from "@/components/catalog/CarSidebarActions";
 import CarCtaActions from "@/components/catalog/CarCtaActions";
 import SocialFollow from "@/components/sections/SocialFollow";
+import LeadFormTrigger from "@/components/LeadFormTrigger";
 
 const DELIVERY_CITY: Record<string, string> = {
   china: "Уссурийска",
@@ -278,6 +279,27 @@ export default async function CarDetailPage({ params }: PageProps) {
         {/* Trust block */}
         <section className="mt-12">
           <CarTrustBlock />
+        </section>
+
+        {/* Wholesale CTA */}
+        <section className="mt-12 rounded-2xl bg-surface p-6 md:p-10">
+          <h2 className="font-heading text-2xl font-bold text-text">
+            Для оптовых покупателей
+          </h2>
+          <p className="mt-2 text-text-muted">
+            Закупаете несколько автомобилей или работаете как посредник?
+            Подберём любой автомобиль у мировых производителей и согласуем
+            индивидуальные условия в зависимости от объёма.
+          </p>
+          <div className="mt-6">
+            <LeadFormTrigger
+              subject="Оптовые условия — автомобили"
+              triggerLabel="Узнать условия"
+              ctaLabel="Отправить заявку"
+              modalTitle="Условия для оптовых покупателей"
+              triggerVariant="outline"
+            />
+          </div>
         </section>
 
         {/* CTA */}
