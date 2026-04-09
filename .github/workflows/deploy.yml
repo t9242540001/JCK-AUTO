@@ -30,7 +30,30 @@ jobs:
             git fetch origin
             git reset --hard origin/main
             npm install
-            npm run build
+
+            # Two-slot atomic build: build into inactive slot, swap symlink, restart
+            # First-time migration: convert .next directory into slot .next-a + symlink
+            if [ -d ".next" ] && [ ! -L ".next" ]; then
+              echo "Migrating .next/ to two-slot setup..."
+              mv .next .next-a
+              ln -sfn .next-a .next
+            fi
+
+            # Determine which slot is currently active, build into the other
+            CURRENT_SLOT=$(readlink .next 2>/dev/null || echo "none")
+            if [ "$CURRENT_SLOT" = ".next-a" ]; then
+              NEXT_SLOT=".next-b"
+            else
+              NEXT_SLOT=".next-a"
+            fi
+            echo "Active slot: $CURRENT_SLOT → building into: $NEXT_SLOT"
+
+            # Clean inactive slot and build into it (server keeps reading active slot)
+            rm -rf "$NEXT_SLOT"
+            NEXT_DIST_DIR="$NEXT_SLOT" npm run build
+
+            # Atomic symlink swap + short restart (~5-10s downtime)
+            ln -sfn "$NEXT_SLOT" .next
             pm2 restart jckauto
             pm2 delete jckauto-bot || true
             pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
