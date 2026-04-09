@@ -30,6 +30,7 @@ jobs:
             git fetch origin
             git reset --hard origin/main
             npm install
+            rm -rf .next
             NODE_OPTIONS="--max-old-space-size=1536" npm run build
             pm2 restart jckauto
             pm2 delete jckauto-bot || true
