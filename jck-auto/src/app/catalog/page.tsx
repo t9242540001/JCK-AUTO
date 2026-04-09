@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import CatalogClient from "@/components/catalog/CatalogClient";
@@ -32,8 +33,27 @@ export default async function CatalogPage() {
 
   return (
     <>
+      {/* Category cards */}
+      <section className="bg-white pb-4 pt-24">
+        <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:grid-cols-2">
+          <div className="rounded-xl border-2 border-primary bg-white p-5 shadow-sm">
+            <span className="text-2xl">🚗</span>
+            <h2 className="mt-2 font-heading text-lg font-bold text-text">Автомобили</h2>
+            <p className="mt-1 text-sm text-text-muted">Авто из Китая, Кореи и Японии</p>
+          </div>
+          <Link
+            href="/catalog/noscut"
+            className="rounded-xl border-2 border-border bg-white p-5 shadow-sm transition-colors hover:border-primary"
+          >
+            <span className="text-2xl">🔧</span>
+            <h2 className="mt-2 font-heading text-lg font-bold text-text">Ноускаты</h2>
+            <p className="mt-1 text-sm text-text-muted">Комплекты для восстановления передней части</p>
+          </Link>
+        </div>
+      </section>
+
       {/* Hero */}
-      <section className="bg-surface pb-10 pt-28 sm:pb-16">
+      <section className="bg-surface pb-10 pt-8 sm:pb-16">
         <div className="mx-auto max-w-7xl px-4 text-center">
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
             Каталог
