@@ -28,31 +28,61 @@ export default function Footer() {
             <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-white/50">
               Навигация
             </h3>
-            <nav className="mt-4 flex flex-col gap-1">
-              {NAV_ITEMS.map((item) =>
-                item.children ? (
-                  <div key={item.href}>
-                    <span className="block py-1.5 text-sm text-white/50">{item.label}</span>
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.href}
-                        href={child.href}
-                        className="block py-1.5 pl-3 text-sm text-white/70 transition-colors hover:text-white"
-                      >
-                        {child.label}
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="py-1.5 text-sm text-white/70 transition-colors hover:text-white"
-                  >
-                    {item.label}
-                  </Link>
-                )
-              )}
+            <nav className="mt-4 grid grid-cols-2 gap-x-4">
+              {/* Left sub-column: Главная + Каталог with children */}
+              <div className="flex flex-col gap-1">
+                {NAV_ITEMS.slice(0, 2).map((item) =>
+                  item.children ? (
+                    <div key={item.href}>
+                      <span className="block py-1.5 text-sm text-white/50">{item.label}</span>
+                      {item.children.map((child) => (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className="block py-1.5 pl-3 text-sm text-white/70 transition-colors hover:text-white"
+                        >
+                          {child.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="py-1.5 text-sm text-white/70 transition-colors hover:text-white"
+                    >
+                      {item.label}
+                    </Link>
+                  )
+                )}
+              </div>
+              {/* Right sub-column: Сервисы with children + О компании + Блог + Новости */}
+              <div className="flex flex-col gap-1">
+                {NAV_ITEMS.slice(2).map((item) =>
+                  item.children ? (
+                    <div key={item.href}>
+                      <span className="block py-1.5 text-sm text-white/50">{item.label}</span>
+                      {item.children.map((child) => (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className="block py-1.5 pl-3 text-sm text-white/70 transition-colors hover:text-white"
+                        >
+                          {child.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="py-1.5 text-sm text-white/70 transition-colors hover:text-white"
+                    >
+                      {item.label}
+                    </Link>
+                  )
+                )}
+              </div>
             </nav>
           </div>
 
