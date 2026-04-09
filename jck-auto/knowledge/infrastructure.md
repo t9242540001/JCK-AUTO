@@ -53,7 +53,7 @@ Push to any `claude/**` branch — GitHub Actions handles everything:
    - `pm2 delete jckauto-bot` + `pm2 start` (bot requires delete+start, never restart)
    - `pm2 save`
 
-**Never push directly to `main`** — always use `claude/**` branches.
+**VDS is synced to `main`.** Claude Code always commits to `claude/**` branches — GitHub Actions auto-merges them into `main` and deploys automatically.
 
 ### Emergency manual deploy (fallback only)
 
