@@ -19,6 +19,7 @@
 ```
 Шаг 1 — VDS: sync-catalog.ts
   → скачивает с Drive, разделяет на обложку/скриншот/галерею
+  → лимиты за прогон: MAX_NEW_PER_RUN=10 (новые машины), MAX_RESYNC_PER_RUN=5 (pending машины)
   → пишет catalog.json (без AI-обработки на VDS)
   → НЕ запускает билд: страницы /catalog и /catalog/cars/[id] force-dynamic,
     изменения видны мгновенно при следующем HTTP-запросе
