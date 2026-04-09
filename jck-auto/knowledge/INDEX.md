@@ -21,7 +21,7 @@
 | [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-08 |
 | [roadmap.md](roadmap.md) | Done / In progress / Planned features | 2026-04-08 |
 | [decisions.md](decisions.md) | Architectural Decision Records (ADR log) | 2026-04-08 |
-| [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-09 |
+| [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-10 |
 | [stack.md](stack.md) | Tech stack: Next.js 15, Node.js, AI services (DashScope/DeepSeek/Claude), storage, key configs | 2026-04-08 |
 | [exchange-rates.md](exchange-rates.md) | VTB scraper + CBR fallback, markups, /api/exchange-rates endpoint, UI labels, CORS rules | 2026-04-08 |
 | [customs-reference.md](customs-reference.md) | ETS brackets, recycling fee conditions, legal entity logic, normative sources | 2026-04-08 |

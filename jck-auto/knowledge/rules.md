@@ -2,9 +2,9 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-09
-  @version:     1.1
-  @lines:       81
+  @updated:     2026-04-10
+  @version:     1.2
+  @lines:       83
 -->
 
 # Critical Rules
@@ -29,7 +29,10 @@
 | serverExternalPackages: ['pdfkit'] in next.config.ts | next.config.ts | PDFKit ENOENT on Helvetica.afm if removed |
 | New /catalog/* subcategory segments must be added to EXCLUDED_SEGMENTS | src/middleware.ts | Segment gets redirected to /catalog/cars/* (404) |
 | After post-commit crash: first check GitHub Actions deploy log, NOT pm2 logs | deploy.yml / GitHub Actions | pm2 logs show symptom only; Actions log shows root cause (tsc/turbopack error) |
-| deploy.yml does NOT isolate build from live PM2 — a bad build crashes the running process | deploy.yml | No rollback = immediate outage until hotfix is deployed |
+| `deploy.yml` builds into inactive slot (.next-a / .next-b) and atomically swaps symlink — do NOT revert to direct `.next/` build | deploy.yml | Direct build into active `.next/` causes ~100s of 500/502 errors while Next.js manifest files are partially written |
+| `distDir` in `next.config.ts` MUST keep fallback `'.next'` — value is `process.env.NEXT_DIST_DIR \|\| '.next'` | next.config.ts | If fallback removed, `next start` without NEXT_DIST_DIR env var reads wrong directory → 500 on all routes |
+| `deploy.yml` MUST use `npm ci`, not `npm install` | deploy.yml | npm 10.8.2 has a reify exit code bug in non-TTY (GitHub Actions / appleboy/ssh-action) context: when many platform-specific optional deps fail to reify (sharp, swc, oxide, resolver-binding — ~50 platform variants total), `npm install` exits 1 even though install succeeded. Confirmed empirically: same command in interactive shell exits 0, in Actions exits 1. `npm ci` uses a different installation pathway and is immune. Trade-off: `npm ci` requires lockfile in sync with package.json, which is enforced by our workflow |
+| Manual fallback for stuck deploys: `rm -rf node_modules && npm install --no-audit --no-fund` | VDS shell | Fresh install bypasses the npm 10.8.2 reify bug because it uses a different code path than incremental install. Used as emergency unblock when Actions is down |
 
 ## Code Standards
 
