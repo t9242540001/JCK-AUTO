@@ -4,6 +4,7 @@
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --limit=5
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --force --limit=2
+ * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --delay=10
  */
 
 import fs from "fs";
@@ -64,6 +65,13 @@ function parseForce(): boolean {
   return process.argv.includes("--force");
 }
 
+function parseDelay(): number {
+  const flag = process.argv.find((a) => a.startsWith("--delay="));
+  if (!flag) return 0;
+  const n = parseInt(flag.split("=")[1], 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
 async function downloadImage(url: string, dest: string): Promise<void> {
@@ -73,12 +81,17 @@ async function downloadImage(url: string, dest: string): Promise<void> {
   fs.writeFileSync(dest, buffer);
 }
 
+function sleep(seconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   const start = Date.now();
   const limit = parseLimit();
   const force = parseForce();
+  const delay = parseDelay();
 
   // 1. Read source data
   const models: NoscutModel[] = JSON.parse(fs.readFileSync(MODELS_PATH, "utf-8"));
@@ -121,9 +134,11 @@ async function main(): Promise<void> {
 
     console.log(`[${idx}] ${m.slug} — generating...`);
 
+    let wasGenerated = false;
     let description = "";
     let image = "/storage/noscut/placeholder.jpg";
 
+    wasGenerated = true;
     // a. DeepSeek description
     try {
       const descPrompt = `Write a product page description for a noscut kit: ${m.make} ${m.model} ${m.generation} (${m.yearStart}–${m.yearEnd}).
@@ -202,6 +217,11 @@ Strictly forbidden:
       marketPriceUpdated: null,
       updatedAt: today,
     });
+
+    if (wasGenerated && delay > 0 && i < total - 1) {
+      console.log(`[delay] waiting ${delay}s before next model...`);
+      await sleep(delay);
+    }
   }
 
   // 4. Write catalog
