@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Send, Calculator, ChevronRight } from "lucide-react";
+import { Calculator, ChevronRight } from "lucide-react";
 import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
-import { CONTACTS } from "@/lib/constants";
 import {
   formatPrice,
   getCountryLabel,
@@ -172,15 +171,15 @@ export default async function CarDetailPage({ params }: PageProps) {
                 <p className="font-heading text-2xl font-bold text-text sm:text-3xl">
                   Цена по запросу
                 </p>
-                <a
-                  href={CONTACTS.telegram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-secondary-hover"
-                >
-                  <Send className="h-4 w-4" />
-                  Узнать цену
-                </a>
+                <div className="mt-3">
+                  <LeadFormTrigger
+                    subject="Узнать цену"
+                    triggerLabel="Узнать цену"
+                    ctaLabel="Отправить заявку"
+                    modalTitle="Узнать стоимость автомобиля"
+                    triggerVariant="primary"
+                  />
+                </div>
               </div>
             )}
 
