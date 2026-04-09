@@ -39,8 +39,8 @@ export default function LeadFormTrigger({
 
   const btnCls =
     triggerVariant === "primary"
-      ? "w-full rounded-xl bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-primary/90"
-      : "w-full rounded-xl border border-primary px-6 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white";
+      ? "cursor-pointer w-full rounded-xl bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-primary/90"
+      : "cursor-pointer w-full rounded-xl border border-primary px-6 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white";
 
   const title = modalTitle || subject;
 
@@ -61,7 +61,7 @@ export default function LeadFormTrigger({
           >
             <button
               onClick={() => setIsOpen(false)}
-              className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+              className="absolute right-4 top-4 cursor-pointer text-gray-400 hover:text-gray-600"
               aria-label="Закрыть"
             >
               ✕
