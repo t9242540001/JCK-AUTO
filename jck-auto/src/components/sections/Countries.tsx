@@ -142,7 +142,6 @@ export default function Countries() {
                   ))}
                 </ul>
 
-
               </div>
             </motion.div>
           ))}
