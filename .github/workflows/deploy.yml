@@ -1,0 +1,38 @@
+name: Deploy to VDS
+
+on:
+  workflow_run:
+    workflows: ["Auto-merge Claude branches"]
+    types: [completed]
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: root
+          key: ${{ secrets.VDS_SSH_KEY }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            source /root/.bashrc 2>/dev/null || source /root/.profile 2>/dev/null || true
+            cd /var/www/jckauto/app/jck-auto
+            git fetch origin
+            git reset --hard origin/main
+            npm install
+            NODE_OPTIONS="--max-old-space-size=1536" npm run build
+            pm2 restart jckauto
+            pm2 delete jckauto-bot || true
+            pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
+            pm2 save
+            pm2 status
