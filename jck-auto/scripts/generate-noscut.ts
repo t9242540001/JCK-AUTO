@@ -6,6 +6,7 @@
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --delay=5
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --force --limit=2
+ * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --batch=5 --delay=5    (process next 5 pending models, then exit)
  */
 
 import fs from "fs";
@@ -22,7 +23,7 @@ interface NoscutModel {
   yearStart: number;
   yearEnd: number;
   slug: string;
-  country: "japan" | "china" | "korea";
+  country: "japan" | "china" | "korea" | "germany";
 }
 
 interface NoscutEntry {
@@ -32,7 +33,7 @@ interface NoscutEntry {
   generation: string;
   yearStart: number;
   yearEnd: number;
-  country: "japan" | "china" | "korea";
+  country: "japan" | "china" | "korea" | "germany";
   priceFrom: 199000;
   inStock: boolean;
   components: string[];
@@ -73,6 +74,13 @@ function parseDelay(): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+function parseBatch(): number | undefined {
+  const flag = process.argv.find((a) => a.startsWith("--batch="));
+  if (!flag) return undefined;
+  const n = parseInt(flag.split("=")[1], 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
 async function downloadImage(url: string, dest: string): Promise<void> {
@@ -93,6 +101,12 @@ async function main(): Promise<void> {
   const limit = parseLimit();
   const force = parseForce();
   const delay = parseDelay();
+  const batch = parseBatch();
+
+  // --batch and --limit are mutually exclusive; --batch takes priority
+  if (batch !== undefined && limit !== undefined) {
+    console.warn("[warn] --batch and --limit both provided; --batch takes priority");
+  }
 
   const models: NoscutModel[] = JSON.parse(fs.readFileSync(MODELS_PATH, "utf-8"));
   const instockList: string[] = JSON.parse(fs.readFileSync(INSTOCK_PATH, "utf-8"));
@@ -110,11 +124,14 @@ async function main(): Promise<void> {
   // Build lookup map for O(1) access
   const existingMap = new Map(catalog.map((e) => [e.slug, e]));
 
-  const toProcess = limit ? models.slice(0, limit) : models;
+  const toProcess = (limit !== undefined && batch === undefined)
+    ? models.slice(0, limit)
+    : models;
   const total = toProcess.length;
   console.log(`[catalog] Processing ${total} models...`);
 
   const today = new Date().toISOString().split("T")[0];
+  let generated = 0;
 
   for (let i = 0; i < total; i++) {
     const m = toProcess[i];
@@ -129,6 +146,12 @@ async function main(): Promise<void> {
     if (!force && imageExists && hasDescription) {
       console.log(`[skip] ${m.slug}`);
       continue;
+    }
+
+    // Batch limit: stop after N models that actually needed work
+    if (batch !== undefined && generated >= batch) {
+      console.log(`[batch] Limit of ${batch} reached. Run again to continue.`);
+      break;
     }
 
     let wasGenerated = false;
@@ -232,6 +255,7 @@ Strictly forbidden:
 
     // Incremental write after every generated model
     fs.writeFileSync(CATALOG_PATH, JSON.stringify(catalog, null, 2), "utf-8");
+    generated++;
 
     if (wasGenerated && delay > 0 && i < total - 1) {
       console.log(`[delay] waiting ${delay}s before next model...`);
