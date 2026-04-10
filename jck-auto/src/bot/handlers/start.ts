@@ -1,3 +1,10 @@
+/**
+ * @file        start.ts
+ * @description /start command handler — welcome message, inline keyboard, deep link support.
+ *              Deep link pattern: /start web_{source} — sent after Telegram Login Widget auth.
+ * @lastModified 2026-04-10
+ */
+
 import TelegramBot from "node-telegram-bot-api";
 import { handleCatalogCommand } from "./catalog";
 import { handleContactCommand } from "./contact";
@@ -52,6 +59,38 @@ export function registerStartHandler(bot: TelegramBot) {
   bot.onText(/\/start/, async (msg) => {
     if (msg.from) await saveUser(msg.from);
     const chatId = msg.chat.id;
+
+    // Deep link from jckauto.ru after Telegram Login Widget auth
+    const deepLinkMatch = msg.text?.match(/^\/start web_(.+)/);
+    if (deepLinkMatch) {
+      if (msg.from) await saveUser(msg.from);
+      // @todo: saveUser overwrites users.json without preserving web auth fields
+      //   (source, webAuthAt) written by api/auth/telegram/route.ts.
+      //   Fix: update saveUser() to merge unknown fields instead of overwriting.
+      try {
+        await bot.sendMessage(chatId, [
+          '✅ Вы авторизовались через jckauto.ru.',
+          '',
+          'Теперь у вас 10 запросов в день на инструментах сайта.',
+          '',
+          'Подпишитесь на наш канал — там актуальные авто, цены и новости рынка:',
+        ].join('\n'), {
+          reply_markup: {
+            inline_keyboard: [[
+              {
+                text: '📢 Подписаться на канал',
+                url: 'https://t.me/jckauto_import_koreya',
+              },
+            ]],
+          },
+        });
+      } catch (err) {
+        console.error('[start] deep link welcome error:', err);
+        bot.sendMessage(chatId, 'Добро пожаловать! Авторизация через сайт прошла успешно.');
+      }
+      return;
+    }
+
     try {
       bot.sendChatAction(chatId, "typing");
       await sendStartMessage(bot, chatId, msg.from?.id);
