@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Plan for Telegram Login Widget, bot rate limiting, new bot tools (customs/auction/noscut)
   @updated:     2026-04-10
-  @version:     1.6
-  @lines:       173
+  @version:     1.7
+  @lines:       175
 -->
 
 # Telegram Integration Plan
@@ -63,7 +63,8 @@
   - **Step 4a done:** TelegramAuthBlock component created at src/components/TelegramAuthBlock.tsx
   - **Step 4b done:** TelegramAuthBlock integrated in AuctionSheetClient.tsx
   - **Step 4c done:** TelegramAuthBlock integrated in EncarClient.tsx
-  - **Step 4d done:** auction-sheet/route.ts reads tg_auth cookie, passes telegramId to rate limiter
+  - **Step 4d done:** auction-sheet/route.ts + encar/route.ts read tg_auth cookie, pass telegramId to rate limiter.
+    Cooldown message (remaining > 0): "Подождите немного" for both modes. Quota message is auth-aware.
   - Blur last result (CSS filter: blur + pointer-events: none overlay)
   - Show block: "Get 10 requests/day — sign in via Telegram" + Telegram Login Widget
   - Counter "X/3 free uses" visible from first request (soft reminder, not pressure)
