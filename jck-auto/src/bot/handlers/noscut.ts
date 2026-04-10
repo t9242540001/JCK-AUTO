@@ -13,6 +13,7 @@
 import fs from 'fs';
 import TelegramBot from 'node-telegram-bot-api';
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from '../../lib/botRateLimiter';
+import { incrementCommand } from '../store/botStats';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ export function registerNoscutHandler(bot: TelegramBot): void {
         },
       );
       recordBotUsage(telegramId, 'calc');
+      incrementCommand('noscut');
       return;
     }
 
@@ -140,5 +142,6 @@ export function registerNoscutHandler(bot: TelegramBot): void {
 
     // 6. Record usage AFTER successful send
     recordBotUsage(telegramId, 'calc');
+    incrementCommand('noscut');
   });
 }

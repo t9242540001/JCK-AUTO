@@ -117,7 +117,7 @@
 
 ## Block D — Stats Improvement
 
-- [~] Step 10. Extend /stats command (src/bot/handlers/admin.ts + new storage/bot-stats.json)
+- [x] Step 10. Extend /stats command (src/bot/handlers/admin.ts + new storage/bot-stats.json)
   - New file storage/bot-stats.json: { commands: { calc, customs, auction, noscut, catalog }, sources: { web_encar, web_auction, direct }, webAuthCount }
   - Every command handler increments corresponding counter on execution
   - Write atomically: write to bot-stats.tmp.json → rename (prevents corrupt JSON on crash)

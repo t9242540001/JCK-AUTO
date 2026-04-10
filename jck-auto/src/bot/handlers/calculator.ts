@@ -10,6 +10,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { calculateTotal, formatPrice, type CalcInput, type CarAge } from "../../lib/calculator";
 import { fetchCBRRates, COUNTRY_CURRENCY } from "../../lib/currencyRates";
+import { incrementCommand } from "../store/botStats";
 
 interface CalcState {
   step: "country" | "price" | "volume" | "power" | "age";
@@ -201,6 +202,7 @@ async function finishCalc(bot: TelegramBot, chatId: number, state: CalcState) {
         ],
       },
     });
+    incrementCommand('calc');
   } catch (err) {
     console.error("Calculator error:", err);
     bot.sendMessage(

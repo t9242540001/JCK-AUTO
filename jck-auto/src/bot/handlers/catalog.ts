@@ -1,4 +1,5 @@
 import TelegramBot from "node-telegram-bot-api";
+import { incrementCommand } from "../store/botStats";
 import { existsSync } from "fs";
 import * as path from "path";
 import { readCatalogJson } from "../../lib/blobStorage";
@@ -157,6 +158,7 @@ export async function handleCatalogCommand(bot: TelegramBot, chatId: number): Pr
     await bot.sendMessage(chatId, `\u{1F697} Выберите марку автомобиля (${available.length} авто):`, {
       reply_markup: { inline_keyboard: brandButtons(groups) },
     });
+    incrementCommand('catalog');
   } catch (err) {
     logTs("error", "[catalog] handleCatalogCommand error:", err);
     bot.sendMessage(chatId, "Не удалось загрузить каталог. Попробуйте позже.");
