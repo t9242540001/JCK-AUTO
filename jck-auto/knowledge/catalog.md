@@ -76,38 +76,33 @@ Step 5 — VDS:
 - Site reads catalog via `readCatalogJson()` from `src/lib/blobStorage.ts`
 - ISR revalidation: 1 hour for `/catalog` page
 
-## Noscut Models Selection Criteria
+## Noscut Catalog — Rules & Generation
 
-**Rule:** The noscut catalog covers the most popular imported cars in Russia
-over the last 5 years (2020–2025), based on official sales statistics and
-parallel import data (Autostat, AEB).
+**Selection criteria (rule):** The noscut catalog covers the most popular
+imported cars in Russia over the last 5 years (rolling window: current year
+minus 5). Based on Autostat/AEB new car sales, parallel import volumes, and
+secondary market demand. Review and update the model list annually.
 
-Sources considered:
-- New car sales (official + authorized dealers)
-- Parallel import volumes by brand and model
-- Secondary market demand
+**Sources:** official dealer sales, parallel import data (Autostat/AEB),
+secondary market (auto.ru, avito).
 
-Current coverage: Toyota, Lexus, Honda, Nissan, Mitsubishi, Hyundai, Kia,
-Genesis, Haval, Chery, Geely, BYD, Li Auto, NIO, Changan.
+**Current brands:** Toyota, Lexus, Honda, Nissan, Mitsubishi, Hyundai, Kia,
+Genesis, Haval, Chery, Geely, BYD, Li Auto, NIO, Changan,
+BMW, Mercedes-Benz, Volkswagen, Subaru, Mazda, Audi, Skoda.
 
-Missing brands identified for addition: BMW, Mercedes-Benz, Volkswagen,
-Subaru, Mazda, Audi, Skoda.
-
-## Noscut Generation Rules
-
-**Selection criteria:** Most popular imported cars in Russia over the last
-5 years (2020–2025), based on Autostat/AEB sales data and parallel import
-volumes.
-
-**Generation batch rule:** generate-noscut.ts MUST be run in batches of
-5 models per iteration using --batch=5 flag. The watchdog handles automatic
-reruns until all models are complete. Rationale: DashScope image generation
-API (qwen-image-2.0-pro) is prone to TCP hangs; small batches limit blast
-radius of each hang and keep memory pressure low.
+**Generation batch rule:** generate-noscut.ts MUST be run via watchdog
+with --batch=5. Each run processes exactly 5 models needing generation
+(skips count-complete models), then exits with [done]. Watchdog reruns
+automatically until no models remain. Rationale: DashScope image API prone
+to TCP hangs; 5-model batches limit blast radius and memory pressure.
 
 **Run command:**
   nohup bash scripts/noscut-watchdog.sh --batch=5 --delay=5 \
     >> /var/log/jckauto-noscut-watchdog.log 2>&1 &
 
-**After generation completes:**
+**Completion check (watchdog exit condition):**
+  All models in models.json have both jpg on disk AND non-empty description
+  in noscut-catalog.json.
+
+**After all generation completes:**
   npx tsx scripts/build-noscut-catalog.ts
