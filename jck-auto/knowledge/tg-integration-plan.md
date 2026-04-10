@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Plan for Telegram Login Widget, bot rate limiting, new bot tools (customs/auction/noscut)
   @updated:     2026-04-10
-  @version:     1.0
+  @version:     1.2
   @lines:       168
 -->
 
@@ -32,7 +32,7 @@
   - Cleanup: delete records older than 24h on every check
   - Response on limit: generic message without disclosing limit values
 
-- [ ] Step 2. Extend src/lib/rateLimiter.ts (site)
+- [x] Step 2. Extend src/lib/rateLimiter.ts (site)
   - ANONYMOUS mode: key = "ip:{ip}", limit = 3 TOTAL (lifetime, no reset).
     After 3 uses the counter is permanent — it does NOT reset after 24h or any period.
     Purpose: 3 free tries to evaluate the tool, then must authenticate. Not a daily quota.
@@ -44,7 +44,7 @@
   - @rule: anonymous ip-key records must NEVER be deleted or reset — they are permanent.
     Deletion of ip-key record = user gets 3 free tries again = bypass of the auth gate.
 
-- [ ] Step 3. Create src/app/api/auth/telegram/route.ts
+- [x] Step 3. Create src/app/api/auth/telegram/route.ts
   - Verify Telegram HMAC-SHA256 (key = SHA256 of bot token)
   - Reject if auth_date older than 86400 seconds (replay attack protection)
   - Rate limit: max 5 auth attempts per IP per hour (separate in-memory Map)

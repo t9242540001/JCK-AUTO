@@ -22,7 +22,9 @@ all_done() {
   node -e "
     const fs = require('fs');
     const STORAGE = '/var/www/jckauto/storage/noscut';
-    const models = JSON.parse(fs.readFileSync(STORAGE + '/models.json', 'utf-8'));
+    const models = JSON.parse(fs.readFileSync(
+      require('path').resolve(process.cwd(), 'src/data/noscut-models.json'), 'utf-8'
+    ));
     let catalog = [];
     try { catalog = JSON.parse(fs.readFileSync(STORAGE + '/noscut-catalog.json', 'utf-8')); } catch {}
     const descMap = new Map(catalog.map(e => [e.slug, e.description || '']));
