@@ -56,6 +56,29 @@ jobs:
             fi
             echo "[wrapper] step 6: wrapper complete, proceeding to two-slot build"
 
+            # Self-healing: if .next is a regular directory (not symlink), something
+            # ran npm run build without NEXT_DIST_DIR. Restore two-slot setup.
+            if [ -d ".next" ] && [ ! -L ".next" ]; then
+              echo "[build] WARNING: .next is a directory, not a symlink — restoring two-slot setup"
+              if [ -f ".next/BUILD_ID" ]; then
+                rm -rf .next-a
+                mv .next .next-a
+                ln -sfn .next-a .next
+                echo "[build] WARNING: saved existing build as .next-a, symlink restored"
+              else
+                rm -rf .next
+                if [ -d ".next-a" ]; then
+                  ln -sfn .next-a .next
+                elif [ -d ".next-b" ]; then
+                  ln -sfn .next-b .next
+                else
+                  echo "[build] FATAL: no .next slot available to restore"
+                  exit 1
+                fi
+                echo "[build] WARNING: removed broken .next, symlink restored from slot"
+              fi
+            fi
+
             # Two-slot atomic build: build into inactive slot, swap symlink, restart
 
             # Determine which slot is currently active, build into the other

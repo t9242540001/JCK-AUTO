@@ -2,9 +2,9 @@
   @file:        knowledge/infrastructure.md
   @project:     JCK AUTO
   @description: Server config, PM2 processes, deploy procedures, constraints
-  @updated:     2026-04-09
-  @version:     1.2
-  @lines:       109
+  @updated:     2026-04-10
+  @version:     1.3
+  @lines:       119
 -->
 
 # Infrastructure
@@ -46,12 +46,17 @@
 Push to any `claude/**` branch — GitHub Actions handles everything:
 1. `auto-merge.yml` merges the branch into `main`
 2. `deploy.yml` SSHs into VDS and runs:
+   - `set -e` (bash errexit, NOT appleboy script_stop)
    - `git fetch origin && git reset --hard origin/main`
-   - `npm install`
-   - `npm run build` (no heap cap — spill to swap permitted)
+   - `npm ci` via `if npm ci; then ... else ... fi` wrapper (npm 10.8.2 reify exit code bug protection)
+   - Verifies `node_modules/{next,react,sharp,@next/swc-linux-x64-gnu}` exist
+   - Self-healing: if `.next` is a directory (not symlink), restores two-slot setup
+   - Two-slot build: `NEXT_DIST_DIR="$NEXT_SLOT" npm run build` into inactive slot
+   - Atomic symlink swap: `ln -sfn "$NEXT_SLOT" .next`
    - `pm2 restart jckauto`
    - `pm2 delete jckauto-bot` + `pm2 start` (bot requires delete+start, never restart)
    - `pm2 save`
+   - `[wrapper] step 1-6` and `[build] step 1-8` echo markers for observability
 
 **VDS is synced to `main`.** Claude Code always commits to `claude/**` branches — GitHub Actions auto-merges them into `main` and deploys automatically.
 
@@ -60,17 +65,21 @@ Push to any `claude/**` branch — GitHub Actions handles everything:
 ```bash
 cd /var/www/jckauto/app/jck-auto
 git fetch origin && git reset --hard origin/main
-npm install
-npm run build
+rm -rf node_modules && npm install --no-audit --no-fund
+CURRENT_SLOT=$(readlink .next 2>/dev/null || echo "none")
+if [ "$CURRENT_SLOT" = ".next-a" ]; then NEXT_SLOT=".next-b"; else NEXT_SLOT=".next-a"; fi
+rm -rf "$NEXT_SLOT"
+NEXT_DIST_DIR="$NEXT_SLOT" npm run build
+ln -sfn "$NEXT_SLOT" .next
 pm2 restart jckauto
-pm2 delete jckauto-bot
+pm2 delete jckauto-bot || true
 pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
-pm2 save
-pm2 status
+pm2 save && pm2 status
 ```
 
 **IMPORTANT:** `pm2 restart` does NOT reload `.env.local` for the bot.
 Always use `pm2 delete` + `pm2 start` for jckauto-bot.
+**NEVER** run `npm run build` without `NEXT_DIST_DIR` — it destroys the `.next` symlink.
 
 ## Nginx
 
@@ -92,8 +101,9 @@ Always use `pm2 delete` + `pm2 start` for jckauto-bot.
 
 ## CI/CD
 
-- **Auto-merge:** GitHub Actions workflow `.github/workflows/auto-merge.yml` merges `claude/**` branches into `main` on every push. No manual merge needed.
-- **Auto-deploy:** GitHub Actions workflow `.github/workflows/deploy.yml` deploys to VDS after every successful auto-merge (via `workflow_run` trigger) or direct push to `main`. SSHs into VDS, pulls code, builds with `npm run build` (uncapped V8 heap, spill to swap allowed), restarts site (`pm2 restart jckauto`) and bot (`pm2 delete` + `pm2 start` — never `pm2 restart` for bot due to .env.local not reloading).
+- **Auto-merge:** `.github/workflows/auto-merge.yml` merges `claude/**` branches into `main` on every push.
+- **Auto-deploy:** `.github/workflows/deploy.yml` deploys to VDS after auto-merge (`workflow_run` trigger) or direct push to `main`. Uses `set -e`, npm ci wrapper, two-slot build, symlink swap, self-healing. `[wrapper]` and `[build]` step markers provide observability.
+- **Catalog sync:** `.github/workflows/sync-catalog.yml` runs daily at 03:00 UTC. Syncs Google Drive → VDS photos, processes AI-pending cars on runner (Anthropic API), uploads catalog.json back. Does NOT build or restart PM2 — catalog pages are force-dynamic.
 
 ## Active Bugs
 

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-10
-  @version:     1.5
-  @lines:       88
+  @version:     1.7
+  @lines:       90
 -->
 
 # Critical Rules
@@ -36,6 +36,8 @@
 | `deploy.yml` MUST NOT use `script_stop: true` on `appleboy/ssh-action`. Use `set -e` as first script line instead | deploy.yml | `appleboy/ssh-action` `script_stop: true` intercepts non-zero exit codes in places where POSIX bash errexit does NOT (inside `cmd \|\| fallback`, inside `if [ A ] && [ B ]; then`, inside `var=$(cmd1 \|\| cmd2)`). This makes any non-trivial bash script extremely fragile. Standard `set -e` follows POSIX correctly: `\|\|` chains, if-conditions, and command substitutions are protected. Empirically established over 5 failed deploys (#74-#80) before structural fix in #81 |
 | `deploy.yml` echo markers `[wrapper] step N:` and `[build] step N:` are an observability contract — do NOT remove them | deploy.yml | These markers are the only way to localize failures inside `appleboy/ssh-action` where stderr is unreliable and `set -x` would explode log volume. Removing them sends the next failure back to the diagnostic blindness that cost 4 iterations (#74-#79). Add new markers when adding new steps; never remove existing ones |
 | When writing bash for `appleboy/ssh-action` (even with `set -e`), prefer `if cmd; then` over `cmd \|\| fallback` for exit code capture | deploy.yml | The `if cmd; then ... else NPM_EXIT=$?; fi` form is more robust under any errexit-handling layer (appleboy or bash) because it is a single syntactic unit per POSIX. The `\|\|` form works under bash `set -e` but failed under `appleboy script_stop: true` — defensive coding for a script that runs in both contexts |
+| `npm run build` on VDS MUST always use `NEXT_DIST_DIR` env var — only deploy.yml builds, and it uses two-slot mechanism | VDS shell, all workflows, all cron | Without NEXT_DIST_DIR, Next.js writes to `.next/` directly, destroying the symlink → site crash. sync-catalog.yml must NOT build (catalog is force-dynamic). Cron scripts must NOT build. Only deploy.yml builds via `NEXT_DIST_DIR="$NEXT_SLOT" npm run build` |
+| deploy.yml has self-healing: if `.next` is a directory (not symlink), it auto-restores the two-slot setup before building | deploy.yml | Protects against any process that accidentally runs `npm run build` without NEXT_DIST_DIR. Logs `[build] WARNING` when triggered |
 
 ## Code Standards
 
