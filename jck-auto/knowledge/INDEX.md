@@ -18,7 +18,7 @@
 | [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek, CBR, Google Drive, Telegram | 2026-04-08 |
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
 | [catalog.md](catalog.md) | Google Drive conventions, 5-step sync chain, screenshot priority | 2026-04-08 |
-| [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-08 |
+| [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-10 |
 | [roadmap.md](roadmap.md) | Done / In progress / Planned features | 2026-04-08 |
 | [decisions.md](decisions.md) | Architectural Decision Records (ADR log) | 2026-04-08 |
 | [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-10 |
