@@ -1,16 +1,21 @@
 /**
  * @file route.ts
  * @description API endpoint анализатора Encar: данные авто + AI-определение мощности + расчёт стоимости.
+ *              Supports two-mode rate limiting: anonymous (3 lifetime) / Telegram-auth (10/day).
  * @runs VDS
  * @input POST JSON { url: string, enginePower?: number }
  * @output JSON с данными авто + AI-мощность + costBreakdown
- * @rule Rate limit: 3 запроса/день на IP (общий с аукционными листами)
+ * @rule Rate limit: anonymous — 3 запроса lifetime с одного IP; auth — 10/day по telegram_id
  * @rule Приоритет мощности: пользователь > AI > null
  * @rule DeepSeek-вызов не считается отдельным запросом (часть обработки)
- * @lastModified 2026-04-03
+ * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var,
+ *              src/lib/encarClient, src/lib/rateLimiter, src/lib/calculator
+ * @lastModified 2026-04-10
  */
 
 import { NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
+import { cookies } from 'next/headers';
 import { extractCarId, fetchVehicle, fetchInspection, mapToResult, estimateEnginePower, translateEncarFields } from '@/lib/encarClient';
 import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
 import { calculateTotal, type CarAge, type EngineType } from '@/lib/calculator';
@@ -43,16 +48,48 @@ function fuelToEngineType(fuelType: string): EngineType {
   return 'petrol';
 }
 
+/**
+ * Extract telegramId from tg_auth JWT cookie.
+ * Returns telegramId as string if cookie is valid and not expired.
+ * Returns undefined on any error (missing cookie, invalid JWT, missing env var) —
+ * caller falls back to anonymous mode silently.
+ * @rule Never throw — all errors must be caught internally
+ */
+async function getTelegramIdFromCookie(): Promise<string | undefined> {
+  try {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) return undefined;
+
+    const cookieStore = await cookies();
+    const token = cookieStore.get('tg_auth')?.value;
+    if (!token) return undefined;
+
+    const secretBytes = new TextEncoder().encode(jwtSecret);
+    const { payload } = await jwtVerify(token, secretBytes);
+    const id = payload.telegramId;
+    if (!id) return undefined;
+
+    return String(id);
+  } catch {
+    return undefined;
+  }
+}
+
 // ─── ROUTE ────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
+  const telegramId = await getTelegramIdFromCookie();
 
-  const limit = checkRateLimit(ip);
+  const limit = checkRateLimit(ip, telegramId);
   if (!limit.allowed) {
     return NextResponse.json({
       error: 'rate_limit',
-      message: 'Лимит бесплатных анализов исчерпан (3 в день)',
+      message: limit.remaining > 0
+        ? 'Подождите немного — запросы принимаются раз в 2 минуты.'
+        : telegramId
+          ? 'Дневной лимит запросов исчерпан (10 в день). Завтра лимит обновится.'
+          : 'Лимит бесплатных анализов исчерпан. Войдите через Telegram для 10 запросов в день.',
       resetIn: limit.resetIn,
       alternatives: { telegram: 'https://t.me/jckauto_help_bot', manager: 'https://t.me/jck_auto_manager' },
     }, { status: 429 });
@@ -157,8 +194,8 @@ export async function POST(request: Request) {
     }
   }
 
-  recordUsage(ip);
-  const remaining = checkRateLimit(ip).remaining;
+  recordUsage(ip, telegramId);
+  const remaining = checkRateLimit(ip, telegramId).remaining;
 
   return NextResponse.json({
     success: true,

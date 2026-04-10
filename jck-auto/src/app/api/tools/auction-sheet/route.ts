@@ -8,7 +8,8 @@
  * @cost ~$0.002/запрос (Qwen3.5-Plus Vision)
  * @rule Rate limit: anonymous — 3 запроса lifetime с одного IP; auth — 10/day по telegram_id
  * @rule Не логировать содержимое изображений
- * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var
+ * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var,
+ *              src/lib/dashscope (analyzeImage), src/lib/rateLimiter
  * @lastModified 2026-04-10
  */
 
@@ -142,9 +143,11 @@ export async function POST(request: Request) {
   if (!limit.allowed) {
     return NextResponse.json({
       error: 'rate_limit',
-      message: telegramId
-        ? 'Дневной лимит запросов исчерпан (10 в день). Завтра лимит обновится.'
-        : 'Лимит бесплатных расшифровок исчерпан. Войдите через Telegram для 10 запросов в день.',
+      message: limit.remaining > 0
+        ? 'Подождите немного — запросы принимаются раз в 2 минуты.'
+        : telegramId
+          ? 'Дневной лимит запросов исчерпан (10 в день). Завтра лимит обновится.'
+          : 'Лимит бесплатных расшифровок исчерпан. Войдите через Telegram для 10 запросов в день.',
       resetIn: limit.resetIn,
       alternatives: {
         telegram: 'https://t.me/jckauto_help_bot',
