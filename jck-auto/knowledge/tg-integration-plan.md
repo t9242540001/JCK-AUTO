@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Plan for Telegram Login Widget, bot rate limiting, new bot tools (customs/auction/noscut)
   @updated:     2026-04-10
-  @version:     1.2
-  @lines:       168
+  @version:     1.3
+  @lines:       170
 -->
 
 # Telegram Integration Plan
@@ -59,7 +59,8 @@
 
 ## Block B — Telegram Login Widget on Site
 
-- [ ] Step 4. Update rate limit exceeded UI on all /tools/* pages
+- [~] Step 4. Update rate limit exceeded UI on all /tools/* pages
+  - **Step 4a done:** TelegramAuthBlock component created at src/components/TelegramAuthBlock.tsx
   - Blur last result (CSS filter: blur + pointer-events: none overlay)
   - Show block: "Get 10 requests/day — sign in via Telegram" + Telegram Login Widget
   - Counter "X/3 free uses" visible from first request (soft reminder, not pressure)
