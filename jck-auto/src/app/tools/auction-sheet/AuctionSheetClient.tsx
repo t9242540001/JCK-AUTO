@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Upload, Loader2, X, Download, RefreshCw, Send, AlertTriangle } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
+import TelegramAuthBlock from "@/components/TelegramAuthBlock";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
 
@@ -96,6 +97,8 @@ export default function AuctionSheetClient() {
   const [error, setError] = useState<ApiError | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [usedCount, setUsedCount] = useState<number>(0);
+  const [isLimitReached, setIsLimitReached] = useState<boolean>(false);
 
   const handleFile = useCallback((f: File) => {
     if (f.size > 10 * 1024 * 1024) { setError({ error: "file_too_large", message: "Файл слишком большой (максимум 10 МБ)" }); setState("error"); return; }
@@ -118,11 +121,22 @@ export default function AuctionSheetClient() {
       fd.append("image", file);
       const res = await fetch("/api/tools/auction-sheet", { method: "POST", body: fd });
       const json = await res.json();
-      if (!res.ok) { setError(json as ApiError); setState("error"); return; }
+      if (!res.ok) {
+        if (json.error === 'rate_limit') {
+          setIsLimitReached(true);
+          setUsedCount(3);
+          setState('error');
+          setError(json as ApiError);
+          return;
+        }
+        setError(json as ApiError); setState("error"); return;
+      }
       const data = json as ApiResponse;
       setResult(data.data);
       setMeta(data.meta);
       setState("result");
+      const used = 3 - (data.meta.remaining ?? 0);
+      setUsedCount(Math.max(0, used));
     } catch { setError({ error: "network", message: "Ошибка сети. Проверьте подключение." }); setState("error"); }
   };
 
@@ -177,9 +191,21 @@ export default function AuctionSheetClient() {
       )}
 
       {state === "preview" && (
-        <button onClick={handleAnalyze} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-3.5 font-medium text-white transition-colors hover:bg-secondary-hover">
-          Расшифровать
-        </button>
+        <>
+          {usedCount > 0 && (
+            <div className="mt-4">
+              <TelegramAuthBlock
+                usedCount={usedCount}
+                maxCount={3}
+                isLimitReached={false}
+                source="auction"
+              />
+            </div>
+          )}
+          <button onClick={handleAnalyze} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-3.5 font-medium text-white transition-colors hover:bg-secondary-hover">
+            Расшифровать
+          </button>
+        </>
       )}
 
       {/* Loading */}
@@ -287,7 +313,14 @@ export default function AuctionSheetClient() {
             <span className={`rounded-full px-3 py-1 text-sm font-medium ${confidenceBadge(result.confidence).cls}`}>
               {confidenceBadge(result.confidence).label}
             </span>
-            {meta && <span className="text-xs text-text-muted">Осталось расшифровок: {meta.remaining}</span>}
+            {meta && (
+              <TelegramAuthBlock
+                usedCount={usedCount}
+                maxCount={3}
+                isLimitReached={false}
+                source="auction"
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -313,10 +346,18 @@ export default function AuctionSheetClient() {
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
           <p className="font-medium text-red-800">{error.message}</p>
           {error.error === "rate_limit" ? (
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <a href="https://t.me/jckauto_help_bot" target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#2AABEE] px-6 py-3 font-medium text-white">Бот с безлимитом</a>
-              <a href={CONTACTS.telegram} target="_blank" rel="noopener noreferrer" className="rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary">Написать менеджеру</a>
-            </div>
+            <TelegramAuthBlock
+              usedCount={usedCount}
+              maxCount={3}
+              isLimitReached={true}
+              source="auction"
+              onAuthSuccess={() => {
+                setIsLimitReached(false);
+                setError(null);
+                setState('idle');
+                clearFile();
+              }}
+            />
           ) : (
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button onClick={() => { setState("preview"); setError(null); }} className="rounded-xl bg-secondary px-6 py-3 font-medium text-white">Попробовать ещё</button>
