@@ -24,7 +24,7 @@
 
 ## Block A — Rate Limiting Layer (implement BEFORE any new features)
 
-- [ ] Step 1. Create src/lib/botRateLimiter.ts
+- [x] Step 1. Create src/lib/botRateLimiter.ts
   - In-memory Map, key = telegram_id
   - Global limit: 20 requests/day per telegram_id (blocks automation scripts)
   - AI command cooldown (auction sheet, Encar): 1 request per 2 minutes per telegram_id
