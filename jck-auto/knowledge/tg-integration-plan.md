@@ -88,7 +88,7 @@
   - Label: "Ориентировочный курс" (NOT "Курс ЦБ РФ") — same rule as /calc
   - Button at end: "Подробнее на сайте" → https://jckauto.ru/tools/customs
 
-- [ ] Step 7. Add auction sheet via photo to bot (src/bot/handlers/auctionSheet.ts)
+- [x] Step 7. Add auction sheet via photo to bot (src/bot/handlers/auctionSheet.ts)
   - Handler on message.photo
   - Check botRateLimiter first — 2-minute cooldown. If too soon: reply and return
   - Reject photos > 5MB with message "Сожмите фото и отправьте снова"

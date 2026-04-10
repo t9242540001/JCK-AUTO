@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Telegram bot commands, admin config, user storage, constraints
   @updated:     2026-04-10
-  @version:     1.1
+  @version:     1.2
   @lines:       60
 -->
 
@@ -16,6 +16,7 @@
 | `/start` | `src/bot/handlers/start.ts` | Welcome message + inline keyboard |
 | `/calc` | `src/bot/handlers/calculator.ts` | Calculator (China/Korea/Japan, 4 age brackets) |
 | `/customs` | `src/bot/handlers/customs.ts` | Customs-only costs (no delivery). 10s cooldown via botRateLimiter |
+| Photo (any) | `src/bot/handlers/auctionSheet.ts` | Auction sheet OCR via Qwen-VL. 2-min AI cooldown. Max 5 MB. Download via TELEGRAM_API_BASE_URL |
 | `/catalog` | `src/bot/handlers/catalog.ts` | Show 5 cars with photos |
 | `/contact` | `src/bot/handlers/contact.ts` | Company contacts |
 | Request flow | `src/bot/handlers/request.ts` | Collect info → forward to managers group |
