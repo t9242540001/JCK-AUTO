@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-10
-  @version:     1.4
+  @version:     1.5
   @lines:       88
 -->
 
@@ -73,7 +73,7 @@
 | First command in every Claude Code session: `git checkout <branch> && git pull origin <branch>` | Every prompt CONTEXT block | Same as above |
 | Any prompt modifying .ts/.tsx must include `npm run build` as acceptance criterion | Every prompt | Build errors (tsc/turbopack) are invisible until deploy → production crash |
 | Prompts removing wrapper blocks must explicitly verify BOTH the opening AND closing brace are deleted | Every prompt | Stray closing brace at module scope → Turbopack parse error → site down |
-| Git repo root is `app/`, not `app/jck-auto/` — all file paths in prompts must start with `jck-auto/` | Every prompt creating new files | Claude Code commits relative to git root; without `jck-auto/` prefix, files land in `app/scripts/` instead of `app/jck-auto/scripts/` — invisible to the project |
+| Git root (`app/`) ≠ project dir (`app/jck-auto/`) — legacy structure. Root `CLAUDE.md` redirects Claude Code to `cd jck-auto`. Until flattening is done, this redirect is the safeguard | `app/CLAUDE.md` + every prompt | Without root CLAUDE.md, Claude Code creates files in `app/` instead of `app/jck-auto/`. Flattening (moving jck-auto/ contents to git root) is the real fix — blocked by deploy.yml, cron, PM2, MCP, nginx path updates |
 
 ## Noscut Business Rules
 
