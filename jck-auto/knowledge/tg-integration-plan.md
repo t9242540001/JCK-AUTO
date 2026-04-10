@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Plan for Telegram Login Widget, bot rate limiting, new bot tools (customs/auction/noscut)
   @updated:     2026-04-10
-  @version:     1.8
+  @version:     1.9
   @lines:       175
 -->
 
@@ -71,7 +71,7 @@
   - On successful auth: remove blur, update quota to tg-mode (10/day), show "Open in bot" button (deep link)
   - Fallback if Telegram script fails to load: show "Write to bot" button (direct link)
 
-- [~] Step 5. Create src/app/privacy/page.tsx
+- [x] Step 5. Create src/app/privacy/page.tsx
   - Simple page at /privacy — required by Telegram for Login Widget (BotFather domain check)
   - Content: what is collected (Telegram ID, name, first contact date, which tool referred),
     what is not done (no selling, no third parties, no spam)

@@ -1,7 +1,8 @@
 /**
  * @file        TelegramAuthBlock.tsx
  * @description Reusable Telegram Login Widget component for rate-limited tools.
- *              Shows usage counter, auth widget on limit, deep link after auth.
+ *              Shows usage counter, privacy consent checkbox, auth widget on limit,
+ *              deep link after auth.
  * @dependencies /api/auth/telegram, NEXT_PUBLIC_TELEGRAM_BOT_USERNAME, CONTACTS
  * @rule        window.onTelegramAuth MUST be set BEFORE script is appended to DOM
  * @rule        Clean up window.onTelegramAuth and container innerHTML on unmount
@@ -36,6 +37,7 @@ export default function TelegramAuthBlock({
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<string | null>(null);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
 
   // ─── TELEGRAM AUTH CALLBACK ─────────────────────────────────────────
 
@@ -62,7 +64,7 @@ export default function TelegramAuthBlock({
   // ─── WIDGET INJECTION ───────────────────────────────────────────────
 
   useEffect(() => {
-    if (!isLimitReached) return;
+    if (!isLimitReached || !privacyAgreed) return;
 
     // Set global callback BEFORE loading script
     (window as unknown as Record<string, unknown>).onTelegramAuth = handleTelegramAuth;
@@ -88,7 +90,7 @@ export default function TelegramAuthBlock({
       if (c) c.innerHTML = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLimitReached]);
+  }, [isLimitReached, privacyAgreed]);
 
   // ─── COUNTER BADGE ──────────────────────────────────────────────────
 
@@ -157,6 +159,29 @@ export default function TelegramAuthBlock({
         </p>
       </div>
 
+      {/* Privacy consent checkbox */}
+      <label className="flex cursor-pointer items-start gap-2 text-left">
+        <input
+          type="checkbox"
+          checked={privacyAgreed}
+          disabled={privacyAgreed}
+          onChange={() => setPrivacyAgreed(true)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#2AABEE]"
+        />
+        <span className="text-xs text-muted-foreground">
+          Я согласен с{' '}
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            политикой конфиденциальности
+          </a>
+        </span>
+      </label>
+
       {/* Widget or fallback */}
       {widgetFailed ? (
         <div className="flex flex-col items-center gap-2">
@@ -176,8 +201,12 @@ export default function TelegramAuthBlock({
         <div className="flex min-h-[48px] items-center justify-center">
           {authLoading ? (
             <span className="text-sm text-muted-foreground">Авторизация...</span>
-          ) : (
+          ) : privacyAgreed ? (
             <div id="tg-widget-container" />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Отметьте согласие выше, чтобы войти через Telegram
+            </p>
           )}
         </div>
       )}
