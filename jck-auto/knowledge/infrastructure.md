@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Server config, PM2 processes, deploy procedures, constraints
   @updated:     2026-04-10
-  @version:     1.3
+  @version:     1.4
   @lines:       119
 -->
 
@@ -17,6 +17,10 @@
 - **RAM:** 1.8 GB total / ~1.1 GB available (swap: 2.9 GB)
 - **Working directory:** `/var/www/jckauto/app/jck-auto`
 - **Storage:** `/var/www/jckauto/storage/` (catalog JSON, user data, news)
+  - `users.json` — bot users + web auth records (id, firstName, registeredAt, source, webAuthAt)
+  - `bot-stats.json` — command/source counters (atomic write via .tmp rename)
+  - `catalog/` — car photos synced from Google Drive
+  - `noscut/` — noscut catalog JSON + images
 - **GitHub:** https://github.com/t9242540001/JCK-AUTO
 - **Site URL:** https://jckauto.ru
 
@@ -25,7 +29,7 @@
 | Process | Purpose | Port |
 |---------|---------|------|
 | jckauto | Next.js site | 3000 |
-| jckauto-bot | Telegram bot (polling) | — |
+| jckauto-bot | Telegram bot (webhook, port 8443) | 8443 |
 
 ## Cron Jobs
 
@@ -94,7 +98,7 @@ Always use `pm2 delete` + `pm2 start` for jckauto-bot.
 | Anthropic API blocked from Russian IP (403) | All Claude API calls run on GitHub Actions runner only |
 | DashScope API works from VDS | Singapore region, no IP restrictions |
 | `pm2 restart` doesn't reload `.env.local` | Must `pm2 delete` + `pm2 start` for bot |
-| Bot uses polling, not webhook | No inbound port/nginx config needed for bot |
+| Bot uses webhook mode (port 8443 via TELEGRAM_API_BASE_URL Worker proxy) | Webhook traffic proxied through Cloudflare Worker tg-proxy — never direct to api.telegram.org |
 | Exchange rates cached 6 hours | Sravni.ru VTB scraper + CBR fallback with markup |
 | VDS has only 1.8 GB RAM | Build uses uncapped V8 heap with swap fallback (2.9 GB swap available). Never add `--max-old-space-size=*` below measured build peak — it silently truncates Turbopack manifest writes on the final phase. |
 | PM2 jckauto runs as `bash -c npm start` (not node directly) | 29+ restarts observed after failed builds — process crashes on missing .next manifests |

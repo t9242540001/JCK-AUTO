@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-10
-  @version:     1.7
+  @version:     1.8
   @lines:       90
 -->
 
@@ -39,6 +39,20 @@
 | `npm run build` on VDS MUST always use `NEXT_DIST_DIR` env var — only deploy.yml builds, and it uses two-slot mechanism | VDS shell, all workflows, all cron | Without NEXT_DIST_DIR, Next.js writes to `.next/` directly, destroying the symlink → site crash. sync-catalog.yml must NOT build (catalog is force-dynamic). Cron scripts must NOT build. Only deploy.yml builds via `NEXT_DIST_DIR="$NEXT_SLOT" npm run build` |
 | deploy.yml has self-healing: if `.next` is a directory (not symlink), it auto-restores the two-slot setup before building | deploy.yml | Protects against any process that accidentally runs `npm run build` without NEXT_DIST_DIR. Logs `[build] WARNING` when triggered |
 
+## Bot Rate Limiting Rules
+
+| Rule | Location | Consequence |
+|------|----------|-------------|
+| anonymous ip-key records MUST NEVER be deleted or reset — permanent lifetime counter | rateLimiter.ts ipMap | Deletion = user gets 3 free tries again = auth gate bypassed |
+| checkBotLimit() MUST be called BEFORE any external API call or file read in bot handlers | botRateLimiter.ts | Spammer triggers disk I/O or AI calls before rate check |
+| recordBotUsage() MUST be called AFTER successful sendMessage only — never in catch branches | botRateLimiter.ts | Failed requests consume AI cooldown quota |
+| Bot ALWAYS calls Telegram API through TELEGRAM_API_BASE_URL (Worker), never api.telegram.org | All bot handlers, fileIdCache.ts | Provider blocks api.telegram.org — download/send fails |
+| getTelegramIdFromCookie() MUST NEVER throw — all errors caught, returns undefined | api/tools/*/route.ts | Authenticated users fall through to anonymous quota on any JWT error |
+| Bot photo handler stores file in memory only — never writes to disk | auctionSheet.ts | Temp files accumulate, VDS disk fills up |
+| file_size check in auctionSheet.ts uses bot.getFile() result, NOT msg.photo[N].file_size | auctionSheet.ts | msg.photo[N].file_size is unreliable — oversized files pass check |
+| botStats increment calls are void — never await them | All bot handlers | TypeScript error if awaited (functions return void, not Promise) |
+| botStats increment calls go in success paths only — never in catch/error branches | All bot handlers | Failed commands counted as successful in /stats |
+
 ## Code Standards
 
 | Rule | Location | Consequence |
@@ -57,6 +71,7 @@
 | Rate label: "Ориентировочный курс" (not "Курс ЦБ РФ") | All calculators + bot | Misleads users — rates include bank markup |
 | Disclaimer must appear under every rate display | All calculators + bot | Users assume rate is exact, complain at deal time |
 | BETA_MODE in BetaBadge.tsx controls all beta labels | components/BetaBadge.tsx | Set false → all badges disappear site-wide |
+| Privacy page /privacy must contain Telegram Login Widget data section | privacy/page.tsx | BotFather domain verification fails without it; legal gap under 152-ФЗ |
 
 ## API Economy Rules
 
