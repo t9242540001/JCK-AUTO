@@ -9,15 +9,20 @@ import fs from "fs";
 import path from "path";
 
 const STORAGE_DIR = "/var/www/jckauto/storage/noscut";
-const MODELS_PATH = path.join(STORAGE_DIR, "models.json");
+const MODELS_PATH = path.resolve(__dirname, "../src/data/noscut-models.json");
 const CATALOG_PATH = path.join(STORAGE_DIR, "noscut-catalog.json");
 const INSTOCK_PATH = path.join(STORAGE_DIR, "noscut-instock.json");
 const COMPONENTS = ["бампер", "оптика", "радиатор", "телевизор", "датчики", "камера"];
 
+if (!fs.existsSync(MODELS_PATH)) {
+  console.error(`[fatal] noscut-models.json not found at: ${MODELS_PATH}`);
+  process.exit(1);
+}
+
 interface NoscutModel {
   make: string; model: string; generation: string;
   yearStart: number; yearEnd: number; slug: string;
-  country: "japan" | "china" | "korea";
+  country: "japan" | "china" | "korea" | "germany";
 }
 
 const models: NoscutModel[] = JSON.parse(fs.readFileSync(MODELS_PATH, "utf-8"));
