@@ -2,8 +2,8 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources
-  @updated:     2026-04-09
-  @version:     1.0
+  @updated:     2026-04-10
+  @version:     1.1
   @lines:       65
 -->
 
@@ -28,12 +28,21 @@
 - [x] PDF reports with Roboto TTF (Cyrillic support) + jckauto.ru link
 - [x] Encar Korean→Russian translation via DeepSeek (batch, cached 24h)
 - [x] Каталог ноускатов: /catalog/noscut, /catalog/noscut/[slug], LeadForm, URL рефакторинг, AI-pipeline (research + generate + price-update)
+- [x] Telegram Login Widget integration (TelegramAuthBlock, tg_auth JWT cookie, /api/auth/telegram)
+- [x] Two-mode rate limiter: anonymous 3 lifetime / Telegram-auth 10/day (rateLimiter.ts)
+- [x] Bot: /customs command — customs-only cost calculation
+- [x] Bot: auction sheet analysis via photo (Qwen-VL, in-memory buffer, Worker download)
+- [x] Bot: /noscut command — noscut catalog search with fuzzy match
+- [x] Bot: /start deep link handling (web_encar, web_auction → special welcome + channel button)
+- [x] Bot: extended /stats with command counters and traffic sources (botStats.ts)
+- [x] Privacy page /privacy updated with Telegram data collection section
 
 ## In Progress
 
 - [~] Phase 2: Tariff monitoring (check-tariffs.ts + cron)
 - [~] Phase 5: Finalization (SEO audit, mobile check, sitemap)
 - [~] Merge all branches into main
+- [~] Regenerate bot token in BotFather (Step 0 — manual, pending)
 
 ## Planned — Site
 
@@ -44,7 +53,6 @@
 
 ## Planned — Bot
 
-- [ ] Regenerate bot token — exposed in chats (security issue)
 - [ ] Auto-post new cars to channel t.me/jckauto_import_koreya
 - [ ] AI consultant (Claude API + knowledge base)
 

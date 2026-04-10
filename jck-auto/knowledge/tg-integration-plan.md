@@ -127,7 +127,7 @@
 
 ## Block E — Knowledge Updates
 
-- [ ] Step 11. After each step above: update relevant knowledge/*.md files
+- [x] Step 11. After each step above: update relevant knowledge/*.md files
   - bot.md: new commands, botRateLimiter rules, bot-stats.json structure
   - shared-mechanics.md: extended rateLimiter.ts (two key modes, permanent ip-key, daily tg-key)
   - roadmap.md: mark completed steps
