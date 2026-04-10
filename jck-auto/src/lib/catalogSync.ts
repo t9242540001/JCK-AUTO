@@ -13,6 +13,7 @@ import { calculateFullPriceWithRates } from "./priceCalculator";
 import { fetchCBRRates, type CBRRates } from "./currencyRates";
 
 const MAX_NEW_PER_RUN = 10;
+const MAX_RESYNC_PER_RUN = 5;
 
 const COVER_KEYWORDS = ["1", "front", "перед", "перёд", "обложка", "cover"];
 
@@ -292,11 +293,19 @@ export async function syncCatalog(): Promise<SyncResult> {
 
   // 4.5. Re-sync files from Google Drive for existing cars that still need AI processing.
   //       This handles the case where user adds a screenshot (2.png) AFTER the initial sync.
-  const pendingExisting = currentCatalog.filter(
+  // @rule: MAX_RESYNC_PER_RUN caps the number of pending cars re-downloaded per run.
+  // Without this cap, a catalog with many pending cars could exceed the 5-minute
+  // SYNC_TIMEOUT_MS in scripts/sync-catalog.ts. Remaining cars are processed on
+  // subsequent runs — Drive files persist, no data is lost.
+  const pendingAll = currentCatalog.filter(
     (c) => c.needsAiProcessing === true && driveSlugMap.has(c.id)
   );
-  if (pendingExisting.length > 0) {
+  const pendingExisting = pendingAll.slice(0, MAX_RESYNC_PER_RUN);
+  if (pendingAll.length > MAX_RESYNC_PER_RUN) {
+    console.log(`\n[sync] Re-syncing first ${MAX_RESYNC_PER_RUN} of ${pendingAll.length} pending cars (remaining ${pendingAll.length - MAX_RESYNC_PER_RUN} will be processed next run)`);
+  } else if (pendingExisting.length > 0) {
     console.log(`\n[sync] Re-syncing files for ${pendingExisting.length} cars with needsAiProcessing=true`);
+  }
     for (const car of pendingExisting) {
       const driveFolder = driveSlugMap.get(car.id)!;
       console.log(`[sync]   Re-syncing "${car.id}" from Drive folder "${driveFolder.name}"...`);
@@ -359,7 +368,6 @@ export async function syncCatalog(): Promise<SyncResult> {
         result.errors.push({ folder: car.folderName, error: err instanceof Error ? err.message : String(err) });
       }
     }
-  }
 
   // 5. Remove deleted cars
   for (const car of removedCars) {

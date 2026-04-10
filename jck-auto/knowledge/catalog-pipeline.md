@@ -1,5 +1,5 @@
 # Каталог авто — pipeline синхронизации
-> Обновлено: 2026-04-08
+> Обновлено: 2026-04-09
 
 ## Именование файлов на Google Drive
 
@@ -19,7 +19,10 @@
 ```
 Шаг 1 — VDS: sync-catalog.ts
   → скачивает с Drive, разделяет на обложку/скриншот/галерею
-  → пишет catalog.json (SKIP_BUILD=true, без AI)
+  → лимиты за прогон: MAX_NEW_PER_RUN=10 (новые машины), MAX_RESYNC_PER_RUN=5 (pending машины)
+  → пишет catalog.json (без AI-обработки на VDS)
+  → НЕ запускает билд: страницы /catalog и /catalog/cars/[id] force-dynamic,
+    изменения видны мгновенно при следующем HTTP-запросе
 
 Шаг 2 — GitHub Actions runner:
   → SCP скачивает catalog.json + скриншоты с VDS
@@ -36,9 +39,7 @@
 
 Шаг 4 — GitHub Actions runner:
   → SCP загружает catalog.json обратно на VDS
-
-Шаг 5 — VDS:
-  → npm run build && pm2 restart jckauto
+  → изменения видны на сайте мгновенно — force-dynamic читает файл на каждом запросе
 ```
 
 ## Приоритет выбора скриншота для AI
@@ -54,7 +55,7 @@
 - catalog.json: `/var/www/jckauto/storage/catalog/catalog.json`
 - Фото авто: `/var/www/jckauto/storage/catalog/{carId}/`
 - **catalog.json — flat array `[]`, NOT `{ cars: [] }`**
-- ISR: `/catalog` revalidate=3600 (1ч)
+- Рендеринг: /catalog и /catalog/cars/[id] — force-dynamic (читают catalog.json на каждом запросе, no-cache, ~275 ms/запрос). Изменения в catalog.json видны мгновенно. @rule: не возвращать ISR/prerender без согласования — это вернёт пересборку в sync-catalog.ts.
 
 ## Ключевые файлы
 

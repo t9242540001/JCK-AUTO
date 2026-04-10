@@ -42,7 +42,6 @@ console.warn = (...args: any[]) => {
  *   ANTHROPIC_API_KEY           — for Claude Vision & description generation
  */
 
-import { execSync } from "child_process";
 import { existsSync } from "fs";
 import { resolve } from "path";
 import { config as dotenvConfig } from "dotenv";
@@ -91,7 +90,6 @@ async function main(): Promise<void> {
   validateEnv();
 
   let syncSucceeded = false;
-  let hasChanges = false;
   let result: any;
 
   console.log("\n[sync-catalog] About to call syncCatalog()...");
@@ -104,7 +102,6 @@ async function main(): Promise<void> {
 
     console.log("[sync-catalog] syncCatalog() returned");
     syncSucceeded = true;
-    hasChanges = result.added.length > 0 || result.removed.length > 0;
 
     console.log("\n[sync-catalog] === Sync result ===");
     console.log(`  Added:   ${result.added.length} (${result.added.join(", ") || "none"})`);
@@ -120,24 +117,14 @@ async function main(): Promise<void> {
   } catch (err) {
     console.error("\n[sync-catalog] Sync failed with error:");
     console.error(err instanceof Error ? err.stack : err);
-    // Still try to build if catalog.json might have been partially updated
-    hasChanges = true;
   }
 
-  // Rebuild the site if there were any changes (even partial)
-  if (process.env.SKIP_BUILD === "true") {
-    console.log("\n[sync-catalog] SKIP_BUILD=true, skipping build.");
-  } else if (hasChanges || !syncSucceeded) {
-    console.log("\n[sync-catalog] Running npm run build...\n");
-    try {
-      execSync("npm run build", { stdio: "inherit", cwd: process.cwd() });
-      console.log("\n[sync-catalog] Build complete.");
-    } catch {
-      console.error("\n[sync-catalog] Build failed!");
-      process.exit(1);
-    }
-  } else {
-    console.log("\n[sync-catalog] No changes detected, skipping build.");
+  // @rule: sync-catalog.ts MUST NOT trigger a production build — catalog pages are
+  // force-dynamic since 2026-04-09, they read catalog.json live on every request.
+  // A build would consume ~1.2 GB RAM for no benefit, risking OOM on the 1.8 GB
+  // RAM VDS. See knowledge/catalog-pipeline.md.
+  if (syncSucceeded) {
+    console.log("\n[sync-catalog] Catalog pages are force-dynamic — no build needed. Changes are live immediately.");
   }
 
   if (result && result.errors.length > 0) {

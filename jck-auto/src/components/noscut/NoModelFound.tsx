@@ -1,6 +1,6 @@
 "use client";
 
-import LeadForm from "@/components/LeadForm";
+import LeadFormTrigger from "@/components/LeadFormTrigger";
 
 export default function NoModelFound() {
   return (
@@ -13,8 +13,14 @@ export default function NoModelFound() {
       </p>
 
       <div className="mt-6 flex justify-center">
-        <div className="w-full max-w-md">
-          <LeadForm compact subject="Подбор ноуската" ctaLabel="Оставить заявку" />
+        <div className="w-full max-w-sm">
+          <LeadFormTrigger
+            subject="Подбор ноуската"
+            triggerLabel="Оставить заявку"
+            ctaLabel="Отправить заявку"
+            modalTitle="Подбор ноуската"
+            triggerVariant="primary"
+          />
         </div>
       </div>
     </section>

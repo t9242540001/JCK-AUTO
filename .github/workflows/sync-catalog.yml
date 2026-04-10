@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: claude/review-project-structure-RtYyX
+          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -41,16 +41,8 @@ jobs:
           key: ${{ secrets.VDS_SSH_KEY }}
           command_timeout: 10m
           script: |
+            set -e
             cd /var/www/jckauto/app/jck-auto
-            echo "=== Current branch ==="
-            git branch --show-current
-            echo "=== Fetching ==="
-            git fetch origin
-            git checkout claude/review-project-structure-RtYyX
-            git pull origin claude/review-project-structure-RtYyX
-            echo "=== Installing deps ==="
-            npm install
-            npm install -g tsx tsconfig-paths
             echo "=== Sync starting at $(date) ==="
             SKIP_BUILD=true npx tsx -r tsconfig-paths/register scripts/sync-catalog.ts 2>&1 || true
             echo "=== Sync finished at $(date) ==="
@@ -197,28 +189,6 @@ jobs:
           echo "File size: $FILESIZE bytes"
           scp ./jck-auto/catalog.json root@${{ secrets.VDS_HOST }}:/var/www/jckauto/storage/catalog/catalog.json
           echo "=== Upload complete ==="
-
-      # 5. SSH: build Next.js and restart PM2 on VDS
-      - name: Build and restart on VDS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VDS_HOST }}
-          username: root
-          key: ${{ secrets.VDS_SSH_KEY }}
-          command_timeout: 10m
-          script: |
-            cd /var/www/jckauto/app/jck-auto
-            echo "=== Building at $(date) ==="
-            npm run build
-            BUILD_EXIT=$?
-            echo "=== Build finished with exit code $BUILD_EXIT ==="
-            if [ $BUILD_EXIT -ne 0 ]; then
-              echo "ERROR: Build failed!"
-              exit 1
-            fi
-            echo "=== Restarting PM2 ==="
-            pm2 restart jckauto || pm2 start npm --name jckauto -- start
-            echo "=== Done at $(date) ==="
 
       # Cleanup SSH key from runner
       - name: Cleanup SSH key

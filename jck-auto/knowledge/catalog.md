@@ -75,3 +75,41 @@ Step 5 — VDS:
 - Car photos: `/var/www/jckauto/storage/catalog/{carId}/`
 - Site reads catalog via `readCatalogJson()` from `src/lib/blobStorage.ts`
 - ISR revalidation: 1 hour for `/catalog` page
+
+## Noscut Catalog — Rules & Generation
+
+**Selection criteria (rule):** The noscut catalog covers the most popular
+imported cars in Russia over the last 5 years (rolling window: current year
+minus 5). Based on Autostat/AEB new car sales, parallel import volumes, and
+secondary market demand. Review and update the model list annually.
+
+**Sources:** official dealer sales, parallel import data (Autostat/AEB),
+secondary market (auto.ru, avito).
+
+**Current brands:** Toyota, Lexus, Honda, Nissan, Mitsubishi, Hyundai, Kia,
+Genesis, Haval, Chery, Geely, BYD, Li Auto, NIO, Changan,
+BMW, Mercedes-Benz, Volkswagen, Subaru, Mazda, Audi, Skoda.
+
+**Generation batch rule:** generate-noscut.ts MUST be run via watchdog
+with --batch=5. Each run processes exactly 5 models needing generation
+(skips count-complete models), then exits with [done]. Watchdog reruns
+automatically until no models remain. Rationale: DashScope image API prone
+to TCP hangs; 5-model batches limit blast radius and memory pressure.
+
+**Run command:**
+  nohup bash scripts/noscut-watchdog.sh --batch=5 --delay=5 \
+    >> /var/log/jckauto-noscut-watchdog.log 2>&1 &
+
+**Model list location:** `src/data/noscut-models.json` (tracked in git).
+To add new models — edit this file and commit. The scripts (generate-noscut.ts,
+build-noscut-catalog.ts) read from this location automatically after deploy.
+
+**Generated artifacts** (jpg images, noscut-catalog.json) live at
+`/var/www/jckauto/storage/noscut/` and are NOT in git.
+
+**Completion check (watchdog exit condition):**
+  All models in src/data/noscut-models.json have both jpg on disk AND
+  non-empty description in noscut-catalog.json.
+
+**After all generation completes:**
+  npx tsx scripts/build-noscut-catalog.ts

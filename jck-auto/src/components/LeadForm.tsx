@@ -40,6 +40,7 @@ export default function LeadForm({
   compact = false,
 }: LeadFormProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const {
     register,
@@ -56,6 +57,7 @@ export default function LeadForm({
 
   const onSubmit = async (data: LeadFormData) => {
     setStatus("loading");
+    setErrorMessage(null);
     try {
       const res = await fetch("/api/lead", {
         method: "POST",
@@ -68,9 +70,19 @@ export default function LeadForm({
           subject: subject || undefined,
         }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        try {
+          const body = await res.json();
+          setErrorMessage(body.error || "Ошибка отправки. Попробуйте позже.");
+        } catch {
+          setErrorMessage("Ошибка отправки. Попробуйте позже.");
+        }
+        setStatus("error");
+        return;
+      }
       setStatus("success");
     } catch {
+      setErrorMessage("Ошибка отправки. Попробуйте позже.");
       setStatus("error");
     }
   };
@@ -125,7 +137,7 @@ export default function LeadForm({
       <button
         type="submit"
         disabled={status === "loading"}
-        className={`flex w-full items-center justify-center gap-2 rounded-xl bg-primary font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-70 ${compact ? "px-4 py-2.5 text-sm" : "px-6 py-3.5"}`}
+        className={`cursor-pointer flex w-full items-center justify-center gap-2 rounded-xl bg-primary font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-70 ${compact ? "px-4 py-2.5 text-sm" : "px-6 py-3.5"}`}
       >
         {status === "loading" ? (
           <>
@@ -137,8 +149,8 @@ export default function LeadForm({
         )}
       </button>
 
-      {status === "error" && (
-        <p className="text-center text-sm text-red-500">Ошибка отправки. Попробуйте позже.</p>
+      {status === "error" && errorMessage && (
+        <p className="text-center text-sm text-red-500">{errorMessage}</p>
       )}
 
     </form>

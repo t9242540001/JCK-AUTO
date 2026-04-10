@@ -7,7 +7,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Link2, Search, FileText } from "lucide-react";
-import { CONTACTS } from "@/lib/constants";
 import { BetaBadge, BetaBanner } from "@/components/BetaBadge";
 import EncarClient from "./EncarClient";
 import { CalculatorFAQ } from "../calculator/CalculatorFAQ";
@@ -126,7 +125,7 @@ export default function EncarPage() {
       </div>
 
       <CalculatorFAQ items={faqItems} />
-      <CalculatorCTA contacts={CONTACTS} />
+      <CalculatorCTA />
     </>
   );
 }

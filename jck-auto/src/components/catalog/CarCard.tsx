@@ -7,18 +7,10 @@ import { motion } from "framer-motion";
 import type { Car } from "@/types/car";
 import {
   formatPrice,
-  getCountryLabel,
-  getCountryFlag,
   getTransmissionLabel,
   cleanBrand,
 } from "@/lib/carUtils";
 import LeadForm from "@/components/LeadForm";
-
-const COUNTRY_BG: Record<string, string> = {
-  china: "bg-china",
-  korea: "bg-korea",
-  japan: "bg-japan",
-};
 
 interface CarCardProps {
   car: Car;
@@ -49,10 +41,10 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
       viewport={{ once: true }}
       transition={{ delay: index * 0.1 }}
     >
-      <div className="relative">
+      <div className={`relative overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-200 ${!isModalOpen ? 'hover:scale-[1.02] hover:shadow-md' : ''}`}>
         <Link
           href={`/catalog/cars/${car.id}`}
-          className="group block overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md"
+          className="group block"
         >
           <div className="relative aspect-[4/3] overflow-hidden">
             <Image
@@ -62,11 +54,6 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
               className="object-cover transition-transform duration-300 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
-            <span
-              className={`absolute top-3 left-3 rounded-full px-3 py-1 text-xs font-medium text-white ${COUNTRY_BG[car.country]}`}
-            >
-              {getCountryFlag(car.country)} {getCountryLabel(car.country)}
-            </span>
           </div>
 
           <div className="p-4">
@@ -102,7 +89,7 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
         <div className="px-4 pb-4">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="mt-2 w-full rounded-xl border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+            className="mt-2 w-full cursor-pointer rounded-xl border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-white"
           >
             Оставить заявку
           </button>
@@ -120,7 +107,7 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
             >
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+                className="absolute right-4 top-4 cursor-pointer text-gray-400 hover:text-gray-600"
                 aria-label="Закрыть"
               >
                 ✕

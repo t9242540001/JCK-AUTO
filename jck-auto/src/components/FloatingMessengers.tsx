@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { MessageCircle, Send } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
@@ -9,7 +10,7 @@ const messengers = [
     name: "Max",
     href: CONTACTS.max,
     bg: "bg-[#0077FF]",
-    icon: <span className="text-lg font-bold leading-none">M</span>,
+    icon: <Image src="/images/max-icon.svg" alt="Max" width={20} height={20} className="h-5 w-5" />,
   },
   {
     name: "WhatsApp",
@@ -31,7 +32,26 @@ const messengers = [
 
 export default function FloatingMessengers() {
   const [open, setOpen] = useState(false);
+  const [shaking, setShaking] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const STORAGE_KEY = "fm_shake_shown";
+    if (typeof sessionStorage !== "undefined" &&
+        sessionStorage.getItem(STORAGE_KEY)) return;
+
+    const timer = setTimeout(() => {
+      setShaking(true);
+      setTimeout(() => {
+        setShaking(false);
+        if (typeof sessionStorage !== "undefined") {
+          sessionStorage.setItem(STORAGE_KEY, "1");
+        }
+      }, 600);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -50,6 +70,18 @@ export default function FloatingMessengers() {
   }, [open]);
 
   return (
+    <>
+    <style>{`
+      @keyframes fm-shake {
+        0%   { transform: rotate(0deg) scale(1); }
+        15%  { transform: rotate(-12deg) scale(1.1); }
+        30%  { transform: rotate(10deg) scale(1.1); }
+        45%  { transform: rotate(-8deg) scale(1.05); }
+        60%  { transform: rotate(6deg) scale(1.05); }
+        75%  { transform: rotate(-4deg) scale(1.02); }
+        100% { transform: rotate(0deg) scale(1); }
+      }
+    `}</style>
     <div ref={containerRef} className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 max-sm:bottom-4 max-sm:right-4">
       {/* Child buttons */}
       {messengers.map((m, i) => (
@@ -89,9 +121,13 @@ export default function FloatingMessengers() {
         className={`flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-transform duration-300 hover:scale-110 max-sm:h-12 max-sm:w-12 ${
           open ? "rotate-[135deg]" : "rotate-0"
         }`}
+        style={shaking ? {
+          animation: "fm-shake 0.6s ease-in-out",
+        } : undefined}
       >
         <MessageCircle className="h-6 w-6 max-sm:h-5 max-sm:w-5" />
       </button>
     </div>
+    </>
   );
 }

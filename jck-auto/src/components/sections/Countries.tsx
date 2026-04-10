@@ -2,8 +2,8 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Check, Send } from "lucide-react";
-import { CONTACTS, type Country } from "@/lib/constants";
+import { Check } from "lucide-react";
+import { type Country } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 interface CountryData {
@@ -142,17 +142,6 @@ export default function Countries() {
                   ))}
                 </ul>
 
-                <div className="mt-6 border-t border-border pt-4">
-                  <a
-                    href={CONTACTS.telegram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#229ED9]"
-                  >
-                    <Send className="h-4 w-4" />
-                    Написать в Telegram
-                  </a>
-                </div>
               </div>
             </motion.div>
           ))}

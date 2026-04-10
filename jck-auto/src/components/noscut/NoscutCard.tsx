@@ -6,23 +6,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import LeadForm from "@/components/LeadForm";
 
-const COUNTRY_BG: Record<string, string> = {
-  china: "bg-china",
-  korea: "bg-korea",
-  japan: "bg-japan",
-};
-
-const COUNTRY_FLAG: Record<string, string> = {
-  japan: "🇯🇵",
-  korea: "🇰🇷",
-  china: "🇨🇳",
-};
-
-const COUNTRY_LABEL: Record<string, string> = {
-  japan: "Япония",
-  korea: "Корея",
-  china: "Китай",
-};
 
 interface NoscutEntry {
   slug: string;
@@ -63,10 +46,10 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
       viewport={{ once: true }}
       transition={{ delay: Math.min(index, 4) * 0.08 }}
     >
-      <div className="relative">
+      <div className={`relative overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-200 ${!isModalOpen ? 'hover:scale-[1.02] hover:shadow-md' : ''}`}>
         <Link
           href={`/catalog/noscut/${entry.slug}`}
-          className="group block overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md"
+          className="group block"
         >
           <div className="relative aspect-[4/3] overflow-hidden">
             <Image
@@ -76,11 +59,6 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
               className="object-cover transition-transform duration-300 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
-            <span
-              className={`absolute top-3 left-3 rounded-full px-3 py-1 text-xs font-medium text-white ${COUNTRY_BG[entry.country] ?? "bg-gray-500"}`}
-            >
-              {COUNTRY_FLAG[entry.country]} {COUNTRY_LABEL[entry.country]}
-            </span>
             {entry.inStock && (
               <span className="absolute top-3 right-3 rounded-full bg-green-500 px-3 py-1 text-xs font-medium text-white">
                 В наличии
@@ -89,7 +67,10 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
           </div>
 
           <div className="p-4">
-            <h3 className="font-heading text-lg font-bold text-text">
+            <p className="text-xs font-medium uppercase tracking-wider text-secondary">
+              Ноускат
+            </p>
+            <h3 className="mt-0.5 font-heading text-lg font-bold text-text">
               {entry.make} {entry.model} {entry.generation}
             </h3>
             <p className="mt-1 text-sm text-text-muted">
@@ -117,7 +98,7 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
         <div className="px-4 pb-4">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="mt-2 w-full rounded-xl border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+            className="mt-2 w-full cursor-pointer rounded-xl border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-white"
           >
             Оставить заявку
           </button>
@@ -135,7 +116,7 @@ export default function NoscutCard({ entry, index = 0 }: NoscutCardProps) {
             >
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+                className="absolute right-4 top-4 cursor-pointer text-gray-400 hover:text-gray-600"
                 aria-label="Закрыть"
               >
                 ✕

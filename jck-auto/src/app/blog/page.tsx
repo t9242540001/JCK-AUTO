@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getAllPosts } from "@/lib/blog";
+import SocialFollow from "@/components/sections/SocialFollow";
 
 export const metadata: Metadata = {
   title: {
@@ -118,6 +119,7 @@ export default function BlogPage() {
           </p>
         )}
       </div>
+      <SocialFollow />
     </div>
   );
 }

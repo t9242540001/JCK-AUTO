@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Send, Youtube, Instagram } from "lucide-react";
+import { CONTACTS } from "@/lib/constants";
 
 const socials = [
   {
@@ -18,7 +19,7 @@ const socials = [
   },
   {
     label: "Instagram",
-    href: "https://instagram.com/jck_auto",
+    href: CONTACTS.instagram,
     icon: Instagram,
     className: "bg-gradient-to-br from-[#833AB4] via-[#FD1D1D] to-[#F77737] hover:opacity-90",
   },

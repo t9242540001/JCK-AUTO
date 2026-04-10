@@ -22,18 +22,89 @@ jobs:
           host: ${{ secrets.VDS_HOST }}
           username: root
           key: ${{ secrets.VDS_SSH_KEY }}
-          script_stop: true
-          command_timeout: 15m
+          command_timeout: 20m
           script: |
+            set -e
             source /root/.bashrc 2>/dev/null || source /root/.profile 2>/dev/null || true
             cd /var/www/jckauto/app/jck-auto
             git fetch origin
             git reset --hard origin/main
-            npm install
-            rm -rf .next
-            NODE_OPTIONS="--max-old-space-size=1536" npm run build
+            # npm 10.8.2 has a reify exit code bug in non-TTY (Actions) context: returns 1
+            # even after successful install when many platform-specific optional deps
+            # fail to reify (sharp, swc, oxide, resolver-binding — ~50 platform variants).
+            # appleboy/ssh-action with script_stop:true intercepts non-zero exits BEFORE
+            # bash's `||` short-circuit can catch them, so we use `if ... then ... else ... fi`.
+            # The `if` statement is one bash syntactic unit; per POSIX, errexit does NOT
+            # apply to commands inside an `if` condition, and the statement's exit code
+            # equals the last command in the executed branch (echo, returning 0).
+            echo "[wrapper] step 1: starting npm ci"
+            if npm ci --no-audit --no-fund; then
+              NPM_EXIT=0
+              echo "[wrapper] step 2: npm ci returned 0"
+            else
+              NPM_EXIT=$?
+              echo "[wrapper] step 2: npm ci returned $NPM_EXIT (will verify node_modules)"
+            fi
+            echo "[wrapper] step 3: verifying critical packages exist in node_modules"
+            if [ ! -d node_modules/next ] || [ ! -d node_modules/react ] || [ ! -d node_modules/sharp ] || [ ! -d node_modules/@next/swc-linux-x64-gnu ]; then
+              echo "[wrapper] FATAL: node_modules incomplete after npm ci (next/react/sharp/swc-linux-x64-gnu missing)"
+              exit 1
+            fi
+            echo "[wrapper] step 4: critical packages verified intact"
+            if [ "$NPM_EXIT" != "0" ]; then
+              echo "[wrapper] step 5: npm ci had non-zero exit ($NPM_EXIT) but install succeeded — npm 10.8.2 reify bug, continuing"
+            fi
+            echo "[wrapper] step 6: wrapper complete, proceeding to two-slot build"
+
+            # Self-healing: if .next is a regular directory (not symlink), something
+            # ran npm run build without NEXT_DIST_DIR. Restore two-slot setup.
+            if [ -d ".next" ] && [ ! -L ".next" ]; then
+              echo "[build] WARNING: .next is a directory, not a symlink — restoring two-slot setup"
+              if [ -f ".next/BUILD_ID" ]; then
+                rm -rf .next-a
+                mv .next .next-a
+                ln -sfn .next-a .next
+                echo "[build] WARNING: saved existing build as .next-a, symlink restored"
+              else
+                rm -rf .next
+                if [ -d ".next-a" ]; then
+                  ln -sfn .next-a .next
+                elif [ -d ".next-b" ]; then
+                  ln -sfn .next-b .next
+                else
+                  echo "[build] FATAL: no .next slot available to restore"
+                  exit 1
+                fi
+                echo "[build] WARNING: removed broken .next, symlink restored from slot"
+              fi
+            fi
+
+            # Two-slot atomic build: build into inactive slot, swap symlink, restart
+
+            # Determine which slot is currently active, build into the other
+            echo "[build] step 1: determining active slot"
+            CURRENT_SLOT=$(readlink .next 2>/dev/null || echo "none")
+            if [ "$CURRENT_SLOT" = ".next-a" ]; then
+              NEXT_SLOT=".next-b"
+            else
+              NEXT_SLOT=".next-a"
+            fi
+            echo "[build] step 2: active=$CURRENT_SLOT, building into=$NEXT_SLOT"
+
+            # Clean inactive slot and build into it (server keeps reading active slot)
+            echo "[build] step 3: cleaning inactive slot $NEXT_SLOT"
+            rm -rf "$NEXT_SLOT"
+            echo "[build] step 4: starting next build into $NEXT_SLOT"
+            NEXT_DIST_DIR="$NEXT_SLOT" npm run build
+            echo "[build] step 5: build complete, swapping symlink"
+
+            # Atomic symlink swap + short restart (~5-10s downtime)
+            ln -sfn "$NEXT_SLOT" .next
+            echo "[build] step 6: symlink swapped, restarting jckauto"
             pm2 restart jckauto
+            echo "[build] step 7: restarting jckauto-bot"
             pm2 delete jckauto-bot || true
             pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
             pm2 save
+            echo "[build] step 8: deploy complete"
             pm2 status

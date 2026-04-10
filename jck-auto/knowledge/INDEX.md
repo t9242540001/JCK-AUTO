@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-10
-  @version:     1.1
-  @lines:       46
+  @version:     1.2
+  @lines:       47
 -->
 
 # Knowledge Base — JCK AUTO
@@ -27,7 +27,7 @@
 | [customs-reference.md](customs-reference.md) | ETS brackets, recycling fee conditions, legal entity logic, normative sources | 2026-04-08 |
 | [encar-analyzer.md](encar-analyzer.md) | Encar API data flow, Korean→Russian translation, power estimation, rate limiter | 2026-04-08 |
 | [news-pipeline.md](news-pipeline.md) | RSS → DeepSeek → covers → JSON pipeline, article generator, page URLs, costs | 2026-04-08 |
-| [catalog-pipeline.md](catalog-pipeline.md) | Drive naming conventions, 5-step sync chain, screenshot priority (Russian) | 2026-04-08 |
+| [catalog-pipeline.md](catalog-pipeline.md) | Drive naming conventions, 4-step sync chain, screenshot priority (Russian) | 2026-04-09 |
 | [catalog.md](catalog.md) | Drive naming conventions, 5-step sync chain, screenshot priority (English, with headers) | 2026-04-08 |
 | [shared-mechanics.md](shared-mechanics.md) | Rate limiter (two-mode: ip-key permanent / tg-key daily), BetaBadge, PDF, design system | 2026-04-10 |
 | [telegram-bot.md](telegram-bot.md) | Bot commands, admin IDs, config, limitations, restart commands | 2026-04-08 |

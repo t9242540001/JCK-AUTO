@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Send } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
+import LeadForm from "@/components/LeadForm";
 
 export default function ContactCTA() {
   return (
@@ -25,21 +25,22 @@ export default function ContactCTA() {
             Бесплатная консультация. Ответим в течение 15 минут
           </p>
 
-          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <a
-              href={CONTACTS.telegram}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-8 py-4 font-medium text-white transition-colors hover:bg-[#229ED9]"
-            >
-              <Send className="h-5 w-5" />
-              Написать в Telegram
-            </a>
+          {/* Inline form */}
+          <div className="mt-8 mx-auto w-full max-w-sm text-left">
+            <LeadForm
+              subject="Заявка с главной страницы"
+              ctaLabel="Подобрать автомобиль"
+            />
+          </div>
+
+          {/* Secondary CTA */}
+          <div className="mt-4">
             <Link
               href="/calculator"
-              className="rounded-xl border-2 border-primary px-8 py-4 text-center font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+              className="text-sm font-medium text-text-muted underline-offset-4
+                         transition-colors hover:text-primary hover:underline"
             >
-              Рассчитать стоимость
+              Или рассчитайте стоимость самостоятельно →
             </Link>
           </div>
 

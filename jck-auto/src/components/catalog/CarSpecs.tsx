@@ -63,7 +63,7 @@ export default function CarSpecs({ car }: CarSpecsProps) {
           <s.icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
           <div className="min-w-0">
             <p className="text-xs text-text-muted">{s.label}</p>
-            <p className="text-sm font-medium text-text">{s.value}</p>
+            <p className="text-sm font-medium text-text break-words">{s.value}</p>
           </div>
         </div>
       ))}
