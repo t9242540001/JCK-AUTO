@@ -4,7 +4,7 @@
   @description: Plan for Telegram Login Widget, bot rate limiting, new bot tools (customs/auction/noscut)
   @updated:     2026-04-10
   @version:     1.0
-  @lines:       125
+  @lines:       168
 -->
 
 # Telegram Integration Plan
@@ -140,3 +140,29 @@
 - @rule: botRateLimiter must be checked BEFORE any API call in every bot handler
 - @rule: bot photo handler must clear buffer immediately after sending response
 - @rule: anonymous ip-key in rateLimiter NEVER resets — permanent lifetime counter
+
+---
+
+## Strategic Note — Future Auth Gate
+
+When site traffic grows and anonymous API load becomes significant, the 3-free-tries
+model will be replaced with a hard gate: **no access to AI tools without Telegram auth**.
+
+What this means in practice:
+- Auction sheet, Encar analyzer, and any future AI scanners will require login before
+  the first use — no anonymous tries at all.
+- Calculator tools (/calc, /customs) remain free and anonymous — they are lightweight
+  and do not call external AI APIs.
+- The rateLimiter.ts architecture already supports this: switching anonymous quota from
+  3 to 0 is a one-line constant change (MAX_ANONYMOUS_REQUESTS = 0).
+- UI change: instead of a counter "X/3 free uses", show "Sign in via Telegram to use
+  this tool" immediately on page load.
+
+This is a deliberate design decision: current 3-try model is for the growth phase
+(lower friction, wider top of funnel). Hard gate is for the scale phase (cost control,
+higher-quality lead capture). No architectural changes needed to switch — only config.
+
+- @todo: when switching to hard gate, set MAX_ANONYMOUS_REQUESTS = 0 in rateLimiter.ts
+  and update UI copy on all /tools/auction-sheet and /tools/encar pages.
+
+---
