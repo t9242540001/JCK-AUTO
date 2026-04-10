@@ -2,8 +2,8 @@
   @file:        knowledge/bot.md
   @project:     JCK AUTO
   @description: Telegram bot commands, admin config, user storage, constraints
-  @updated:     2026-04-08
-  @version:     1.0
+  @updated:     2026-04-10
+  @version:     1.1
   @lines:       60
 -->
 
@@ -15,6 +15,7 @@
 |---------|------|----------|
 | `/start` | `src/bot/handlers/start.ts` | Welcome message + inline keyboard |
 | `/calc` | `src/bot/handlers/calculator.ts` | Calculator (China/Korea/Japan, 4 age brackets) |
+| `/customs` | `src/bot/handlers/customs.ts` | Customs-only costs (no delivery). 10s cooldown via botRateLimiter |
 | `/catalog` | `src/bot/handlers/catalog.ts` | Show 5 cars with photos |
 | `/contact` | `src/bot/handlers/contact.ts` | Company contacts |
 | Request flow | `src/bot/handlers/request.ts` | Collect info → forward to managers group |

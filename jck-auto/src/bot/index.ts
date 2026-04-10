@@ -1,6 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { registerStartHandler } from "./handlers/start";
 import { registerCalculatorHandler } from "./handlers/calculator";
+import { registerCustomsHandler } from "./handlers/customs";
 import { registerCatalogHandler } from "./handlers/catalog";
 import { registerContactHandler } from "./handlers/contact";
 import { registerRequestHandler } from "./handlers/request";
@@ -47,6 +48,7 @@ bot.on('callback_query', (query) => {
 
 registerStartHandler(bot);
 registerCalculatorHandler(bot);
+registerCustomsHandler(bot);
 registerCatalogHandler(bot, GROUP_CHAT_ID);
 registerContactHandler(bot);
 registerRequestHandler(bot, GROUP_CHAT_ID);

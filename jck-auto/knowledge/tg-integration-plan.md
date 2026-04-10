@@ -81,7 +81,7 @@
 
 ## Block C — New Bot Commands
 
-- [ ] Step 6. Add /customs command to bot (src/bot/handlers/customs.ts)
+- [x] Step 6. Add /customs command to bot (src/bot/handlers/customs.ts)
   - Same pattern as existing /calc handler
   - Calls calculateCustoms() from calculator.ts — do not change calculator logic
   - Apply botRateLimiter: 10-second cooldown
