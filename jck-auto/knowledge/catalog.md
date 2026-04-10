@@ -75,3 +75,20 @@ Step 5 — VDS:
 - Car photos: `/var/www/jckauto/storage/catalog/{carId}/`
 - Site reads catalog via `readCatalogJson()` from `src/lib/blobStorage.ts`
 - ISR revalidation: 1 hour for `/catalog` page
+
+## Noscut Models Selection Criteria
+
+**Rule:** The noscut catalog covers the most popular imported cars in Russia
+over the last 5 years (2020–2025), based on official sales statistics and
+parallel import data (Autostat, AEB).
+
+Sources considered:
+- New car sales (official + authorized dealers)
+- Parallel import volumes by brand and model
+- Secondary market demand
+
+Current coverage: Toyota, Lexus, Honda, Nissan, Mitsubishi, Hyundai, Kia,
+Genesis, Haval, Chery, Geely, BYD, Li Auto, NIO, Changan.
+
+Missing brands identified for addition: BMW, Mercedes-Benz, Volkswagen,
+Subaru, Mazda, Audi, Skoda.
