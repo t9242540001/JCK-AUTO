@@ -100,9 +100,16 @@ to TCP hangs; 5-model batches limit blast radius and memory pressure.
   nohup bash scripts/noscut-watchdog.sh --batch=5 --delay=5 \
     >> /var/log/jckauto-noscut-watchdog.log 2>&1 &
 
+**Model list location:** `src/data/noscut-models.json` (tracked in git).
+To add new models — edit this file and commit. The scripts (generate-noscut.ts,
+build-noscut-catalog.ts) read from this location automatically after deploy.
+
+**Generated artifacts** (jpg images, noscut-catalog.json) live at
+`/var/www/jckauto/storage/noscut/` and are NOT in git.
+
 **Completion check (watchdog exit condition):**
-  All models in models.json have both jpg on disk AND non-empty description
-  in noscut-catalog.json.
+  All models in src/data/noscut-models.json have both jpg on disk AND
+  non-empty description in noscut-catalog.json.
 
 **After all generation completes:**
   npx tsx scripts/build-noscut-catalog.ts

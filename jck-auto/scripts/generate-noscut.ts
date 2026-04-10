@@ -3,6 +3,8 @@
  * @description Generates noscut-catalog.json with descriptions (DeepSeek) and images (DashScope).
  *              Smart resume: skip if jpg+description exist; text-only if jpg exists but no description;
  *              full generation if jpg missing. Writes catalog incrementally after each model.
+ *              Model list: src/data/noscut-models.json (tracked in git).
+ *              Generated artifacts: /var/www/jckauto/storage/noscut/ (NOT in git).
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --delay=5
  * @run npx tsx -r dotenv/config scripts/generate-noscut.ts dotenv_config_path=.env.local --force --limit=2
@@ -48,9 +50,14 @@ interface NoscutEntry {
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 
 const STORAGE_DIR = "/var/www/jckauto/storage/noscut";
-const MODELS_PATH = path.join(STORAGE_DIR, "models.json");
+const MODELS_PATH = path.resolve(__dirname, "../src/data/noscut-models.json");
 const INSTOCK_PATH = path.join(STORAGE_DIR, "noscut-instock.json");
 const CATALOG_PATH = path.join(STORAGE_DIR, "noscut-catalog.json");
+
+if (!fs.existsSync(MODELS_PATH)) {
+  console.error(`[fatal] noscut-models.json not found at: ${MODELS_PATH}`);
+  process.exit(1);
+}
 
 const COMPONENTS = ["бампер", "оптика", "радиатор", "телевизор", "датчики", "камера"];
 
