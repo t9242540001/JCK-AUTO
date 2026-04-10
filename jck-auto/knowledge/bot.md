@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Telegram bot commands, admin config, user storage, constraints
   @updated:     2026-04-10
-  @version:     1.4
-  @lines:       60
+  @version:     1.5
+  @lines:       62
 -->
 
 # Telegram Bot — @jckauto_help_bot
@@ -17,6 +17,7 @@
 | `/calc` | `src/bot/handlers/calculator.ts` | Calculator (China/Korea/Japan, 4 age brackets) |
 | `/customs` | `src/bot/handlers/customs.ts` | Customs-only costs (no delivery). 10s cooldown via botRateLimiter |
 | Photo (any) | `src/bot/handlers/auctionSheet.ts` | Auction sheet OCR via Qwen-VL. 2-min AI cooldown. Max 5 MB. Download via TELEGRAM_API_BASE_URL |
+| Encar.com link | `src/bot/handlers/encar.ts` | Fetch vehicle data + AI power + translation + turnkey cost. 2-min AI cooldown. Cost failure non-fatal |
 | `/noscut [make/model]` | `src/bot/handlers/noscut.ts` | Search noscut catalog; up to 5 results with price, stock status, components. 10s cooldown |
 | `/catalog` | `src/bot/handlers/catalog.ts` | Show 5 cars with photos |
 | `/contact` | `src/bot/handlers/contact.ts` | Company contacts |
