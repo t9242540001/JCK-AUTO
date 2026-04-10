@@ -2,8 +2,10 @@
 # @file noscut-watchdog.sh
 # @description Watchdog for generate-noscut.ts — detects hangs and auto-restarts.
 #              Monitors log file byte count. If no progress in MAX_IDLE_SEC,
-#              kills the process and restarts. Exits when [done] appears in log.
-# @run nohup bash scripts/noscut-watchdog.sh --delay=5 >> /var/log/jckauto-noscut-watchdog.log 2>&1 &
+#              kills the process and restarts. Exits when all models have jpg+description.
+# @run nohup bash scripts/noscut-watchdog.sh --batch=5 --delay=5 >> /var/log/jckauto-noscut-watchdog.log 2>&1 &
+# Runs generate-noscut.ts in batches of 5 until all models have jpg+description.
+# Exits automatically when models.json has no pending models.
 
 set -euo pipefail
 
@@ -16,10 +18,27 @@ EXTRA_ARGS="${*}"
 
 log() { echo "[watchdog $(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"; }
 
+all_done() {
+  node -e "
+    const fs = require('fs');
+    const STORAGE = '/var/www/jckauto/storage/noscut';
+    const models = JSON.parse(fs.readFileSync(STORAGE + '/models.json', 'utf-8'));
+    let catalog = [];
+    try { catalog = JSON.parse(fs.readFileSync(STORAGE + '/noscut-catalog.json', 'utf-8')); } catch {}
+    const descMap = new Map(catalog.map(e => [e.slug, e.description || '']));
+    const pending = models.filter(m => {
+      const hasJpg = fs.existsSync(STORAGE + '/' + m.slug + '.jpg');
+      const hasDesc = (descMap.get(m.slug) || '').trim().length > 0;
+      return !hasJpg || !hasDesc;
+    });
+    console.log(pending.length === 0 ? 'YES' : 'NO:' + pending.length);
+  " 2>/dev/null
+}
+
 cd "$WORKDIR"
 
-if grep -q "\[done\]" "$LOGFILE" 2>/dev/null; then
-  log "Already complete. Delete log to re-run."
+if [ "$(all_done)" = "YES" ]; then
+  log "All models already complete."
   exit 0
 fi
 
@@ -53,11 +72,15 @@ while true; do
 
   wait "$GEN_PID" 2>/dev/null || true
 
-  if grep -q "\[done\]" "$LOGFILE" 2>/dev/null; then
-    log "Generation complete!"
+  DONE_STATUS=$(all_done)
+  if [ "$DONE_STATUS" = "YES" ]; then
+    log "All models complete!"
     exit 0
+  else
+    PENDING=${DONE_STATUS#NO:}
+    log "Still pending: $PENDING models."
   fi
 
-  log "Process ended without [done]. Restarting in ${RESTART_DELAY}s..."
+  log "Restarting in ${RESTART_DELAY}s..."
   sleep "$RESTART_DELAY"
 done
