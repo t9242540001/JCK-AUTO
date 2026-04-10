@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Server config, PM2 processes, deploy procedures, constraints
   @updated:     2026-04-10
-  @version:     1.4
-  @lines:       119
+  @version:     1.5
+  @lines:       124
 -->
 
 # Infrastructure
@@ -77,13 +77,16 @@ NEXT_DIST_DIR="$NEXT_SLOT" npm run build
 ln -sfn "$NEXT_SLOT" .next
 pm2 restart jckauto
 pm2 delete jckauto-bot || true
-pm2 start "npx tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
+pm2 start "node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
 pm2 save && pm2 status
 ```
 
 **IMPORTANT:** `pm2 restart` does NOT reload `.env.local` for the bot.
 Always use `pm2 delete` + `pm2 start` for jckauto-bot.
 **NEVER** run `npm run build` without `NEXT_DIST_DIR` — it destroys the `.next` symlink.
+**IMPORTANT:** Bot startup uses `node_modules/.bin/tsx` (not `npx tsx`). `tsx` is in `devDependencies`
+and installed by `npm ci`. Using `npx tsx` falls back to a global tsx that cannot resolve local
+`dotenv/config` → bot crash with `Cannot find module 'dotenv/config'`.
 
 ## Nginx
 
