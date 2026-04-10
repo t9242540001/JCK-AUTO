@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-10
-  @version:     1.6
-  @lines:       47
+  @version:     1.7
+  @lines:       48
 -->
 
 # Knowledge Base — JCK AUTO
@@ -35,6 +35,7 @@
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
+| [tools.md](tools.md) | /tools/* API endpoints: auction-sheet, DashScope config, Sharp compression, nginx timeout fix | 2026-04-10 |
 
 ## Quick Links
 
