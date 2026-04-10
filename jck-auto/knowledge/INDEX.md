@@ -2,9 +2,9 @@
   @file:        knowledge/INDEX.md
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
-  @updated:     2026-04-09
+  @updated:     2026-04-10
   @version:     1.0
-  @lines:       44
+  @lines:       45
 -->
 
 # Knowledge Base — JCK AUTO
@@ -34,6 +34,7 @@
 | [noscut-spec.md](noscut-spec.md) | ТЗ ноускаты: бизнес-логика, структуры данных, URL, компоненты, форма захвата | 2026-04-09 |
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
+| [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
 
 ## Quick Links
 
