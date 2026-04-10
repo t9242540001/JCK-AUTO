@@ -1,16 +1,20 @@
 /**
  * @file route.ts
  * @description API endpoint для AI-расшифровки японских аукционных листов через Qwen-VL.
+ *              Supports two-mode rate limiting: anonymous (3 lifetime) / Telegram-auth (10/day).
  * @runs VDS
  * @input POST multipart/form-data с изображением (jpg/png/webp/heic, до 10 МБ)
  * @output JSON с распознанными данными аукционного листа
  * @cost ~$0.002/запрос (Qwen3.5-Plus Vision)
- * @rule Rate limit: 3 запроса/день с одного IP (общий лимит с Encar)
+ * @rule Rate limit: anonymous — 3 запроса lifetime с одного IP; auth — 10/day по telegram_id
  * @rule Не логировать содержимое изображений
- * @lastModified 2026-04-02
+ * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var
+ * @lastModified 2026-04-10
  */
 
 import { NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
+import { cookies } from 'next/headers';
 import { analyzeImage } from '@/lib/dashscope';
 import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
 
@@ -100,17 +104,47 @@ function parseJsonFromContent(content: string): unknown {
   return JSON.parse(match?.[1] || content);
 }
 
+/**
+ * Extract telegramId from tg_auth JWT cookie.
+ * Returns telegramId as string if cookie is valid and not expired.
+ * Returns undefined on any error (missing cookie, invalid JWT, missing env var) —
+ * caller falls back to anonymous mode silently.
+ * @rule Never throw — all errors must be caught internally
+ */
+async function getTelegramIdFromCookie(): Promise<string | undefined> {
+  try {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) return undefined;
+
+    const cookieStore = await cookies();
+    const token = cookieStore.get('tg_auth')?.value;
+    if (!token) return undefined;
+
+    const secretBytes = new TextEncoder().encode(jwtSecret);
+    const { payload } = await jwtVerify(token, secretBytes);
+    const id = payload.telegramId;
+    if (!id) return undefined;
+
+    return String(id);
+  } catch {
+    return undefined;
+  }
+}
+
 // ─── ROUTE ────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
+  const telegramId = await getTelegramIdFromCookie();
 
   // Rate limit
-  const limit = checkRateLimit(ip);
+  const limit = checkRateLimit(ip, telegramId);
   if (!limit.allowed) {
     return NextResponse.json({
       error: 'rate_limit',
-      message: 'Лимит бесплатных расшифровок исчерпан (3 в день)',
+      message: telegramId
+        ? 'Дневной лимит запросов исчерпан (10 в день). Завтра лимит обновится.'
+        : 'Лимит бесплатных расшифровок исчерпан. Войдите через Telegram для 10 запросов в день.',
       resetIn: limit.resetIn,
       alternatives: {
         telegram: 'https://t.me/jckauto_help_bot',
@@ -179,9 +213,9 @@ export async function POST(request: Request) {
     }
 
     // Record usage only after success
-    recordUsage(ip);
+    recordUsage(ip, telegramId);
 
-    const remaining = checkRateLimit(ip).remaining;
+    const remaining = checkRateLimit(ip, telegramId).remaining;
 
     return NextResponse.json({
       success: true,
