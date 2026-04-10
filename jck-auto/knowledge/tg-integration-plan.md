@@ -105,7 +105,7 @@
   - If nothing found: "По этой модели ноускатов нет — оставьте заявку" + button
   - Apply botRateLimiter: 5-second cooldown
 
-- [ ] Step 9. Update src/bot/handlers/start.ts — deep link handling
+- [x] Step 9. Update src/bot/handlers/start.ts — deep link handling
   - Extend /start handler: if message.text matches /\/start web_(.+)/, extract source
   - Save source to user record in users.json
   - Show special welcome: "Вы авторизовались через jckauto.ru. Теперь у вас 10 запросов в день на сайте."
