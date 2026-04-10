@@ -16,6 +16,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { analyzeImage } from '../../lib/dashscope';
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from '../../lib/botRateLimiter';
+import { incrementCommand } from '../store/botStats';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -306,6 +307,7 @@ export function registerAuctionSheetHandler(bot: TelegramBot): void {
 
       // 9. Record usage AFTER successful send only
       recordBotUsage(telegramId, 'ai');
+      incrementCommand('auction');
 
     } catch (err) {
       console.error('[auctionSheet] AI error:', err instanceof Error ? err.message : err);

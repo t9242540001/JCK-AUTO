@@ -14,6 +14,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { calculateTotal, formatPrice, type CalcInput, type CarAge } from "../../lib/calculator";
 import { fetchCBRRates, COUNTRY_CURRENCY } from "../../lib/currencyRates";
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from "../../lib/botRateLimiter";
+import { incrementCommand } from "../store/botStats";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ async function finishCustoms(bot: TelegramBot, chatId: number, state: CustState)
     });
 
     recordBotUsage(state.telegramId, "calc");
+    incrementCommand('customs');
   } catch (err) {
     console.error("[customs] calculation error:", err);
     bot.sendMessage(

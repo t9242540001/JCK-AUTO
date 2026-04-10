@@ -10,6 +10,7 @@ import { handleCatalogCommand } from "./catalog";
 import { handleContactCommand } from "./contact";
 import { saveUser } from "../store/users";
 import { ADMIN_IDS } from "../config";
+import { incrementSource, incrementWebAuth } from "../store/botStats";
 
 async function sendStartMessage(bot: TelegramBot, chatId: number, userId?: number) {
   await bot.sendMessage(
@@ -84,6 +85,12 @@ export function registerStartHandler(bot: TelegramBot) {
             ]],
           },
         });
+        incrementWebAuth();
+        const knownSources = ['web_encar', 'web_auction'] as const;
+        const src = `web_${deepLinkMatch[1]}` as string;
+        if ((knownSources as readonly string[]).includes(src)) {
+          incrementSource(src as 'web_encar' | 'web_auction');
+        }
       } catch (err) {
         console.error('[start] deep link welcome error:', err);
         bot.sendMessage(chatId, 'Добро пожаловать! Авторизация через сайт прошла успешно.');
@@ -94,6 +101,7 @@ export function registerStartHandler(bot: TelegramBot) {
     try {
       bot.sendChatAction(chatId, "typing");
       await sendStartMessage(bot, chatId, msg.from?.id);
+      incrementSource('direct');
     } catch (err) {
       console.error("Start command error:", err);
       bot.sendMessage(chatId, "Произошла ошибка. Попробуйте /start");

@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Telegram bot commands, admin config, user storage, constraints
   @updated:     2026-04-10
-  @version:     1.3
+  @version:     1.4
   @lines:       60
 -->
 
@@ -37,6 +37,18 @@
 - `pm2 restart` does NOT reload `.env.local` — must use `pm2 delete` + `pm2 start`
 - Bot token has been exposed in chats — needs regeneration (security issue)
 - Bot runs as PM2 process `jckauto-bot` via tsx runtime
+
+## Stats Tracking
+
+All command handlers emit stats via `incrementCommand()` from `src/bot/store/botStats.ts`.
+- `/calc`, `/customs` → `incrementCommand('calc'/'customs')` in `finishCalc`/`finishCustoms` success path
+- Auction photo → `incrementCommand('auction')` after successful send
+- `/noscut` → `incrementCommand('noscut')` in both found and not-found success paths
+- `/catalog` → `incrementCommand('catalog')` after brand list sent
+- `/start web_{src}` → `incrementWebAuth()` + `incrementSource()` inside try-block
+- `/start` (regular) → `incrementSource('direct')` after `sendStartMessage`
+- Stats stored in `/var/www/jckauto/storage/bot-stats.json` (atomic write via .tmp rename)
+- Viewable via `/stats` command (admin only)
 
 ## Rate Labels
 
