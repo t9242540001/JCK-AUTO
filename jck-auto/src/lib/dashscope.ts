@@ -98,8 +98,8 @@ const QWEN_PLUS_INPUT_PRICE_PER_M = 0.80;
 const QWEN_PLUS_OUTPUT_PRICE_PER_M = 2.40;
 const QWEN_FLASH_INPUT_PRICE_PER_M = 0.05;
 const QWEN_FLASH_OUTPUT_PRICE_PER_M = 0.25;
-const REQUEST_TIMEOUT_MS = 120_000;
-const MAX_RETRIES = 3;
+const REQUEST_TIMEOUT_MS = 60_000;
+const MAX_RETRIES = 2;
 const RATE_LIMIT_PER_MINUTE = 6;
 
 // ─── RATE LIMITER ─────────────────────────────────────────────────────────
@@ -134,6 +134,13 @@ function getApiKey(): string {
   return key;
 }
 
+/** Second-layer hard timeout: fires REQUEST_TIMEOUT_MS + 5 s after AbortSignal */
+function hardTimeout(ms: number, label: string): Promise<never> {
+  return new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`Hard timeout after ${ms}ms: ${label}`)), ms),
+  );
+}
+
 async function fetchWithRetry(
   url: string,
   fetchOptions: RequestInit,
@@ -148,14 +155,14 @@ async function fetchWithRetry(
       );
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    // AbortSignal.timeout() is self-cleaning (no manual clearTimeout needed)
+    const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
 
     try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        signal: controller.signal,
-      });
+      const response = await Promise.race([
+        fetch(url, { ...fetchOptions, signal }),
+        hardTimeout(REQUEST_TIMEOUT_MS + 5_000, url),
+      ]);
 
       if (!response.ok) {
         const responseText = await response.text();
@@ -172,8 +179,6 @@ async function fetchWithRetry(
         throw err;
       }
       lastError = err instanceof Error ? err : new Error(String(err));
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
