@@ -1,37 +1,1496 @@
 [
-  {"make":"BMW","model":"3 Series","generation":"G20","yearStart":2018,"yearEnd":2026,"slug":"bmw-3-series-g20","country":"germany"},
-  {"make":"BMW","model":"5 Series","generation":"G30","yearStart":2016,"yearEnd":2026,"slug":"bmw-5-series-g30","country":"germany"},
-  {"make":"BMW","model":"X3","generation":"G01","yearStart":2017,"yearEnd":2026,"slug":"bmw-x3-g01","country":"germany"},
-  {"make":"BMW","model":"X5","generation":"G05","yearStart":2018,"yearEnd":2026,"slug":"bmw-x5-g05","country":"germany"},
-  {"make":"BMW","model":"X6","generation":"G06","yearStart":2019,"yearEnd":2026,"slug":"bmw-x6-g06","country":"germany"},
-  {"make":"BMW","model":"X7","generation":"G07","yearStart":2018,"yearEnd":2026,"slug":"bmw-x7-g07","country":"germany"},
-  {"make":"Mercedes-Benz","model":"C-Class","generation":"W205","yearStart":2014,"yearEnd":2021,"slug":"mercedes-benz-c-class-w205","country":"germany"},
-  {"make":"Mercedes-Benz","model":"C-Class","generation":"W206","yearStart":2021,"yearEnd":2026,"slug":"mercedes-benz-c-class-w206","country":"germany"},
-  {"make":"Mercedes-Benz","model":"E-Class","generation":"W213","yearStart":2016,"yearEnd":2026,"slug":"mercedes-benz-e-class-w213","country":"germany"},
-  {"make":"Mercedes-Benz","model":"GLC","generation":"X253","yearStart":2015,"yearEnd":2022,"slug":"mercedes-benz-glc-x253","country":"germany"},
-  {"make":"Mercedes-Benz","model":"GLE","generation":"W167","yearStart":2018,"yearEnd":2026,"slug":"mercedes-benz-gle-w167","country":"germany"},
-  {"make":"Mercedes-Benz","model":"GLS","generation":"X167","yearStart":2019,"yearEnd":2026,"slug":"mercedes-benz-gls-x167","country":"germany"},
-  {"make":"Volkswagen","model":"Tiguan","generation":"Mk2","yearStart":2016,"yearEnd":2026,"slug":"volkswagen-tiguan-mk2","country":"germany"},
-  {"make":"Volkswagen","model":"Touareg","generation":"CR","yearStart":2018,"yearEnd":2026,"slug":"volkswagen-touareg-cr","country":"germany"},
-  {"make":"Volkswagen","model":"Polo","generation":"Mk6","yearStart":2017,"yearEnd":2026,"slug":"volkswagen-polo-mk6","country":"germany"},
-  {"make":"Volkswagen","model":"Passat","generation":"B8","yearStart":2014,"yearEnd":2026,"slug":"volkswagen-passat-b8","country":"germany"},
-  {"make":"Volkswagen","model":"Tayron","generation":"Mk1","yearStart":2023,"yearEnd":2026,"slug":"volkswagen-tayron-mk1","country":"germany"},
-  {"make":"Subaru","model":"Forester","generation":"SK","yearStart":2018,"yearEnd":2026,"slug":"subaru-forester-sk","country":"japan"},
-  {"make":"Subaru","model":"Outback","generation":"BT","yearStart":2019,"yearEnd":2026,"slug":"subaru-outback-bt","country":"japan"},
-  {"make":"Subaru","model":"XV","generation":"GT","yearStart":2017,"yearEnd":2026,"slug":"subaru-xv-gt","country":"japan"},
-  {"make":"Subaru","model":"Impreza","generation":"GK","yearStart":2016,"yearEnd":2026,"slug":"subaru-impreza-gk","country":"japan"},
-  {"make":"Subaru","model":"Legacy","generation":"BN","yearStart":2014,"yearEnd":2019,"slug":"subaru-legacy-bn","country":"japan"},
-  {"make":"Mazda","model":"CX-5","generation":"KF","yearStart":2016,"yearEnd":2026,"slug":"mazda-cx-5-kf","country":"japan"},
-  {"make":"Mazda","model":"CX-9","generation":"TC","yearStart":2016,"yearEnd":2026,"slug":"mazda-cx-9-tc","country":"japan"},
-  {"make":"Mazda","model":"3","generation":"BP","yearStart":2018,"yearEnd":2026,"slug":"mazda-3-bp","country":"japan"},
-  {"make":"Mazda","model":"6","generation":"GJ","yearStart":2012,"yearEnd":2023,"slug":"mazda-6-gj","country":"japan"},
-  {"make":"Mazda","model":"CX-30","generation":"DM","yearStart":2019,"yearEnd":2026,"slug":"mazda-cx-30-dm","country":"japan"},
-  {"make":"Audi","model":"Q5","generation":"FY","yearStart":2016,"yearEnd":2026,"slug":"audi-q5-fy","country":"germany"},
-  {"make":"Audi","model":"Q7","generation":"4M","yearStart":2015,"yearEnd":2026,"slug":"audi-q7-4m","country":"germany"},
-  {"make":"Audi","model":"A4","generation":"B9","yearStart":2015,"yearEnd":2026,"slug":"audi-a4-b9","country":"germany"},
-  {"make":"Audi","model":"A6","generation":"C8","yearStart":2018,"yearEnd":2026,"slug":"audi-a6-c8","country":"germany"},
-  {"make":"Skoda","model":"Octavia","generation":"A8","yearStart":2020,"yearEnd":2026,"slug":"skoda-octavia-a8","country":"germany"},
-  {"make":"Skoda","model":"Kodiaq","generation":"NS","yearStart":2016,"yearEnd":2026,"slug":"skoda-kodiaq-ns","country":"germany"},
-  {"make":"Skoda","model":"Karoq","generation":"NU","yearStart":2017,"yearEnd":2026,"slug":"skoda-karoq-nu","country":"germany"},
-  {"make":"Skoda","model":"Superb","generation":"B8","yearStart":2015,"yearEnd":2026,"slug":"skoda-superb-b8","country":"germany"}
+  {
+    "make": "Toyota",
+    "model": "Land Cruiser Prado",
+    "generation": "J150",
+    "yearStart": 2009,
+    "yearEnd": 2024,
+    "slug": "toyota-land-cruiser-prado-j150",
+    "country": "japan"
+  },
+  {
+    "make": "Lexus",
+    "model": "RX",
+    "generation": "AL20",
+    "yearStart": 2015,
+    "yearEnd": 2022,
+    "slug": "lexus-rx-al20",
+    "country": "japan"
+  },
+  {
+    "make": "Lexus",
+    "model": "RX",
+    "generation": "AL30",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "slug": "lexus-rx-al30",
+    "country": "japan"
+  },
+  {
+    "make": "Lexus",
+    "model": "LX",
+    "generation": "J300",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "slug": "lexus-lx-j300",
+    "country": "japan"
+  },
+  {
+    "make": "Lexus",
+    "model": "NX",
+    "generation": "AZ20",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "slug": "lexus-nx-az20",
+    "country": "japan"
+  },
+  {
+    "make": "Toyota",
+    "model": "Camry",
+    "generation": "XV70",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-camry-xv70"
+  },
+  {
+    "make": "Toyota",
+    "model": "RAV4",
+    "generation": "XA50",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-rav4-xa50"
+  },
+  {
+    "make": "Toyota",
+    "model": "Land Cruiser 300",
+    "generation": "J300",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-land-cruiser-300-j300"
+  },
+  {
+    "make": "Toyota",
+    "model": "Highlander",
+    "generation": "XU70",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-highlander-xu70"
+  },
+  {
+    "make": "Toyota",
+    "model": "Hilux",
+    "generation": "AN120/AN130",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-hilux-an120-an130"
+  },
+  {
+    "make": "Toyota",
+    "model": "Fortuner",
+    "generation": "AN150/AN160",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-fortuner-an150-an160"
+  },
+  {
+    "make": "Toyota",
+    "model": "C-HR",
+    "generation": "AX10/AX20",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-c-hr-ax10-ax20"
+  },
+  {
+    "make": "Toyota",
+    "model": "Corolla",
+    "generation": "E210",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-corolla-e210"
+  },
+  {
+    "make": "Toyota",
+    "model": "Harrier",
+    "generation": "XU80",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-harrier-xu80"
+  },
+  {
+    "make": "Toyota",
+    "model": "Alphard",
+    "generation": "AH30",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-alphard-ah30"
+  },
+  {
+    "make": "Toyota",
+    "model": "Vellfire",
+    "generation": "AH30",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-vellfire-ah30"
+  },
+  {
+    "make": "Toyota",
+    "model": "Noah",
+    "generation": "R90",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-noah-r90"
+  },
+  {
+    "make": "Toyota",
+    "model": "Voxy",
+    "generation": "R90",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "toyota-voxy-r90"
+  },
+  {
+    "make": "Lexus",
+    "model": "RX",
+    "generation": "AL10",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "lexus-rx-al10"
+  },
+  {
+    "make": "Lexus",
+    "model": "NX",
+    "generation": "AZ10",
+    "yearStart": 2014,
+    "yearEnd": 2021,
+    "country": "japan",
+    "slug": "lexus-nx-az10"
+  },
+  {
+    "make": "Lexus",
+    "model": "LX",
+    "generation": "J200",
+    "yearStart": 2007,
+    "yearEnd": 2021,
+    "country": "japan",
+    "slug": "lexus-lx-j200"
+  },
+  {
+    "make": "Lexus",
+    "model": "GX",
+    "generation": "J150",
+    "yearStart": 2009,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "lexus-gx-j150"
+  },
+  {
+    "make": "Lexus",
+    "model": "ES",
+    "generation": "XV70",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "lexus-es-xv70"
+  },
+  {
+    "make": "Lexus",
+    "model": "IS",
+    "generation": "XE30",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "lexus-is-xe30"
+  },
+  {
+    "make": "Lexus",
+    "model": "UX",
+    "generation": "ZA10",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "lexus-ux-za10"
+  },
+  {
+    "make": "Lexus",
+    "model": "LS",
+    "generation": "XF50",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "lexus-ls-xf50"
+  },
+  {
+    "make": "Honda",
+    "model": "Accord",
+    "generation": "CR9",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "honda-accord-cr9"
+  },
+  {
+    "make": "Honda",
+    "model": "Civic",
+    "generation": "FK7/FK8",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "honda-civic-fk7-fk8"
+  },
+  {
+    "make": "Honda",
+    "model": "CR-V",
+    "generation": "RW",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "honda-cr-v-rw"
+  },
+  {
+    "make": "Honda",
+    "model": "Fit/Jazz",
+    "generation": "GK",
+    "yearStart": 2013,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "honda-fit-jazz-gk"
+  },
+  {
+    "make": "Honda",
+    "model": "HR-V",
+    "generation": "RU",
+    "yearStart": 2014,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "honda-hr-v-ru"
+  },
+  {
+    "make": "Honda",
+    "model": "Pilot",
+    "generation": "YL9",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "honda-pilot-yl9"
+  },
+  {
+    "make": "Nissan",
+    "model": "Almera",
+    "generation": "G15",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "nissan-almera-g15"
+  },
+  {
+    "make": "Nissan",
+    "model": "Juke",
+    "generation": "F15",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "nissan-juke-f15"
+  },
+  {
+    "make": "Nissan",
+    "model": "Murano",
+    "generation": "Z52",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "nissan-murano-z52"
+  },
+  {
+    "make": "Nissan",
+    "model": "Qashqai",
+    "generation": "J12",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "nissan-qashqai-j12"
+  },
+  {
+    "make": "Nissan",
+    "model": "Qashqai",
+    "generation": "J11",
+    "yearStart": 2013,
+    "yearEnd": 2021,
+    "country": "japan",
+    "slug": "nissan-qashqai-j11"
+  },
+  {
+    "make": "Nissan",
+    "model": "Sentra",
+    "generation": "B18",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "nissan-sentra-b18"
+  },
+  {
+    "make": "Nissan",
+    "model": "Teana",
+    "generation": "L52",
+    "yearStart": 2013,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "nissan-teana-l52"
+  },
+  {
+    "make": "Nissan",
+    "model": "X-Trail",
+    "generation": "T33",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "nissan-x-trail-t33"
+  },
+  {
+    "make": "Nissan",
+    "model": "X-Trail",
+    "generation": "T32",
+    "yearStart": 2013,
+    "yearEnd": 2021,
+    "country": "japan",
+    "slug": "nissan-x-trail-t32"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "Lancer",
+    "generation": "CY4A",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "mitsubishi-lancer-cy4a"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "Outlander",
+    "generation": "GF8W",
+    "yearStart": 2012,
+    "yearEnd": 2021,
+    "country": "japan",
+    "slug": "mitsubishi-outlander-gf8w"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "Outlander",
+    "generation": "GF9W",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "mitsubishi-outlander-gf9w"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "Pajero Sport",
+    "generation": "Q7W",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "mitsubishi-pajero-sport-q7w"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "ASX",
+    "generation": "GA2W",
+    "yearStart": 2010,
+    "yearEnd": 2021,
+    "country": "japan",
+    "slug": "mitsubishi-asx-ga2w"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "ASX",
+    "generation": "GA3W",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "mitsubishi-asx-ga3w"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "Eclipse Cross",
+    "generation": "FK2W",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "mitsubishi-eclipse-cross-fk2w"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "Delica D:5",
+    "generation": "D:5",
+    "yearStart": 2007,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "mitsubishi-delica-d:5-d:5"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "Mirage",
+    "generation": "A0",
+    "yearStart": 2012,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "mitsubishi-mirage-a0"
+  },
+  {
+    "make": "Mitsubishi",
+    "model": "Attrage",
+    "generation": "A0",
+    "yearStart": 2013,
+    "yearEnd": 2026,
+    "country": "japan",
+    "slug": "mitsubishi-attrage-a0"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Solaris",
+    "generation": "RB",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-solaris-rb"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Creta",
+    "generation": "SU2",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-creta-su2"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Tucson",
+    "generation": "NX4",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-tucson-nx4"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Santa Fe",
+    "generation": "TM",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-santa-fe-tm"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Sonata",
+    "generation": "DN8",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-sonata-dn8"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Elantra",
+    "generation": "CN7",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-elantra-cn7"
+  },
+  {
+    "make": "Kia",
+    "model": "Rio",
+    "generation": "YB",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-rio-yb"
+  },
+  {
+    "make": "Kia",
+    "model": "Sportage",
+    "generation": "NQ5",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-sportage-nq5"
+  },
+  {
+    "make": "Kia",
+    "model": "Sorento",
+    "generation": "MQ4",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-sorento-mq4"
+  },
+  {
+    "make": "Kia",
+    "model": "K5",
+    "generation": "DL3",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-k5-dl3"
+  },
+  {
+    "make": "Kia",
+    "model": "Cerato",
+    "generation": "BD",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-cerato-bd"
+  },
+  {
+    "make": "Kia",
+    "model": "Seltos",
+    "generation": "SP2",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-seltos-sp2"
+  },
+  {
+    "make": "Kia",
+    "model": "Mohave",
+    "generation": "HM",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-mohave-hm"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Palisade",
+    "generation": "LX2",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-palisade-lx2"
+  },
+  {
+    "make": "Kia",
+    "model": "Carnival",
+    "generation": "KA4",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-carnival-ka4"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Staria",
+    "generation": "US4",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-staria-us4"
+  },
+  {
+    "make": "Kia",
+    "model": "Stinger",
+    "generation": "CK",
+    "yearStart": 2017,
+    "yearEnd": 2023,
+    "country": "korea",
+    "slug": "kia-stinger-ck"
+  },
+  {
+    "make": "Hyundai",
+    "model": "i30",
+    "generation": "PD",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-i30-pd"
+  },
+  {
+    "make": "Kia",
+    "model": "Ceed",
+    "generation": "CD",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-ceed-cd"
+  },
+  {
+    "make": "Hyundai",
+    "model": "Venue",
+    "generation": "QX",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "hyundai-venue-qx"
+  },
+  {
+    "make": "Kia",
+    "model": "K9",
+    "generation": "RJ",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "kia-k9-rj"
+  },
+  {
+    "make": "Genesis",
+    "model": "G70",
+    "generation": "IK",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "genesis-g70-ik"
+  },
+  {
+    "make": "Genesis",
+    "model": "G80",
+    "generation": "RG4",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "genesis-g80-rg4"
+  },
+  {
+    "make": "Genesis",
+    "model": "G90",
+    "generation": "HI2",
+    "yearStart": 2018,
+    "yearEnd": 2022,
+    "country": "korea",
+    "slug": "genesis-g90-hi2"
+  },
+  {
+    "make": "Genesis",
+    "model": "G90",
+    "generation": "HI3",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "genesis-g90-hi3"
+  },
+  {
+    "make": "Genesis",
+    "model": "GV70",
+    "generation": "JK1",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "genesis-gv70-jk1"
+  },
+  {
+    "make": "Genesis",
+    "model": "GV80",
+    "generation": "JX1",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "genesis-gv80-jx1"
+  },
+  {
+    "make": "Genesis",
+    "model": "GV60",
+    "generation": "JW1",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "genesis-gv60-jw1"
+  },
+  {
+    "make": "Genesis",
+    "model": "G80 Electrified",
+    "generation": "RG4",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "genesis-g80-electrified-rg4"
+  },
+  {
+    "make": "Genesis",
+    "model": "GV70 Electrified",
+    "generation": "JK1",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "korea",
+    "slug": "genesis-gv70-electrified-jk1"
+  },
+  {
+    "make": "Haval",
+    "model": "H6",
+    "generation": "HAVAL H6 (second generation)",
+    "yearStart": 2017,
+    "yearEnd": 2021,
+    "country": "china",
+    "slug": "haval-h6-haval-h6-(second-generation)"
+  },
+  {
+    "make": "Haval",
+    "model": "H6",
+    "generation": "HAVAL H6 (third generation)",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "haval-h6-haval-h6-(third-generation)"
+  },
+  {
+    "make": "Haval",
+    "model": "F7",
+    "generation": "HAVAL F7 (first generation)",
+    "yearStart": 2018,
+    "yearEnd": 2022,
+    "country": "china",
+    "slug": "haval-f7-haval-f7-(first-generation)"
+  },
+  {
+    "make": "Haval",
+    "model": "F7x",
+    "generation": "HAVAL F7x (first generation)",
+    "yearStart": 2019,
+    "yearEnd": 2022,
+    "country": "china",
+    "slug": "haval-f7x-haval-f7x-(first-generation)"
+  },
+  {
+    "make": "Haval",
+    "model": "Jolion",
+    "generation": "HAVAL Jolion (first generation)",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "haval-jolion-haval-jolion-(first-generation)"
+  },
+  {
+    "make": "Haval",
+    "model": "Dargo",
+    "generation": "HAVAL Dargo (first generation)",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "haval-dargo-haval-dargo-(first-generation)"
+  },
+  {
+    "make": "Haval",
+    "model": "M6",
+    "generation": "HAVAL M6 (first generation)",
+    "yearStart": 2017,
+    "yearEnd": 2021,
+    "country": "china",
+    "slug": "haval-m6-haval-m6-(first-generation)"
+  },
+  {
+    "make": "Haval",
+    "model": "M6 Plus",
+    "generation": "HAVAL M6 Plus (first generation)",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "haval-m6-plus-haval-m6-plus-(first-generation)"
+  },
+  {
+    "make": "Haval",
+    "model": "H9",
+    "generation": "HAVAL H9 (second generation)",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "haval-h9-haval-h9-(second-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 4",
+    "generation": "Tiggo 4 (first generation)",
+    "yearStart": 2017,
+    "yearEnd": 2021,
+    "country": "china",
+    "slug": "chery-tiggo-4-tiggo-4-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 4 Pro",
+    "generation": "Tiggo 4 Pro (first generation)",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "chery-tiggo-4-pro-tiggo-4-pro-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 7",
+    "generation": "Tiggo 7 (first generation)",
+    "yearStart": 2016,
+    "yearEnd": 2021,
+    "country": "china",
+    "slug": "chery-tiggo-7-tiggo-7-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 7 Pro",
+    "generation": "Tiggo 7 Pro (first generation)",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "chery-tiggo-7-pro-tiggo-7-pro-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 8",
+    "generation": "Tiggo 8 (first generation)",
+    "yearStart": 2018,
+    "yearEnd": 2022,
+    "country": "china",
+    "slug": "chery-tiggo-8-tiggo-8-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 8 Pro",
+    "generation": "Tiggo 8 Pro (first generation)",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "chery-tiggo-8-pro-tiggo-8-pro-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 8 Plus",
+    "generation": "Tiggo 8 Plus (first generation)",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "chery-tiggo-8-plus-tiggo-8-plus-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Arrizo 6",
+    "generation": "Arrizo 6 (first generation)",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "chery-arrizo-6-arrizo-6-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 2 Pro",
+    "generation": "Tiggo 2 Pro (first generation)",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "chery-tiggo-2-pro-tiggo-2-pro-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 5x",
+    "generation": "Tiggo 5x (first generation)",
+    "yearStart": 2017,
+    "yearEnd": 2021,
+    "country": "china",
+    "slug": "chery-tiggo-5x-tiggo-5x-(first-generation)"
+  },
+  {
+    "make": "Chery",
+    "model": "Tiggo 5x Pro",
+    "generation": "Tiggo 5x Pro (first generation)",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "chery-tiggo-5x-pro-tiggo-5x-pro-(first-generation)"
+  },
+  {
+    "make": "Geely",
+    "model": "Atlas",
+    "generation": "NL-3",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "geely-atlas-nl-3"
+  },
+  {
+    "make": "Geely",
+    "model": "Atlas Pro",
+    "generation": "NL-3",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "geely-atlas-pro-nl-3"
+  },
+  {
+    "make": "Geely",
+    "model": "Coolray",
+    "generation": "SX11",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "geely-coolray-sx11"
+  },
+  {
+    "make": "Geely",
+    "model": "Tugella",
+    "generation": "FY11",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "geely-tugella-fy11"
+  },
+  {
+    "make": "Geely",
+    "model": "Monjaro",
+    "generation": "KX11",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "geely-monjaro-kx11"
+  },
+  {
+    "make": "Geely",
+    "model": "Emgrand 7",
+    "generation": "FE-5",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "geely-emgrand-7-fe-5"
+  },
+  {
+    "make": "BYD",
+    "model": "Song Plus",
+    "generation": "SA2",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "byd-song-plus-sa2"
+  },
+  {
+    "make": "BYD",
+    "model": "Han",
+    "generation": "HC",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "byd-han-hc"
+  },
+  {
+    "make": "BYD",
+    "model": "Tang",
+    "generation": "SE6A",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "byd-tang-se6a"
+  },
+  {
+    "make": "BYD",
+    "model": "Yuan Plus",
+    "generation": "EA1",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "byd-yuan-plus-ea1"
+  },
+  {
+    "make": "BYD",
+    "model": "Seal",
+    "generation": "BYD e-Platform 3.0",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "byd-seal-byd-e-platform-3.0"
+  },
+  {
+    "make": "BYD",
+    "model": "Dolphin",
+    "generation": "BYD e-Platform 3.0",
+    "yearStart": 2023,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "byd-dolphin-byd-e-platform-3.0"
+  },
+  {
+    "make": "Li Auto",
+    "model": "Li ONE",
+    "generation": "XA50",
+    "yearStart": 2020,
+    "yearEnd": 2022,
+    "country": "china",
+    "slug": "li-auto-li-one-xa50"
+  },
+  {
+    "make": "Li Auto",
+    "model": "Li L9",
+    "generation": "XA01",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "li-auto-li-l9-xa01"
+  },
+  {
+    "make": "Li Auto",
+    "model": "Li L8",
+    "generation": "XA02",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "li-auto-li-l8-xa02"
+  },
+  {
+    "make": "Li Auto",
+    "model": "Li L7",
+    "generation": "XA03",
+    "yearStart": 2023,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "li-auto-li-l7-xa03"
+  },
+  {
+    "make": "NIO",
+    "model": "ES8",
+    "generation": "NP1",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "nio-es8-np1"
+  },
+  {
+    "make": "NIO",
+    "model": "ES6",
+    "generation": "NP2",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "nio-es6-np2"
+  },
+  {
+    "make": "NIO",
+    "model": "EC6",
+    "generation": "NP2",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "nio-ec6-np2"
+  },
+  {
+    "make": "NIO",
+    "model": "ET7",
+    "generation": "NT2.0",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "nio-et7-nt2.0"
+  },
+  {
+    "make": "NIO",
+    "model": "ET5",
+    "generation": "NT2.0",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "nio-et5-nt2.0"
+  },
+  {
+    "make": "NIO",
+    "model": "ES7",
+    "generation": "NT2.0",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "nio-es7-nt2.0"
+  },
+  {
+    "make": "Changan",
+    "model": "CS35 Plus",
+    "generation": "SC7156",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "changan-cs35-plus-sc7156"
+  },
+  {
+    "make": "Changan",
+    "model": "CS55 Plus",
+    "generation": "SC6469",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "changan-cs55-plus-sc6469"
+  },
+  {
+    "make": "Changan",
+    "model": "CS75 Plus",
+    "generation": "SC6479",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "changan-cs75-plus-sc6479"
+  },
+  {
+    "make": "Changan",
+    "model": "UNI-K",
+    "generation": "SC6517",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "changan-uni-k-sc6517"
+  },
+  {
+    "make": "Changan",
+    "model": "UNI-T",
+    "generation": "SC6468",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "changan-uni-t-sc6468"
+  },
+  {
+    "make": "Changan",
+    "model": "UNI-V",
+    "generation": "SC7159",
+    "yearStart": 2022,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "changan-uni-v-sc7159"
+  },
+  {
+    "make": "Changan",
+    "model": "CS85 Coupe",
+    "generation": "SC6467",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "changan-cs85-coupe-sc6467"
+  },
+  {
+    "make": "Changan",
+    "model": "Eado Plus",
+    "generation": "SC7155",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "country": "china",
+    "slug": "changan-eado-plus-sc7155"
+  },
+  {
+    "make": "BMW",
+    "model": "3 Series",
+    "generation": "G20",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "slug": "bmw-3-series-g20",
+    "country": "germany"
+  },
+  {
+    "make": "BMW",
+    "model": "5 Series",
+    "generation": "G30",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "slug": "bmw-5-series-g30",
+    "country": "germany"
+  },
+  {
+    "make": "BMW",
+    "model": "X3",
+    "generation": "G01",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "slug": "bmw-x3-g01",
+    "country": "germany"
+  },
+  {
+    "make": "BMW",
+    "model": "X5",
+    "generation": "G05",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "slug": "bmw-x5-g05",
+    "country": "germany"
+  },
+  {
+    "make": "BMW",
+    "model": "X6",
+    "generation": "G06",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "slug": "bmw-x6-g06",
+    "country": "germany"
+  },
+  {
+    "make": "BMW",
+    "model": "X7",
+    "generation": "G07",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "slug": "bmw-x7-g07",
+    "country": "germany"
+  },
+  {
+    "make": "Mercedes-Benz",
+    "model": "C-Class",
+    "generation": "W205",
+    "yearStart": 2014,
+    "yearEnd": 2021,
+    "slug": "mercedes-benz-c-class-w205",
+    "country": "germany"
+  },
+  {
+    "make": "Mercedes-Benz",
+    "model": "C-Class",
+    "generation": "W206",
+    "yearStart": 2021,
+    "yearEnd": 2026,
+    "slug": "mercedes-benz-c-class-w206",
+    "country": "germany"
+  },
+  {
+    "make": "Mercedes-Benz",
+    "model": "E-Class",
+    "generation": "W213",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "slug": "mercedes-benz-e-class-w213",
+    "country": "germany"
+  },
+  {
+    "make": "Mercedes-Benz",
+    "model": "GLC",
+    "generation": "X253",
+    "yearStart": 2015,
+    "yearEnd": 2022,
+    "slug": "mercedes-benz-glc-x253",
+    "country": "germany"
+  },
+  {
+    "make": "Mercedes-Benz",
+    "model": "GLE",
+    "generation": "W167",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "slug": "mercedes-benz-gle-w167",
+    "country": "germany"
+  },
+  {
+    "make": "Mercedes-Benz",
+    "model": "GLS",
+    "generation": "X167",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "slug": "mercedes-benz-gls-x167",
+    "country": "germany"
+  },
+  {
+    "make": "Volkswagen",
+    "model": "Tiguan",
+    "generation": "Mk2",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "slug": "volkswagen-tiguan-mk2",
+    "country": "germany"
+  },
+  {
+    "make": "Volkswagen",
+    "model": "Touareg",
+    "generation": "CR",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "slug": "volkswagen-touareg-cr",
+    "country": "germany"
+  },
+  {
+    "make": "Volkswagen",
+    "model": "Polo",
+    "generation": "Mk6",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "slug": "volkswagen-polo-mk6",
+    "country": "germany"
+  },
+  {
+    "make": "Volkswagen",
+    "model": "Passat",
+    "generation": "B8",
+    "yearStart": 2014,
+    "yearEnd": 2026,
+    "slug": "volkswagen-passat-b8",
+    "country": "germany"
+  },
+  {
+    "make": "Volkswagen",
+    "model": "Tayron",
+    "generation": "Mk1",
+    "yearStart": 2023,
+    "yearEnd": 2026,
+    "slug": "volkswagen-tayron-mk1",
+    "country": "germany"
+  },
+  {
+    "make": "Subaru",
+    "model": "Forester",
+    "generation": "SK",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "slug": "subaru-forester-sk",
+    "country": "japan"
+  },
+  {
+    "make": "Subaru",
+    "model": "Outback",
+    "generation": "BT",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "slug": "subaru-outback-bt",
+    "country": "japan"
+  },
+  {
+    "make": "Subaru",
+    "model": "XV",
+    "generation": "GT",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "slug": "subaru-xv-gt",
+    "country": "japan"
+  },
+  {
+    "make": "Subaru",
+    "model": "Impreza",
+    "generation": "GK",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "slug": "subaru-impreza-gk",
+    "country": "japan"
+  },
+  {
+    "make": "Subaru",
+    "model": "Legacy",
+    "generation": "BN",
+    "yearStart": 2014,
+    "yearEnd": 2019,
+    "slug": "subaru-legacy-bn",
+    "country": "japan"
+  },
+  {
+    "make": "Mazda",
+    "model": "CX-5",
+    "generation": "KF",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "slug": "mazda-cx-5-kf",
+    "country": "japan"
+  },
+  {
+    "make": "Mazda",
+    "model": "CX-9",
+    "generation": "TC",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "slug": "mazda-cx-9-tc",
+    "country": "japan"
+  },
+  {
+    "make": "Mazda",
+    "model": "3",
+    "generation": "BP",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "slug": "mazda-3-bp",
+    "country": "japan"
+  },
+  {
+    "make": "Mazda",
+    "model": "6",
+    "generation": "GJ",
+    "yearStart": 2012,
+    "yearEnd": 2023,
+    "slug": "mazda-6-gj",
+    "country": "japan"
+  },
+  {
+    "make": "Mazda",
+    "model": "CX-30",
+    "generation": "DM",
+    "yearStart": 2019,
+    "yearEnd": 2026,
+    "slug": "mazda-cx-30-dm",
+    "country": "japan"
+  },
+  {
+    "make": "Audi",
+    "model": "Q5",
+    "generation": "FY",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "slug": "audi-q5-fy",
+    "country": "germany"
+  },
+  {
+    "make": "Audi",
+    "model": "Q7",
+    "generation": "4M",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "slug": "audi-q7-4m",
+    "country": "germany"
+  },
+  {
+    "make": "Audi",
+    "model": "A4",
+    "generation": "B9",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "slug": "audi-a4-b9",
+    "country": "germany"
+  },
+  {
+    "make": "Audi",
+    "model": "A6",
+    "generation": "C8",
+    "yearStart": 2018,
+    "yearEnd": 2026,
+    "slug": "audi-a6-c8",
+    "country": "germany"
+  },
+  {
+    "make": "Skoda",
+    "model": "Octavia",
+    "generation": "A8",
+    "yearStart": 2020,
+    "yearEnd": 2026,
+    "slug": "skoda-octavia-a8",
+    "country": "germany"
+  },
+  {
+    "make": "Skoda",
+    "model": "Kodiaq",
+    "generation": "NS",
+    "yearStart": 2016,
+    "yearEnd": 2026,
+    "slug": "skoda-kodiaq-ns",
+    "country": "germany"
+  },
+  {
+    "make": "Skoda",
+    "model": "Karoq",
+    "generation": "NU",
+    "yearStart": 2017,
+    "yearEnd": 2026,
+    "slug": "skoda-karoq-nu",
+    "country": "germany"
+  },
+  {
+    "make": "Skoda",
+    "model": "Superb",
+    "generation": "B8",
+    "yearStart": 2015,
+    "yearEnd": 2026,
+    "slug": "skoda-superb-b8",
+    "country": "germany"
+  }
 ]
