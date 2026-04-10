@@ -97,7 +97,7 @@
   - Return analysis as text; split into chunks if > 4096 chars
   - Clear buffer immediately after response — do not write temp files to disk
 
-- [ ] Step 8. Add /noscut command to bot (src/bot/handlers/noscut.ts)
+- [x] Step 8. Add /noscut command to bot (src/bot/handlers/noscut.ts)
   - User sends: /noscut Toyota RAV4 (or just make)
   - Read storage/noscut/noscut-catalog.json
   - Fuzzy search: toLowerCase + includes on make and model fields
