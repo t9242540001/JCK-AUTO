@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle, Zap, X } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
+import TelegramAuthBlock from "@/components/TelegramAuthBlock";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,8 @@ export default function EncarClient() {
   const [cost, setCost] = useState<CostBreakdown | null>(null);
   const [meta, setMeta] = useState<ApiResponse["meta"] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const [usedCount, setUsedCount] = useState<number>(0);
+  const [isLimitReached, setIsLimitReached] = useState<boolean>(false);
 
   // Manual power override
   const [showPowerOverride, setShowPowerOverride] = useState(false);
@@ -75,12 +78,23 @@ export default function EncarClient() {
       if (overridePower && overridePower > 0) body.enginePower = overridePower;
       const res = await fetch("/api/tools/encar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json();
-      if (!res.ok) { setError(json as ApiError); setState("error"); return; }
+      if (!res.ok) {
+        const apiError = json as ApiError;
+        if (apiError.error === 'rate_limit') {
+          setIsLimitReached(true);
+          setUsedCount(3);
+        }
+        setError(apiError);
+        setState("error");
+        return;
+      }
       const data = json as ApiResponse;
       setResult(data.data);
       setCost(data.costBreakdown);
       setMeta(data.meta);
       setState("result");
+      const used = 3 - (data.meta.remaining ?? 0);
+      setUsedCount(Math.max(0, used));
       setShowPowerOverride(false);
     } catch { setError({ error: "network", message: "Ошибка сети. Проверьте подключение." }); setState("error"); }
   };
@@ -127,6 +141,14 @@ export default function EncarClient() {
               <label className="text-sm font-medium text-text">Ссылка на автомобиль</label>
               <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://fem.encar.com/cars/detail/..." className={inputClass} />
             </div>
+            {usedCount > 0 && (
+              <TelegramAuthBlock
+                usedCount={usedCount}
+                maxCount={3}
+                isLimitReached={false}
+                source="encar"
+              />
+            )}
             <button onClick={() => handleAnalyze()} disabled={!url.trim()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-6 py-3.5 font-medium text-white transition-colors hover:bg-secondary-hover disabled:opacity-50">
               <Search className="h-5 w-5" /> Анализировать
             </button>
@@ -342,7 +364,14 @@ export default function EncarClient() {
             </a>
           </div>
 
-          {meta && <p className="text-center text-xs text-text-muted">Осталось анализов: {meta.remaining}</p>}
+          {meta && (
+            <TelegramAuthBlock
+              usedCount={usedCount}
+              maxCount={3}
+              isLimitReached={false}
+              source="encar"
+            />
+          )}
 
           {/* Lightbox */}
           {lightboxOpen && result.photoUrls[0] && (
@@ -378,10 +407,18 @@ export default function EncarClient() {
           <AlertTriangle className="mx-auto h-8 w-8 text-red-400" />
           <p className="mt-2 font-medium text-red-800">{error.message}</p>
           {error.error === "rate_limit" ? (
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <a href="https://t.me/jckauto_help_bot" target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#2AABEE] px-6 py-3 font-medium text-white">Бот с безлимитом</a>
-              <a href={CONTACTS.telegram} target="_blank" rel="noopener noreferrer" className="rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary">Написать менеджеру</a>
-            </div>
+            <TelegramAuthBlock
+              usedCount={usedCount}
+              maxCount={3}
+              isLimitReached={true}
+              source="encar"
+              onAuthSuccess={() => {
+                setIsLimitReached(false);
+                setError(null);
+                setState('idle');
+                reset();
+              }}
+            />
           ) : (
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button onClick={reset} className="rounded-xl bg-secondary px-6 py-3 font-medium text-white">Попробовать ещё</button>
