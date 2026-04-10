@@ -1,16 +1,30 @@
 import TelegramBot from "node-telegram-bot-api";
 import { getAllUsers, getUsersStats } from "../store/users";
 import { ADMIN_IDS } from "../config";
+import { getBotStats } from "../store/botStats";
 async function sendStats(bot: TelegramBot, chatId: number): Promise<void> {
   const stats = await getUsersStats();
+  const botStats = getBotStats();
   const text = [
-    "📊 Статистика бота JCK AUTO",
-    "",
+    '📊 Статистика бота JCK AUTO',
+    '',
     `👥 Всего пользователей: ${stats.total}`,
     `📱 С телефоном: ${stats.withPhone}`,
     `📅 Новых сегодня: ${stats.today}`,
     `📆 Новых за неделю: ${stats.thisWeek}`,
-  ].join("\n");
+    '',
+    '🤖 Команды (всего запусков):',
+    `  /calc — ${botStats.commands.calc}`,
+    `  /customs — ${botStats.commands.customs}`,
+    `  /catalog — ${botStats.commands.catalog}`,
+    `  /noscut — ${botStats.commands.noscut}`,
+    `  📷 Аукционный лист — ${botStats.commands.auction}`,
+    '',
+    `🌐 Авторизаций с сайта: ${botStats.webAuthCount}`,
+    `  encar: ${botStats.sources.web_encar}`,
+    `  auction: ${botStats.sources.web_auction}`,
+    `  direct: ${botStats.sources.direct}`,
+  ].join('\n');
   await bot.sendMessage(chatId, text, {
     reply_markup: {
       inline_keyboard: [
