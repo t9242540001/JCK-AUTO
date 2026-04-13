@@ -2,8 +2,8 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log)
-  @updated:     2026-04-08
-  @version:     1.0
+  @updated:     2026-04-10
+  @version:     1.1
   @lines:       120
 -->
 
@@ -80,3 +80,89 @@
 **Decision:** Add `.github/workflows/deploy.yml` triggered by `workflow_run` (after auto-merge completes) and direct push to `main`. SSHs into VDS via `appleboy/ssh-action`, pulls, builds, restarts both PM2 processes.
 **Rationale:** `workflow_run` is required because GITHUB_TOKEN pushes don't trigger `on: push` workflows. Bot uses `pm2 delete` + `pm2 start` (never `pm2 restart`) because `pm2 restart` does not reload `.env.local`. Build requires `NODE_OPTIONS="--max-old-space-size=1536"` due to server memory constraints.
 **Alternatives:** Manual deploy.sh (status quo, error-prone), webhook-triggered deploy (requires inbound port).
+
+## [2026-04-10] Image compression before DashScope vision API
+
+**Status:** Accepted
+
+**Context:**
+`/api/tools/auction-sheet` accepts user-uploaded auction sheet photos (up to 10MB).
+Large or high-resolution images sent directly to DashScope `qwen3.5-plus` vision model
+caused processing time to exceed 60 seconds — nginx default `proxy_read_timeout`.
+Result: users received *«Ошибка сети. Проверьте подключение.»* on every request.
+Increasing nginx timeout to 120s was rejected: users will not wait 2 minutes for a result.
+
+**Decision:**
+Compress images server-side using Sharp before sending to DashScope.
+Parameters chosen to balance speed vs. text legibility on auction sheets:
+
+- Resize: max `2000×2000px`, `fit: 'inside'`, `withoutEnlargement: true`
+- Format: JPEG, `quality: 85`
+- Sharpen: `sigma 0.5` (restores fine text sharpness lost during downscale)
+- Output: always `image/jpeg` regardless of input format (PNG, WebP, HEIC)
+
+HEIC support: confirmed via `libheif` in installed Sharp version.
+
+**Consequences:**
+
+- `+` Processing time reduced from 60+ seconds to approximately 10–20 seconds
+- `+` All input formats (JPG, PNG, WebP, HEIC) normalized to JPEG before API call
+- `+` Small images (already under 2000px) only undergo format conversion, not resize
+- `+` Sharp was already in `devDependencies` — no new dependency added
+- `−` Slight quality loss on very high-res source images (acceptable for OCR use case)
+
+**Files changed:**
+- `jck-auto/src/app/api/tools/auction-sheet/route.ts`
+
+## [2026-04-10] Telegram webhook via Cloudflare Worker (bidirectional proxy)
+
+**Status:** Accepted
+
+**Context:**
+VDS provider (Selectel / similar) blocks both directions of Telegram traffic:
+
+1. **Outgoing:** VDS → `api.telegram.org` (bot cannot send messages directly)
+2. **Incoming:** Telegram IP ranges → VDS (webhook delivery times out intermittently)
+
+Outgoing was already solved via Cloudflare Worker (`TELEGRAM_API_BASE_URL` env var).
+Incoming was initially registered directly on `jckauto.ru` — causing 2–5 minute delays
+in bot responses as Telegram retried timed-out webhook deliveries.
+
+The existing `tg-proxy` Worker already contained incoming webhook routing code:
+
+```js
+if (url.pathname.startsWith("/webhook/")) {
+  const vdsUrl = "https://jckauto.ru/bot-webhook/" + url.pathname.slice("/webhook/".length);
+  return fetch(vdsUrl, { method, headers, body });
+}
+```
+
+This code was present but unused — webhook was registered on `jckauto.ru` directly.
+
+**Decision:**
+Register Telegram webhook on Worker URL instead of directly on VDS:
+
+- WRONG: `https://jckauto.ru/bot-webhook/bot{TOKEN}`
+- CORRECT: `https://tg-proxy.t9242540001.workers.dev/webhook/bot{TOKEN}`
+
+Worker receives POST from Telegram (Cloudflare is always reachable),
+then forwards to `https://jckauto.ru/bot-webhook/bot{TOKEN}` as an internal request.
+Provider restrictions do not apply to Cloudflare → VDS traffic.
+
+Registration command:
+
+```bash
+TOKEN=$(grep TELEGRAM_BOT_TOKEN /var/www/jckauto/app/jck-auto/.env.local | cut -d= -f2)
+curl -s "https://tg-proxy.t9242540001.workers.dev/bot${TOKEN}/setWebhook?url=https://tg-proxy.t9242540001.workers.dev/webhook/bot${TOKEN}" | jq .
+```
+
+**Consequences:**
+
+- `+` Bot response latency reduced from 2–5 minutes (retry delays) to `<1 second`
+- `+` No code changes required — Worker routing was already implemented
+- `+` Telegram → Worker connection uses Cloudflare infrastructure (reliable, no blocking)
+- `−` `setWebhook` must be re-run manually after: token change, Worker URL change
+- `−` Worker code is not in git — lives only in Cloudflare Dashboard (single point of truth risk)
+
+**Files changed:**
+- None — configuration change only (`setWebhook` API call).
