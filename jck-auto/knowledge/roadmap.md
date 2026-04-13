@@ -2,12 +2,14 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources
-  @updated:     2026-04-10
-  @version:     1.1
-  @lines:       65
+  @updated:     2026-04-14
+  @version:     1.2
+  @lines:       64
 -->
 
 # Roadmap
+
+> For detailed open bugs see bugs.md
 
 ## Done
 
@@ -31,7 +33,6 @@
 - [x] Telegram Login Widget integration (TelegramAuthBlock, tg_auth JWT cookie, /api/auth/telegram)
 - [x] Two-mode rate limiter: anonymous 3 lifetime / Telegram-auth 10/day (rateLimiter.ts)
 - [x] Bot: /customs command — customs-only cost calculation
-- [x] Bot: auction sheet analysis via photo (Qwen-VL, in-memory buffer, Worker download)
 - [x] Bot: /noscut command — noscut catalog search with fuzzy match
 - [x] Bot: /start deep link handling (web_encar, web_auction → special welcome + channel button)
 - [x] Bot: extended /stats with command counters and traffic sources (botStats.ts)
@@ -43,6 +44,7 @@
 - [~] Phase 5: Finalization (SEO audit, mobile check, sitemap)
 - [~] Merge all branches into main
 - [~] Regenerate bot token in BotFather (Step 0 — manual, pending)
+- [~] Bot: auction sheet analysis via photo — regression, see bugs.md Б-2
 
 ## Planned — Site
 
