@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Server config, PM2 processes, deploy procedures, constraints
   @updated:     2026-04-10
-  @version:     1.5
+  @version:     1.6
   @lines:       124
 -->
 
@@ -30,6 +30,35 @@
 |---------|---------|------|
 | jckauto | Next.js site | 3000 |
 | jckauto-bot | Telegram bot (webhook, port 8443) | 8443 |
+| mcp-gateway | JCK AUTO Files MCP connector | proxied via nginx at `/mcp` |
+
+### jckauto (Next.js site)
+
+- **Script:** `npm run start` (via Next.js built output)
+- **CWD:** `/var/www/jckauto/app/jck-auto`
+- **Port:** `3000`
+- **Restart:** `pm2 restart jckauto`
+
+### jckauto-bot (Telegram bot)
+
+- **Script:** `node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local`
+- **CWD:** `/var/www/jckauto/app/jck-auto`
+- **Port:** `8443` (webhook listener)
+- **Restart:**
+  ```bash
+  pm2 delete jckauto-bot
+  pm2 start "node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
+  pm2 save
+  ```
+- **CRITICAL:** use `pm2 delete` + `pm2 start` (NOT `pm2 restart`) — `pm2 restart` does not reload `.env.local`.
+
+### mcp-gateway
+
+- **Purpose:** JCK AUTO Files MCP connector.
+- **Port:** проксируется через nginx по пути `/mcp`.
+
+**IMPORTANT:** `deploy.yml` автоматически перезапускает `jckauto-bot` на каждом деплое.
+Ручной перезапуск нужен только при: смене токена бота, смене переменных окружения вне цикла деплоя.
 
 ## Cron Jobs
 
@@ -93,6 +122,97 @@ and installed by `npm ci`. Using `npx tsx` falls back to a global tsx that canno
 - Reverse proxy: port 80/443 → localhost:3000
 - SSL: Let's Encrypt auto-renewal
 - No custom rewrite rules — Next.js handles routing
+
+### Конфигурационный файл
+
+- **Путь:** `/etc/nginx/sites-enabled/jckauto`
+
+### Ключевые `location`-блоки
+
+```nginx
+location /bot-webhook/ {
+    proxy_pass http://127.0.0.1:8443/;
+    # Срезает префикс /bot-webhook/ — бот получает путь /bot{TOKEN}
+    # node-telegram-bot-api требует токен в пути URL (иначе 401 и молчание)
+}
+
+location /storage/ {
+    alias /var/www/jckauto/storage/;
+    expires 30d;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:3000;  # Next.js app
+}
+```
+
+### Таймауты nginx
+
+- **Дефолт:** 60 секунд (`proxy_read_timeout` явно не задан).
+- **Затрагивает:** `/api/tools/auction-sheet` — DashScope vision-анализ может приближаться к лимиту.
+- **Митигация:** сжатие изображений через Sharp в `route.ts` (resize до 2000px + JPEG 85).
+- **Note:** **НЕ** увеличивать таймаут nginx в качестве обходного решения — чинить размер изображения.
+
+### SSL
+
+- **Let's Encrypt:** `/etc/letsencrypt/live/jckauto.ru/`
+- **Покрывает:** `jckauto.ru` + `www.jckauto.ru`
+- **Порт 80:** `301 redirect` на `https://jckauto.ru`
+
+## Cloudflare Worker — tg-proxy
+
+- **Worker URL:** `https://tg-proxy.t9242540001.workers.dev`
+- **Cloudflare account:** `T9242540001@gmail.com`
+- **Worker name:** `tg-proxy`
+- **Назначение:** прокси-слой, необходимый потому что провайдер VDS блокирует:
+  - **исходящие** соединения от VDS к `api.telegram.org`;
+  - **входящие** соединения от IP-диапазонов Telegram к VDS.
+
+### Логика маршрутизации Worker (4 режима)
+
+**Режим 1 — входящий webhook (Telegram → VDS):**
+- Шаблон: `/webhook/*`
+- Действие: пересылает POST на `https://jckauto.ru/bot-webhook/{rest}`
+- Пример: `/webhook/bot{TOKEN}` → `https://jckauto.ru/bot-webhook/bot{TOKEN}`
+- Назначение: приём Telegram updates
+
+**Режим 2 — прокси фото (VDS → внешний мир):**
+- Шаблон: `/photo/*`
+- Действие: fetch с `https://jckauto.ru/{path}` с fallback по расширениям (`.jpg` / `.jpeg` / `.png` / `.webp` / `.gif`)
+- Cache-Control: `public, max-age=86400`
+
+**Режим 3 — прокси Anthropic API:**
+- Шаблон: `/anthropic/*`
+- Действие: пересылает POST на `https://api.anthropic.com/{path}`
+- Оставляет только заголовки: `x-api-key`, `anthropic-version`, `anthropic-beta`, `Content-Type` (остальные вырезаются)
+
+**Режим 4 — исходящие запросы бота (default, catch-all):**
+- Шаблон: всё остальное (например, `/bot{TOKEN}/sendMessage`)
+- Действие: переписывает host на `api.telegram.org`, пересылает запрос
+- Назначение: все вызовы Bot API (`sendMessage`, `getMe`, `setWebhook` и т.д.)
+
+### КРИТИЧНО: код Worker не в git
+
+- Код Worker живёт **только** в Cloudflare Dashboard — его нет в репозитории.
+- Чтобы отредактировать: `dash.cloudflare.com` → Workers & Pages → `tg-proxy` → Edit Code.
+
+## Provider network restrictions
+
+Ограничения сетевого доступа VDS-провайдера:
+
+**1. Исходящие на `api.telegram.org` — ЗАБЛОКИРОВАНО**
+- Обход: все вызовы Bot API идут через Worker `tg-proxy` (переменная `TELEGRAM_API_BASE_URL`).
+
+**2. Входящие от IP-диапазонов Telegram — ПЕРИОДИЧЕСКИ БЛОКИРУЮТСЯ**
+- Симптом: таймауты webhook, задержки ответов бота 2–5 минут.
+- Обход: регистрировать webhook на URL Worker, а **не** напрямую на `jckauto.ru`.
+- Правильный webhook: `https://tg-proxy.t9242540001.workers.dev/webhook/bot{TOKEN}`.
+
+**3. Прямой `curl` на `api.telegram.org` из shell VDS — ЗАБЛОКИРОВАН**
+- Диагностический обход: использовать URL Worker:
+  ```bash
+  curl "https://tg-proxy.t9242540001.workers.dev/bot{TOKEN}/getMe"
+  ```
 
 ## Known Constraints
 
