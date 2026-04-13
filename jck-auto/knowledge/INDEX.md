@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-10
-  @version:     1.7
+  @version:     1.8
   @lines:       48
 -->
 
@@ -13,14 +13,14 @@
 
 | File | Description | Updated |
 |------|-------------|---------|
-| [infrastructure.md](infrastructure.md) | Server, PM2, deploy commands, nginx, constraints | 2026-04-10 |
+| [infrastructure.md](infrastructure.md) | Server, PM2 (3 processes), deploy commands, nginx (bot-webhook/storage, 60s timeout + Sharp), Cloudflare Worker tg-proxy (4 routing modes), VDS provider network restrictions | 2026-04-10 |
 | [architecture.md](architecture.md) | Stack, file navigator, URL structure, key relationships | 2026-04-08 |
 | [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek, CBR, Google Drive, Telegram | 2026-04-08 |
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
 | [catalog.md](catalog.md) | Google Drive conventions, 5-step sync chain, screenshot priority | 2026-04-08 |
 | [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-10 |
 | [roadmap.md](roadmap.md) | Done / In progress / Planned features | 2026-04-10 |
-| [decisions.md](decisions.md) | Architectural Decision Records (ADR log) | 2026-04-08 |
+| [decisions.md](decisions.md) | Architectural Decision Records (ADR log) — added Sharp image compression + Telegram webhook via Cloudflare Worker ADRs | 2026-04-10 |
 | [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-10 |
 | [stack.md](stack.md) | Tech stack: Next.js 15, Node.js, AI services (DashScope/DeepSeek/Claude), storage, key configs | 2026-04-08 |
 | [exchange-rates.md](exchange-rates.md) | VTB scraper + CBR fallback, markups, /api/exchange-rates endpoint, UI labels, CORS rules | 2026-04-08 |
@@ -30,7 +30,7 @@
 | [catalog-pipeline.md](catalog-pipeline.md) | Drive naming conventions, 4-step sync chain, screenshot priority (Russian) | 2026-04-09 |
 | [catalog.md](catalog.md) | Drive naming conventions, 5-step sync chain, screenshot priority (English, with headers) | 2026-04-08 |
 | [shared-mechanics.md](shared-mechanics.md) | Rate limiter (two-mode), Telegram auth, TelegramAuthBlock, BetaBadge, PDF, design system | 2026-04-10 |
-| [telegram-bot.md](telegram-bot.md) | Bot commands, admin IDs, config, limitations, restart commands | 2026-04-10 |
+| [telegram-bot.md](telegram-bot.md) | Bot commands, admin IDs, config, limitations, restart commands, bidirectional Worker webhook architecture, correct setWebhook via Worker URL, 401 silent-failure symptom, diagnostic commands, `node_modules/.bin/tsx` startup rationale | 2026-04-10 |
 | [noscut-spec.md](noscut-spec.md) | ТЗ ноускаты: бизнес-логика, структуры данных, URL, компоненты, форма захвата | 2026-04-09 |
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
