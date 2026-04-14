@@ -25,7 +25,7 @@ jobs:
           command_timeout: 20m
           script: |
             # Log setup — must NOT abort deploy on logging errors. No `set -e` yet.
-            LOG_DIR="/var/log/jckauto-deploys"
+            LOG_DIR="/var/www/jckauto/deploy-logs"
             mkdir -p "$LOG_DIR" || true
             LOG_FILE="$LOG_DIR/$(date +%Y-%m-%d_%H%M%S).log"
             echo "[log] writing to $LOG_FILE" || true
