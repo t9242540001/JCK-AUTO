@@ -3,12 +3,12 @@
  * @description Клиент DashScope API: генерация картинок (Qwen-Image) + Vision/OCR (Qwen-VL)
  * @runs VDS напрямую (без прокси)
  * @env DASHSCOPE_API_KEY в .env.local
- * @cost Qwen-Image-2.0-Pro ~$0.04/картинка | Qwen3-VL-Flash ~$0.001/запрос
+ * @cost Qwen-Image-2.0-Pro ~$0.04/картинка | Qwen3-VL-Flash ~$0.001/запрос | analyzeImageWithFallback tries qwen-vl-ocr → qwen3-vl-flash → qwen3.5-plus
  * @rule Два разных API: Qwen-Image = нативный DashScope, Qwen-VL = OpenAI-совместимый
  * @rule URL картинок от Qwen-Image валидны 24 часа — скачивать сразу
  * @rule Не логировать промпты и API-ключ — только модель, результат, стоимость
  * @rule DASHSCOPE_API_KEY проверять при вызове, не при импорте
- * @lastModified 2026-03-31
+ * @lastModified 2026-04-14
  */
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ export interface ImageGenerateResponse {
 
 export interface VisionOptions {
   /** Модель Vision */
-  model?: 'qwen3-vl-flash' | 'qwen3.5-flash' | 'qwen3.5-plus' | 'qwen3.6-plus';
+  model?: 'qwen-vl-ocr' | 'qwen3-vl-flash' | 'qwen3.5-flash' | 'qwen3.5-plus' | 'qwen3.6-plus';
   /** Максимум токенов в ответе (default: 2048) */
   maxTokens?: number;
   /** Температура генерации (default: 0.3) */
@@ -98,7 +98,7 @@ const QWEN_PLUS_INPUT_PRICE_PER_M = 0.80;
 const QWEN_PLUS_OUTPUT_PRICE_PER_M = 2.40;
 const QWEN_FLASH_INPUT_PRICE_PER_M = 0.05;
 const QWEN_FLASH_OUTPUT_PRICE_PER_M = 0.25;
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 25_000;
 const MAX_RETRIES = 2;
 const RATE_LIMIT_PER_MINUTE = 6;
 
@@ -350,6 +350,61 @@ async function analyzeImage(
   };
 }
 
+/**
+ * Анализ картинки с fallback chain: пробует модели по очереди при таймауте/5xx
+ * @section vision
+ * @input imageSource — URL или base64, prompt — что извлечь, options.models — порядок моделей
+ * @output VisionResponse + usedModel (какая модель в итоге сработала)
+ * @important На 4xx (кроме 408/429) ошибка пробрасывается без перехода к следующей модели —
+ *            это логическая ошибка (невалидный запрос/ключ/картинка), повтор не поможет
+ * @important Дефолтная цепочка: qwen-vl-ocr → qwen3-vl-flash → qwen3.5-plus
+ */
+async function analyzeImageWithFallback(
+  imageSource: string,
+  prompt: string,
+  options?: Omit<VisionOptions, 'model'> & {
+    models?: NonNullable<VisionOptions['model']>[];
+  },
+): Promise<VisionResponse & { usedModel: string }> {
+  const models = options?.models ?? ['qwen-vl-ocr', 'qwen3-vl-flash', 'qwen3.5-plus'];
+  const attempts: string[] = [];
+  let lastError: Error | null = null;
+
+  for (const model of models) {
+    const startedAt = Date.now();
+    try {
+      const result = await analyzeImage(imageSource, prompt, { ...options, model });
+      const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+      attempts.push(`${model} (success in ${elapsedSec}s)`);
+      console.log(`[DashScope fallback] ${attempts.join(' → ')}`);
+      return { ...result, usedModel: model };
+    } catch (err) {
+      const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+      const message = err instanceof Error ? err.message : String(err);
+
+      // 4xx logical errors (except 408 timeout, 429 rate limit) — propagate immediately
+      const is4xxLogical = /DashScope API error 4\d\d/.test(message)
+        && !/DashScope API error 408/.test(message)
+        && !/DashScope API error 429/.test(message);
+
+      if (is4xxLogical) {
+        attempts.push(`${model} (4xx logical error in ${elapsedSec}s — chain aborted)`);
+        console.log(`[DashScope fallback] ${attempts.join(' → ')}`);
+        throw err;
+      }
+
+      // Timeout / 5xx / 408 / 429 / network — try next model
+      attempts.push(`${model} (failed in ${elapsedSec}s: ${message.slice(0, 80)})`);
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  console.log(`[DashScope fallback] ${attempts.join(' → ')} → all models exhausted`);
+  throw new Error(
+    `All Vision models in fallback chain failed. Last error: ${lastError?.message ?? 'unknown'}`,
+  );
+}
+
 // ─── TEXT GENERATION ───────────────────────────────────────────────────────
 
 /**
@@ -442,6 +497,7 @@ async function callQwenText(
 export {
   generateImage,
   analyzeImage,
+  analyzeImageWithFallback,
   callQwenText,
   DASHSCOPE_IMAGE_URL,
   DASHSCOPE_CHAT_URL,
