@@ -7,6 +7,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  actions: read
+
 concurrency:
   group: deploy-${{ github.repository }}
   cancel-in-progress: false
@@ -24,21 +28,6 @@ jobs:
           key: ${{ secrets.VDS_SSH_KEY }}
           command_timeout: 20m
           script: |
-            # Log setup — must NOT abort deploy on logging errors. No `set -e` yet.
-            LOG_DIR="/var/www/jckauto/deploy-logs"
-            mkdir -p "$LOG_DIR" || true
-            LOG_FILE="$LOG_DIR/$(date +%Y-%m-%d_%H%M%S).log"
-            echo "[log] writing to $LOG_FILE" || true
-
-            # Redirect stdout+stderr to both original console and log file from this point forward
-            exec > >(tee -a "$LOG_FILE") 2>&1 || true
-
-            # Rotate: keep only last 50 log files (xargs -r = no-op if list is empty)
-            ls -1t "$LOG_DIR"/*.log 2>/dev/null | tail -n +51 | xargs -r rm -f || true
-
-            # Update "latest.log" symlink for easy MCP access
-            ln -sfn "$(basename "$LOG_FILE")" "$LOG_DIR/latest.log" || true
-
             set -e
             source /root/.bashrc 2>/dev/null || source /root/.profile 2>/dev/null || true
             cd /var/www/jckauto/app/jck-auto
@@ -125,3 +114,48 @@ jobs:
             pm2 save
             echo "[build] step 8: deploy complete"
             pm2 status
+
+      - name: Fetch Actions log and save to VDS
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p /tmp/deploy-log
+          LOG_NAME="$(date -u +%Y-%m-%d_%H%M%S)_run${{ github.run_id }}.log"
+          echo "Fetching log for run ${{ github.run_id }}"
+          gh run view ${{ github.run_id }} --log --repo ${{ github.repository }} \
+            > /tmp/deploy-log/"$LOG_NAME" || {
+              echo "WARNING: gh run view failed, writing minimal log"
+              echo "run_id=${{ github.run_id }} status=unknown" \
+                > /tmp/deploy-log/"$LOG_NAME"
+            }
+          echo "Log size: $(wc -c < /tmp/deploy-log/"$LOG_NAME") bytes"
+          echo "LOG_NAME=$LOG_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload log to VDS
+        if: always()
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: root
+          key: ${{ secrets.VDS_SSH_KEY }}
+          source: "/tmp/deploy-log/${{ env.LOG_NAME }}"
+          target: "/var/www/jckauto/deploy-logs/"
+          strip_components: 2
+
+      - name: Update latest symlink and rotate old logs
+        if: always()
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: root
+          key: ${{ secrets.VDS_SSH_KEY }}
+          command_timeout: 1m
+          script: |
+            set -e
+            cd /var/www/jckauto/deploy-logs
+            ln -sfn "${{ env.LOG_NAME }}" deploy-latest.log
+            ls -1t *.log 2>/dev/null | grep -v "^deploy-latest.log$" | tail -n +31 | xargs -r rm -f
+            echo "Current latest: $(readlink deploy-latest.log)"
+            echo "Total logs: $(ls -1 *.log 2>/dev/null | wc -l)"
