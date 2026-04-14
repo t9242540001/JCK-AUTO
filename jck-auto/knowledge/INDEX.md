@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-14
-  @version:     1.10
+  @version:     1.11
   @lines:       47
 -->
 
@@ -15,7 +15,7 @@
 |------|-------------|---------|
 | [infrastructure.md](infrastructure.md) | Server, PM2 (3 processes), deploy commands, nginx (bot-webhook/storage, 60s timeout + Sharp), Cloudflare Worker tg-proxy (4 routing modes), VDS provider network restrictions | 2026-04-10 |
 | [architecture.md](architecture.md) | Stack, file navigator, URL structure, key relationships | 2026-04-08 |
-| [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek, CBR, Google Drive, Telegram | 2026-04-08 |
+| [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek, CBR, Google Drive, Telegram | 2026-04-14 |
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
 | [catalog.md](catalog.md) | Google Drive conventions, 5-step sync chain, screenshot priority | 2026-04-08 |
 | [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-10 |

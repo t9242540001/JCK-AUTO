@@ -2,21 +2,55 @@
   @file:        knowledge/integrations.md
   @project:     JCK AUTO
   @description: External APIs — usage, files, rate limits, costs, env vars
-  @updated:     2026-04-08
-  @version:     1.0
-  @lines:       100
+  @updated:     2026-04-14
+  @version:     1.1
+  @lines:       118
 -->
 
 # External Integrations
 
 ## DashScope (Alibaba Cloud — Qwen models)
 
-- **Used for:** Vision AI (auction sheets, screenshot parsing), text generation (articles), image generation (covers)
-- **Files:** `src/lib/dashscope.ts`, `src/lib/coverGenerator.ts`, `src/lib/screenshotParser.ts`
-- **Models:** qwen3.5-plus (default vision), qwen3.5-flash, Qwen-Image-2.0-Pro
-- **Runs from:** VDS (Singapore region, no IP block)
-- **Cost:** ~$0.002/vision call, ~$0.01/article, ~$0.04/cover
+- **Workspace:** JCKAUTO (Singapore region, dashscope-intl.aliyuncs.com)
 - **Env:** `DASHSCOPE_API_KEY`
+- **Runs from:** VDS directly (Singapore region — no IP block from Russia)
+- **Console:** https://modelstudio.console.alibabacloud.com/ → switch to Singapore
+
+### Used in production
+
+| API name | Type | Where used | Notes |
+|----------|------|------------|-------|
+| qwen3.5-plus | Multimodal (text + vision) | src/lib/dashscope.ts (default vision + text), src/app/api/tools/auction-sheet/route.ts | **Hybrid thinking mode enabled by default** — slow on vision, scheduled to be replaced by qwen-vl-ocr/qwen3-vl-flash via fallback chain (С-1 fix) |
+| qwen3.5-flash | Text generation | src/lib/dashscope.ts (cheaper text option) | Fast, no reasoning by default |
+| qwen-image-2.0-pro | Image generation | src/lib/dashscope.ts (generateImage) | News/article cover images, ~$0.04/image |
+
+### Activated for fallback chain (С-1 fix in progress)
+
+| API name | Type | Status | Notes |
+|----------|------|--------|-------|
+| qwen-vl-ocr | OCR (image-only) | Verified via curl on 2026-04-14 | Specialized for text extraction from documents/photos. Supports Japanese, Korean, Russian, English etc. Image-only model — text-only requests return HTTP 400 (by design). |
+| qwen3-vl-flash | Vision (multimodal, fast) | Verified via curl on 2026-04-14 (HTTP 200, no reasoning_content) | Universal vision model, answers without reasoning step → faster than qwen3.5-plus for OCR tasks |
+
+### Activated, available for future use (no detailed integration yet)
+
+Names below are taken from the Model Studio UI (capitalized form). Before using in code,
+verify the exact API name with curl — the API typically accepts the lowercase form
+(e.g. UI "Qwen3-VL-235B-A22B" → API "qwen3-vl-235b-a22b").
+
+Authorized in JCKAUTO workspace as of 2026-04-14:
+Qwen3-Max, Qwen3-Omni-Plus, Qwen3-Omni-Flash, Qwen3-Omni-Flash-Realtime, Qwen3-VL-235B-A22B,
+Qwen3.5-35B-A3B, Qwen3.5-27B, Qwen3.5-122B-A10B, Qwen3.5-397B-A17B, Qwen3-Rerank,
+Qwen3-Coder-Plus, Qwen-Image-2.5, Qwen-Image-2.5-Pro, Qwen-Image-Edit-Plus-2025-12-13,
+Z-Image-Turbo.
+
+When choosing a model for a new task — check this list first. If the model needed is NOT here,
+verify activation in Model Studio console before writing code.
+
+### Cost summary (current usage)
+
+- ~$0.002 per vision call (qwen3.5-plus or fallback)
+- ~$0.01 per article (qwen3.5-plus text)
+- ~$0.04 per cover image (qwen-image-2.0-pro)
 
 ## DeepSeek
 
