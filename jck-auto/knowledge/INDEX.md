@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-14
-  @version:     1.11
+  @version:     1.12
   @lines:       47
 -->
 
@@ -35,7 +35,7 @@
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
-| [tools.md](tools.md) | /tools/* API endpoints: auction-sheet, DashScope config, Sharp compression, nginx timeout fix | 2026-04-10 |
+| [tools.md](tools.md) | /tools/* API endpoints: auction-sheet wired to DashScope fallback chain (qwen-vl-ocr → qwen3-vl-flash → qwen3.5-plus), Sharp compression, nginx timeout fix | 2026-04-14 |
 | [bugs.md](bugs.md) | Open bugs tracker — site and bot, with symptom/file/hypothesis/action | 2026-04-14 |
 
 ## Quick Links

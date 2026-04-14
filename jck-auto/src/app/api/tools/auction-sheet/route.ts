@@ -5,20 +5,20 @@
  * @runs VDS
  * @input POST multipart/form-data с изображением (jpg/png/webp/heic, до 10 МБ)
  * @output JSON с распознанными данными аукционного листа
- * @cost ~$0.002/запрос (Qwen3.5-Plus Vision)
+ * @cost ~$0.002/запрос (Qwen vision fallback chain: qwen-vl-ocr → qwen3-vl-flash → qwen3.5-plus)
  * @rule Rate limit: anonymous — 3 запроса lifetime с одного IP; auth — 10/day по telegram_id
  * @rule Не логировать содержимое изображений
  * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var,
- *              src/lib/dashscope (analyzeImage), src/lib/rateLimiter,
+ *              src/lib/dashscope (analyzeImageWithFallback), src/lib/rateLimiter,
  *              sharp 0.34.5 (compression; HEIC supported via libheif 1.20.2)
- * @lastModified 2026-04-10
+ * @lastModified 2026-04-14
  */
 
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import sharp from 'sharp';
-import { analyzeImage } from '@/lib/dashscope';
+import { analyzeImageWithFallback } from '@/lib/dashscope';
 import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
@@ -205,8 +205,7 @@ export async function POST(request: Request) {
 
   // Call Qwen-VL
   try {
-    const result = await analyzeImage(dataUrl, USER_PROMPT, {
-      model: 'qwen3.5-plus',
+    const result = await analyzeImageWithFallback(dataUrl, USER_PROMPT, {
       maxTokens: 4096,
       temperature: 0.1,
       systemPrompt: SYSTEM_PROMPT,
@@ -231,7 +230,7 @@ export async function POST(request: Request) {
       success: true,
       data: parsed,
       meta: {
-        model: 'qwen3.5-plus',
+        model: result.usedModel,
         tokens: result.usage.totalTokens,
         remaining,
       },

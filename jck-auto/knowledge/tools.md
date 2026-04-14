@@ -1,9 +1,10 @@
 <!--
   @file:        knowledge/tools.md
   @project:     JCK AUTO
-  @description: API tools documentation — auction-sheet, DashScope, nginx constraints
-  @updated:     2026-04-10
-  @version:     1.0
+  @description: API tools documentation — auction-sheet, DashScope fallback chain, nginx constraints
+  @updated:     2026-04-14
+  @version:     1.1
+  @lines:       118
 -->
 
 # Tools API — /tools/*
@@ -54,18 +55,32 @@ const compressed = await sharp(Buffer.from(bytes))
 
 После сжатия: `data:image/jpeg;base64,...` (всегда JPEG, независимо от исходного формата).
 
-Результат: время ответа DashScope снизилось с 60+ с до ~15 с.
+Результат: размер полезной нагрузки уменьшился в 3–5 раз. Вместе с fallback-цепочкой DashScope (см. ниже) это позволяет уложиться в nginx timeout 60 с даже в худших сценариях.
 
 ### DashScope — конфигурация
 
 **Endpoint:** `https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation`  
 **Регион:** Сингапур (international). Не использовать китайский endpoint (`dashscope.aliyuncs.com`).
 
-**Модель:** `qwen3.5-plus` (Vision)  
-**Параметры:** `maxTokens: 4096`, `temperature: 0.1`  
-**Стоимость:** ~$0.002/запрос  
+**Fallback-цепочка (по умолчанию):** `qwen-vl-ocr` → `qwen3-vl-flash` → `qwen3.5-plus`
 
-Реализация: `src/lib/dashscope.ts` → функция `analyzeImage(dataUrl, userPrompt, options)`.
+| Порядок | Модель | Причина |
+|---------|--------|---------|
+| 1 | `qwen-vl-ocr` | Специализированная OCR-модель, самая быстрая для текста на фото |
+| 2 | `qwen3-vl-flash` | Универсальная vision-модель без reasoning-шага — быстрее, чем qwen3.5-plus |
+| 3 | `qwen3.5-plus` | Fallback последнего уровня; имеет hybrid thinking, что делает её медленнее при vision |
+
+**Параметры:** `maxTokens: 4096`, `temperature: 0.1`, `REQUEST_TIMEOUT_MS = 25_000` (на попытку)  
+**Стоимость:** ~$0.002/запрос (первая успешная модель из цепочки)
+
+**Логика переключения:**
+- Каждая попытка имеет timeout 25 с (укладывается в nginx 60 с даже при двух неудачных).
+- 4xx-ошибки (кроме 429) — фатальные, fallback не запускается (означает логическую ошибку запроса).
+- 429 / 5xx / timeout / сетевые — переход к следующей модели.
+- В ответе возвращается поле `usedModel` — именно её клиент видит в `meta.model`.
+
+Реализация: `src/lib/dashscope.ts` → функция `analyzeImageWithFallback(dataUrl, userPrompt, options)`.  
+Используется в `src/app/api/tools/auction-sheet/route.ts`.
 
 ### Rate Limiting
 
@@ -91,8 +106,7 @@ grep -r "proxy_read_timeout\|proxy_send_timeout" /etc/nginx/
 tail -100 /var/log/nginx/error.log | grep "upstream timed out"
 ```
 
-Текущий nginx timeout: 60 с. DashScope на несжатых изображениях может превышать это значение.  
-Решение применено: Sharp-сжатие в `route.ts` до вызова `analyzeImage`.
+Текущий nginx timeout: 60 с. Ограничение закрыто комбинацией: Sharp-сжатие (`route.ts`) + `REQUEST_TIMEOUT_MS = 25_000` на попытку в fallback-цепочке (`analyzeImageWithFallback`). В худшем случае две неудачных попытки укладываются в ~50 с, третья успешная добивает до корректного ответа в пределах nginx-лимита.
 
 ### Диагностический curl
 
