@@ -22,6 +22,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # @rule: Do NOT add post-SSH log-capture steps here.
+      # `gh run view --log` cannot read its own in-progress run
+      # (returns ~34-byte stub); `appleboy/scp-action` runs in a
+      # separate Docker container without access to the runner
+      # host's /tmp/. Log capture is handled by the separate
+      # `.github/workflows/capture-deploy-log.yml` workflow via
+      # workflow_run trigger. See knowledge/decisions.md
+      # [2026-04-15] Separate workflow for runner-side deploy log
+      # capture. Reintroduction requires a new ADR.
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -116,48 +125,3 @@ jobs:
             pm2 save
             echo "[build] step 8: deploy complete"
             pm2 status
-
-      - name: Fetch Actions log and save to VDS
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          mkdir -p /tmp/deploy-log
-          LOG_NAME="$(date -u +%Y-%m-%d_%H%M%S)_run${{ github.run_id }}.log"
-          echo "Fetching log for run ${{ github.run_id }}"
-          gh run view ${{ github.run_id }} --log --repo ${{ github.repository }} \
-            > /tmp/deploy-log/"$LOG_NAME" || {
-              echo "WARNING: gh run view failed, writing minimal log"
-              echo "run_id=${{ github.run_id }} status=unknown" \
-                > /tmp/deploy-log/"$LOG_NAME"
-            }
-          echo "Log size: $(wc -c < /tmp/deploy-log/"$LOG_NAME") bytes"
-          echo "LOG_NAME=$LOG_NAME" >> "$GITHUB_ENV"
-
-      - name: Upload log to VDS
-        if: always()
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VDS_HOST }}
-          username: root
-          key: ${{ secrets.VDS_SSH_KEY }}
-          source: "/tmp/deploy-log/${{ env.LOG_NAME }}"
-          target: "/var/www/jckauto/deploy-logs/"
-          strip_components: 2
-
-      - name: Update latest symlink and rotate old logs
-        if: always()
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VDS_HOST }}
-          username: root
-          key: ${{ secrets.VDS_SSH_KEY }}
-          command_timeout: 1m
-          script: |
-            set -e
-            cd /var/www/jckauto/deploy-logs
-            ln -sfn "${{ env.LOG_NAME }}" deploy-latest.log
-            ls -1t *.log 2>/dev/null | grep -v "^deploy-latest.log$" | tail -n +31 | xargs -r rm -f
-            echo "Current latest: $(readlink deploy-latest.log)"
-            echo "Total logs: $(ls -1 *.log 2>/dev/null | wc -l)"
