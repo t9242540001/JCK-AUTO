@@ -5,11 +5,10 @@
  * @triggers cron | manual: npx tsx -r dotenv/config scripts/generate-article.ts dotenv_config_path=.env.local
  * @input topicGenerator → generator → coverGenerator → articlePublisher
  * @output content/blog/{slug}.mdx + public/images/blog/{slug}.jpg
- * @lastModified 2026-04-03
+ * @lastModified 2026-04-15
  */
 
 import { join } from 'path';
-import { execSync } from 'child_process';
 import { generateTopic, addToPublishedLog } from '../src/services/articles/topicGenerator';
 import { generateArticle } from '../src/services/articles/generator';
 import { publishArticle } from '../src/services/articles/articlePublisher';
@@ -45,12 +44,12 @@ async function main() {
 
   try {
     // Шаг 3: Сгенерировать текст
-    console.log('\n[Article] Шаг 1/4: Генерация текста...');
+    console.log('\n[Article] Шаг 1/3: Генерация текста...');
     const article = await generateArticle(topic, newsContext, internalLinks);
     console.log(`[Article] Текст: ${article.wordCount} слов, $${article.cost.estimatedCostUsd}`);
 
     // Шаг 4: Сгенерировать обложку
-    console.log('\n[Article] Шаг 2/4: Генерация обложки...');
+    console.log('\n[Article] Шаг 2/3: Генерация обложки...');
     let cover = null;
     try {
       const coverPath = join(PROJECT_ROOT, 'public', 'images', 'blog', `${article.slug}.jpg`);
@@ -68,7 +67,7 @@ async function main() {
     }
 
     // Шаг 5: Опубликовать
-    console.log('\n[Article] Шаг 3/4: Публикация...');
+    console.log('\n[Article] Шаг 3/3: Публикация...');
     const pubResult = await publishArticle(article, cover);
     console.log(`[Article] Опубликовано: ${pubResult.mdxPath}`);
 
@@ -84,15 +83,16 @@ async function main() {
       newsSource: newsContext.map((n) => n.date).join(','),
     });
 
-    // Шаг 6: Сборка и перезапуск
-    console.log('\n[Article] Шаг 4/4: Сборка сайта...');
-    try {
-      execSync('npm run build', { cwd: PROJECT_ROOT, stdio: 'pipe', timeout: 300000 });
-      execSync('pm2 restart jckauto', { stdio: 'pipe', timeout: 30000 });
-      console.log('[Article] Сайт пересобран и перезапущен');
-    } catch (buildErr) {
-      console.warn('[Article] Сборка не удалась (нефатально, статья сохранена):', buildErr instanceof Error ? buildErr.message : buildErr);
-    }
+    // @rule: NEVER run `npm run build` or any build command from this script.
+    // A bare `npm run build` (without NEXT_DIST_DIR) creates `.next/` as a
+    // regular directory, destroying the two-slot atomic symlink used by
+    // deploy.yml. This caused production outages on 2026-04-09 and again
+    // on 2026-04-15. A new article will appear on /blog/[slug] (SSG) only
+    // after the next deploy. To force immediate appearance, push a trivial
+    // commit to main — auto-deploy will rebuild with NEXT_DIST_DIR via
+    // deploy.yml. Do NOT add execSync, spawn, or any process-spawning
+    // mechanism to this file. Article generation publishes the MDX file
+    // and that is its single responsibility.
 
     // Итог
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
