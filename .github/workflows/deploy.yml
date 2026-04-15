@@ -1,9 +1,12 @@
 name: Deploy to VDS
 
+# @rule: Only trigger is `push: branches: [main]`. Do NOT re-add `workflow_run`.
+# Rationale: workflow_run resolves workflow file from main tip at event
+# time, not from the pushed commit. This blocked runtime activation of
+# deploy improvements for ~24h before PAT_AUTO_MERGE was introduced and
+# caused duplicate-deploy runs where the stale copy overwrote the
+# correct one. See knowledge/decisions.md (ADR pending, separate prompt).
 on:
-  workflow_run:
-    workflows: ["Auto-merge Claude branches"]
-    types: [completed]
   push:
     branches: [main]
 
@@ -18,7 +21,6 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
