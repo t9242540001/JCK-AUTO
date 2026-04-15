@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-14
-  @version:     1.12
-  @lines:       47
+  @version:     1.13
+  @lines:       48
 -->
 
 # Knowledge Base — JCK AUTO
@@ -14,6 +14,7 @@
 | File | Description | Updated |
 |------|-------------|---------|
 | [infrastructure.md](infrastructure.md) | Server, PM2 (3 processes), deploy commands, nginx (bot-webhook/storage, 60s timeout + Sharp), Cloudflare Worker tg-proxy (4 routing modes), VDS provider network restrictions | 2026-04-10 |
+| [deploy.md](deploy.md) | Deploy pipeline: two-slot build, self-healing, runtime log observability, diagnostic order | 2026-04-14 |
 | [architecture.md](architecture.md) | Stack, file navigator, URL structure, key relationships | 2026-04-08 |
 | [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek, CBR, Google Drive, Telegram | 2026-04-14 |
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
@@ -40,7 +41,7 @@
 
 ## Quick Links
 
-- **Need to deploy?** → [infrastructure.md](infrastructure.md)
+- **Need to deploy?** → [deploy.md](deploy.md)
 - **Need to find a file?** → [architecture.md](architecture.md)
 - **Need to change calculator logic?** → [calculator.md](calculator.md)
 - **Need to understand an API?** → [integrations.md](integrations.md)
