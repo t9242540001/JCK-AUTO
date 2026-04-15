@@ -1,0 +1,72 @@
+name: Capture Deploy Log
+
+# @rule: This workflow listens for "Deploy to VDS" via workflow_run.
+# Do NOT rename the deploy workflow without updating the `workflows:`
+# array below — workflow_run subscriptions match by workflow name.
+# If renaming becomes necessary, also update knowledge/deploy.md.
+
+on:
+  workflow_run:
+    workflows: ["Deploy to VDS"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Fetch completed Actions log
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -e
+          mkdir -p "${{ runner.temp }}/deploy-log"
+          LOG_NAME="$(date -u +%Y-%m-%d_%H%M%S)_run${DEPLOY_RUN_ID}.log"
+          echo "Fetching log for completed deploy run ${DEPLOY_RUN_ID}"
+          gh run view "${DEPLOY_RUN_ID}" --log --repo ${{ github.repository }} \
+            > "${{ runner.temp }}/deploy-log/${LOG_NAME}" || {
+              echo "WARNING: gh run view failed, writing minimal log"
+              echo "run_id=${DEPLOY_RUN_ID} status=unknown fetch_failed=true" \
+                > "${{ runner.temp }}/deploy-log/${LOG_NAME}"
+            }
+          SIZE=$(wc -c < "${{ runner.temp }}/deploy-log/${LOG_NAME}")
+          echo "Log size: ${SIZE} bytes"
+          echo "LOG_NAME=${LOG_NAME}" >> "$GITHUB_ENV"
+
+      - name: Upload log to VDS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: root
+          key: ${{ secrets.VDS_SSH_KEY }}
+          source: "${{ runner.temp }}/deploy-log/${{ env.LOG_NAME }}"
+          target: "/var/www/jckauto/deploy-logs/"
+          strip_components: 4
+
+      - name: Update symlink and rotate old logs
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: root
+          key: ${{ secrets.VDS_SSH_KEY }}
+          command_timeout: 1m
+          script: |
+            set -e
+            cd /var/www/jckauto/deploy-logs
+            if [ -f "${{ env.LOG_NAME }}" ]; then
+              ln -sfn "${{ env.LOG_NAME }}" deploy-latest.log
+              echo "Symlink updated → ${{ env.LOG_NAME }}"
+            else
+              echo "ERROR: ${{ env.LOG_NAME }} not found on VDS"
+              exit 1
+            fi
+            ls -1t *.log 2>/dev/null \
+              | grep -v "^deploy-latest.log$" \
+              | tail -n +31 \
+              | xargs -r rm -f
+            echo "Total logs: $(ls -1 *.log 2>/dev/null | wc -l)"
