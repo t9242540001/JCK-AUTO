@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-15
-  @version:     1.2
-  @lines:       ~360
+  @updated:     2026-04-16
+  @version:     1.3
+  @lines:       ~790
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -13,6 +13,335 @@
 -->
 
 # Architectural Decisions
+
+## [2026-04-16] Pass 2 uses qwen3-vl-flash (visual reasoning), not qwen-vl-ocr
+
+**Status:** Accepted
+
+**Context:**
+In the three-pass OCR pipeline (see separate ADR of same date), Pass 2
+extracts body damage codes from the damage diagram — a task that
+requires identifying alphanumeric tokens on a drawn schematic and
+mapping each to a body part. With qwen-vl-ocr as the primary model for
+all three passes, Pass 2 consistently returned "no codes" (chars=17)
+on every production test sheet, regardless of prompt phrasing
+(verified across three prompt revisions — see git log
+094baa8..ef12ea4). qwen-vl-ocr is specialized for text character
+extraction from documents, not for visual-spatial reasoning about
+which code is located on which part of a diagram.
+
+**Decision:**
+Pass 2 uses a dedicated model chain `['qwen3-vl-flash', 'qwen-vl-ocr']`
+instead of the shared `ocrOptionsBase.models` used by Pass 1 and
+Pass 3. qwen3-vl-flash is a general vision-language model with
+visual reasoning; qwen-vl-ocr remains as a fallback only.
+
+**Rationale:**
+- Right tool per task: Pass 1 (label extraction) and Pass 3 (free
+  text transcription) are character extraction, suited to qwen-vl-ocr.
+  Pass 2 is visual-spatial QA, suited to qwen3-vl-flash.
+- Production verification on Toyota Wish sheet: chars=17 → chars=366
+  with 14 damage codes correctly localized (front fender, hood,
+  wheels, windshield, etc.) after model change alone. No prompt
+  changes needed.
+- Parallel execution unchanged (Promise.allSettled), so total OCR
+  elapsed time not materially affected.
+
+**Alternatives considered:**
+- Further prompt engineering on qwen-vl-ocr: exhausted across three
+  revisions, did not unlock the capability — model limitation, not
+  prompt limitation.
+- Claude Vision via GitHub Actions proxy: 10× cost, added
+  infrastructure complexity, only considered if VL-flash had failed.
+
+**Consequences:**
+- `+` Damage code extraction now works on typical sheets.
+- `+` Pass 1 and Pass 3 unchanged — no regression to text fields.
+- `−` Pass 2 cost per call slightly higher than qwen-vl-ocr
+  (negligible: both models priced similarly at this volume).
+- `−` Quality on damage diagrams is still imperfect on handwritten
+  low-contrast sheets (see separate bug tracking Allion instability).
+
+**Files changed:**
+- `jck-auto/src/app/api/tools/auction-sheet/route.ts` (Pass 2 models
+  array).
+
+**`@rule` enforced in route.ts:**
+`RULE: Pass 2 uses qwen3-vl-flash primary (visual reasoning),
+qwen-vl-ocr as fallback. qwen-vl-ocr alone returns "no codes" for
+every sheet — it cannot visually parse damage diagrams. Do NOT
+switch back to ocrOptionsBase.models here.`
+
+---
+
+## [2026-04-16] Multi-pass parallel OCR for auction sheets
+
+**Status:** Accepted
+
+**Context:**
+Earlier iterations tried single-pass OCR: one qwen-vl-ocr call with a
+large system prompt asking the model to simultaneously extract header
+fields, interpret the damage diagram, transcribe inspector notes, and
+structure the output as Markdown. Production testing on two sheets
+(Toyota Wish / USS, Toyota Allion / HAA) revealed the model handles
+text extraction acceptably but collapses under multi-objective
+instructions: damage codes localized incorrectly, sections missing,
+~30 unrecognized tokens per sheet. Three separate prompt revisions on
+a single-pass architecture failed to improve this.
+
+Root cause: qwen-vl-ocr is a small model. Multi-task prompts exceed
+its effective capacity; a single narrow task per call produces clean
+output.
+
+**Decision:**
+Replace single OCR call with three parallel narrow OCR calls via
+`Promise.allSettled`:
+- Pass 1 (text fields) — REQUIRED: extract label:value pairs for all
+  header fields. If this pass fails, the request returns 502.
+- Pass 2 (damages) — SOFT-FAIL: extract damage codes from the diagram
+  with body-part localization. Failure → `=== DAMAGES UNAVAILABLE ===`
+  marker passed to Step 2.
+- Pass 3 (free text) — SOFT-FAIL: transcribe inspector notes and
+  free-text sections verbatim, preserving original Japanese section
+  labels in square brackets as markers. Failure → `=== FREE TEXT
+  UNAVAILABLE ===` marker.
+
+The three results are concatenated with `=== SECTION ===` markers
+and passed as a single text block to Step 2 (DeepSeek text parse).
+
+**Rationale:**
+- Narrow single-task prompts fit within the model's capacity.
+- Parallel execution: total OCR elapsed time ≈ slowest pass, not sum.
+  Observed: ~5s for all three passes combined.
+- Soft-fail policy: partial data is still useful to the user.
+  Required-Pass-1 policy: a request with no header fields is useless.
+- Section markers give Step 2 (DeepSeek) explicit boundaries,
+  eliminating a class of parse errors.
+
+**Alternatives considered:**
+- Single-pass with smarter prompt: tried three revisions, did not work
+  — model capacity is the binding constraint, not prompt phrasing.
+- Sequential passes: same cost, worse latency — no benefit.
+- Merging all OCR into one vision+parse combined call with a larger
+  model: DashScope text models time out from VDS, so this path is
+  closed until that changes.
+
+**Consequences:**
+- `+` Clean structured input for DeepSeek, measurably better output.
+- `+` Graceful degradation: Pass 2 or Pass 3 failure does not block
+  the user from getting header data.
+- `−` 3× cost per request on OCR side (~$0.004-0.006 total per
+  request including Step 2). At current volume, negligible.
+- `−` More logging surface to monitor (three pass-result logs).
+
+**Files changed:**
+- `jck-auto/src/app/api/tools/auction-sheet/route.ts` (six new OCR
+  prompt constants, Promise.allSettled orchestration, three
+  pass-result logs).
+
+**`@rule` enforced in route.ts:**
+`RULE: Three parallel OCR passes, each with one narrow task. Do NOT
+merge into a single multi-task prompt — qwen-vl-ocr is a small model
+that fails on multi-objective instructions.`
+
+---
+
+## [2026-04-15] DeepSeek primary for auction-sheet Step 2 text parse
+
+**Status:** Accepted
+
+**Context:**
+Two-pass auction-sheet pipeline uses Step 1 (OCR via DashScope vision)
+and Step 2 (text parse of OCR output into JSON). Initial Step 2
+implementation used DashScope text models as primary (qwen3.5-plus,
+then qwen3.5-flash). Production logs over two days showed both models
+consistently exceed 25s, then 60s timeout with "The operation was
+aborted due to timeout" from DashScope API. Failure is deterministic
+per request, not intermittent. DashScope vision models (qwen-vl-ocr,
+qwen3-vl-flash) work reliably from the same VDS — the issue is
+specific to text models.
+
+Hypothesized cause: qwen3.5-plus has hybrid thinking mode (internal
+chain-of-thought before response) that inflates effective generation
+time. But qwen3.5-flash, which lacks thinking mode, also timed out —
+so the root cause may be broader (DashScope text-service regional
+availability or account-tier limitation from VDS origin). Not fully
+diagnosed; the observation is reproducible.
+
+DeepSeek API (api.deepseek.com, direct, no DashScope dependency)
+responds in ~10s for the same prompts and returns valid JSON.
+
+**Decision:**
+Step 2 order: DeepSeek primary → DashScope qwen3.5-flash fallback.
+Both calls use identical prompts (`PARSE_SYSTEM_PROMPT` +
+`parseUserPrompt`) and identical parameters (maxTokens 4096,
+temperature 0.1).
+
+Log lines distinguish primary success vs fallback success. `meta.model`
+in the response reflects which path actually produced the result.
+
+**Rationale:**
+- Primary = most reliable path observed in production; DeepSeek works
+  consistently from VDS.
+- Fallback keeps DashScope in the chain so if DeepSeek has regional
+  issues, the request has a second chance before 502.
+- Compatible interfaces on both clients (`callDeepSeek` and
+  `callQwenText`) made swap mechanical.
+- No permanent commitment to DeepSeek — if DashScope text stability
+  changes later, swap direction again.
+
+**Alternatives considered:**
+- Keep DashScope primary, debug timeout cause: blocker is
+  undocumented/external; could not isolate without Alibaba support.
+  Production users were blocked meanwhile.
+- OpenAI / Anthropic: geo-blocked from VDS, same class of issue as
+  original Anthropic-on-VDS decision (see 2026-01 ADR).
+- Reasoning model (deepseek-reasoner): overkill for structured
+  extraction from already-parsed OCR text.
+
+**Consequences:**
+- `+` Step 2 completes in ~10s on typical input, well within nginx
+  60s proxy_read_timeout.
+- `+` Lower cost than DashScope text ($0.28/M input for DeepSeek vs
+  higher DashScope rates).
+- `−` Dependency on DeepSeek uptime. DeepSeek has had regional
+  incidents producing non-JSON responses (see bugs.md C-5 for
+  current known instability on certain OCR content). Fallback
+  partially mitigates.
+- `−` Two independent API providers in the Step 2 path — monitoring
+  surface doubled.
+
+**Files changed:**
+- `jck-auto/src/app/api/tools/auction-sheet/route.ts` (Step 2
+  call order, fallback logic).
+
+**`@rule` enforced in route.ts:**
+`RULE: DeepSeek is primary for Step 2 — DashScope text models
+(qwen3.5-flash/plus) timeout from VDS. Do NOT swap back without
+verifying DashScope text API availability first.`
+
+---
+
+## [2026-04-15] REQUEST_TIMEOUT_MS 25s → 60s in dashscope.ts
+
+**Status:** Accepted
+
+**Context:**
+Previous value: 25000ms per attempt. Chosen when the pipeline was
+single-pass (one OCR call, tight budget, three retries within nginx
+60s total). With two-pass pipeline and text-model parse attempts
+consistently running longer than 25s, 25s-per-attempt caused
+premature failure even on requests that would eventually succeed.
+
+**Decision:**
+`REQUEST_TIMEOUT_MS = 60_000` (60s per single attempt) in
+`src/lib/dashscope.ts`.
+
+**Rationale:**
+- Nginx proxy_read_timeout is 60s. A single attempt exceeding 60s
+  will never return to the client anyway, so 60s is an upper bound
+  on useful per-attempt timeout.
+- With DeepSeek primary on Step 2 (see separate ADR), DashScope
+  timeouts happen only on the fallback path, where one extra attempt
+  is still worth waiting for.
+- Value is a ceiling, not an expectation. Typical successful calls
+  complete in 3–10s.
+
+**Consequences:**
+- `+` Eliminates premature cutoff of in-progress successful calls.
+- `−` Worst-case failed request now takes up to 60s per retry instead
+  of 25s. Mitigated by MAX_RETRIES policy (see call sites).
+
+**Files changed:**
+- `jck-auto/src/lib/dashscope.ts` (single constant).
+
+---
+
+## [2026-04-15] finish_reason=length detection in analyzeImage
+
+**Status:** Accepted
+
+**Context:**
+DashScope API can return `finish_reason: "length"` when the model hits
+`max_tokens` before completing its response. Previous behavior:
+`analyzeImage` treated any 200 response as success, returning
+whatever partial content was produced. Downstream code (JSON parser in
+route.ts) then failed on truncated JSON, emitting a parse_error to
+the user — symptom pointed at the parser, root cause was upstream
+truncation.
+
+**Decision:**
+In `analyzeImage` after extracting `choices[0].finish_reason`, if the
+value is `"length"`, throw an error explicitly naming truncation.
+`analyzeImageWithFallback` then treats this as a failure mode eligible
+for fallback model retry (same class as timeout/5xx).
+
+**Rationale:**
+- Truncation is a failure, not a success with incomplete data.
+- Surfacing the right error class at the right layer improves
+  diagnosability.
+- Fallback chain gets a chance to succeed — maybe the next model
+  fits the output in its budget.
+
+**Consequences:**
+- `+` Diagnostic logs now distinguish "bad JSON from the model" vs
+  "JSON was cut off".
+- `+` Fallback model gets a retry on a previously silently-failed
+  class of input.
+- `−` Slightly higher cost when truncation occurs (extra fallback
+  call). In practice rare.
+
+**Files changed:**
+- `jck-auto/src/lib/dashscope.ts` (`analyzeImage` function).
+
+---
+
+## [2026-04-15] Capture Deploy Log: workflow_dispatch to force registration
+
+**Status:** Pending verification (file pushed; GitHub registration status not yet confirmed in current session — see bugs.md)
+
+**Context:**
+`.github/workflows/capture-deploy-log.yml` was added (ADR
+[2026-04-15] Separate workflow for runner-side deploy log capture)
+but GitHub Actions did not register it in the workflow registry. Two
+post-add Deploy runs completed without triggering Capture; the
+workflows API returned only three workflows (Auto-merge, Deploy, Sync
+Catalog). Community discussions (GitHub issues #25219, #8140, #25756,
+#25179) document that workflows whose only triggers are non-push
+events (workflow_run, workflow_dispatch, schedule) may fail to
+register when the file lands in `main` via merge rather than a
+triggering push. Recommended fix: add `workflow_dispatch` to "wake"
+the indexer.
+
+**Decision:**
+Add `workflow_dispatch:` as a second trigger in capture-deploy-log.yml
+alongside the existing `workflow_run:`. Bare trigger (no `inputs:`).
+This provides: (a) side-effect registration of the workflow in the
+GitHub Actions registry; (b) manual run button for testing.
+
+**Rationale:**
+- Minimal change (one added line).
+- Does not alter existing `workflow_run:` behavior.
+- Standard industry workaround for this GitHub Actions quirk.
+- Adds genuine utility (manual re-run of capture for a specific
+  deploy without waiting for a new deploy).
+
+**Alternatives considered:**
+- Rename the capture workflow file: more disruptive, harder to
+  track in git history. Reserved as fallback if workflow_dispatch
+  does not succeed in registration.
+
+**Consequences:**
+- `+` Expected: workflow appears in Actions UI registry, workflow_run
+  subscription activates, next deploy triggers a capture run.
+- `−` Verification pending in a future session. If workflow still
+  fails to register, execute fallback (rename).
+
+**Files changed:**
+- `.github/workflows/capture-deploy-log.yml` (single `workflow_dispatch:`
+  line added).
+
+---
 
 ## [2026-01] DashScope over Anthropic for VDS AI calls
 
