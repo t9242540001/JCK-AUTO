@@ -2,9 +2,9 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources
-  @updated:     2026-04-14
-  @version:     1.2
-  @lines:       64
+  @updated:     2026-04-16
+  @version:     1.3
+  @lines:       69
 -->
 
 # Roadmap
@@ -37,6 +37,8 @@
 - [x] Bot: /start deep link handling (web_encar, web_auction → special welcome + channel button)
 - [x] Bot: extended /stats with command counters and traffic sources (botStats.ts)
 - [x] Privacy page /privacy updated with Telegram data collection section
+- [x] Auction-sheet multi-pass OCR architecture (three parallel passes + DeepSeek Step 2)
+- [x] Deploy pipeline stabilization (PAT_AUTO_MERGE, push-trigger-only, two-slot atomic build, article cron decoupled)
 
 ## In Progress
 
@@ -61,4 +63,7 @@
 ## Planned — Infrastructure
 
 - [ ] Set up monitoring/alerting for PM2 processes
-- [ ] Automate deploy via GitHub Actions (push to branch → build → restart)
+- [ ] Allion-specific auction sheet stabilization (see bugs.md С-5 — DeepSeek JSON parse fail diagnostics)
+- [ ] AuctionSheetClient frontend resilience for 502 responses (see bugs.md С-6)
+- [ ] Middleware-manifest regression investigation — PM2 720+ restart loop (see bugs.md Б-7)
+- [ ] Capture-deploy-log workflow registration verification (see bugs.md Б-8)
