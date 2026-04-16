@@ -1,11 +1,11 @@
 /**
  * @file route.ts
- * @description API endpoint для AI-расшифровки японских аукционных листов. Two-pass pipeline: OCR (qwen-vl-ocr, structured Markdown output) → structured parse (DeepSeek primary, qwen3.5-flash fallback).
+ * @description API endpoint для AI-расшифровки японских аукционных листов. Multi-pass OCR (three parallel qwen-vl-ocr passes: text fields / damage codes / free text) → structured parse (DeepSeek primary, qwen3.5-flash fallback).
  *              Supports two-mode rate limiting: anonymous (3 lifetime) / Telegram-auth (10/day).
  * @runs VDS
  * @input POST multipart/form-data с изображением (jpg/png/webp/heic, до 10 МБ)
  * @output JSON с распознанными данными аукционного листа
- * @cost ~$0.002-0.004/запрос (Step 1: OCR + Step 2: qwen3.5-flash or DeepSeek fallback)
+ * @cost ~$0.004-0.006/запрос (3 OCR passes параллельно + 1 parse call)
  * @rule Rate limit: anonymous — 3 запроса lifetime с одного IP; auth — 10/day по telegram_id
  * @rule Не логировать содержимое изображений
  * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var,
@@ -27,54 +27,89 @@ import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 МБ
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 
-// RULE: Two-pass pipeline prompts. Step 1 = OCR (vision model reads text).
-// Step 2 = Parse (text model structures into JSON). Do NOT merge into single prompt.
+// RULE: Three parallel OCR passes, each with one narrow task.
+// Do NOT merge into a single multi-task prompt — qwen-vl-ocr is
+// a small model that fails on multi-objective instructions.
+// See knowledge/decisions.md pending ADR for evidence.
 
-const OCR_SYSTEM_PROMPT = `You are an OCR specialist for Japanese car auction sheets (出品票).
+const OCR_TEXT_FIELDS_SYSTEM = `You are an OCR specialist for Japanese car auction sheets (出品票). Your task in this pass is to extract ALL header and text-field data — NOT diagrams, NOT free-text notes.
 
-Read ALL text visible on the image exactly as printed or handwritten. Do not skip any field, number, code, or annotation. Then organize your output as a structured Markdown document using the template below.
+Read every labeled field you see on the sheet. For each field, output one line in this exact format:
 
-Output format — Markdown with these exact section headers in order:
+japanese_label: value
 
-## Vehicle Info
-List all header fields exactly as written, one per line, format: japanese_field_label: value
-Include (if present): 出品番号, 初度登録, 車名, ドア形状, グレード, 評価点, 車歴, 排気量, 燃料, 型式, シフト, エアコン, 外装色, カラーNo., 内装色, 乗車定員, 最大積載量, 輸入車, リサイクル預託金, 走行, 車検, 登録番号, 名義変更期限, 車台番号, 諸元 (長さ/幅/高さ).
+Include (if visible on this specific sheet): 出品番号, 初度登録, 車名, ドア形状, グレード, 評価点, 車歴, 排気量, 燃料, 型式, シフト, エアコン, 外装色, カラーNo., 内装色, 乗車定員, 最大積載量, 輸入車, リサイクル預託金, 走行, 車検, 登録番号, 名義変更期限, 車台番号, 諸元, 外装, 内装.
 
-## Grades
-Lines with this exact format:
-- Overall: <value from 評価点>
-- Exterior: <value from 外装 box>
-- Interior: <value from 内装 box>
-
-## Equipment
-Transcribe the 純正装備 line verbatim — every code as written (ナビ, TV, ABS, エアB, PS, PW, etc.).
-
-## Sales Points
-Transcribe the セールスポイント section verbatim.
-
-## Damage Diagram
-A Markdown table with exactly these columns:
-| Code | Location | Notes |
-|------|----------|-------|
-One row per damage code visible on the body diagram. Location MUST be specific English body part (e.g. "right front fender", "left rear door", "roof", "rear bumper", "hood", "right front wheel"), NOT "body" or "車体". If you cannot determine exact location, write "unspecified". Include every code you can see, even partial.
-
-## Inspector Notes
-The 検査員記入欄 section. Every line verbatim in original Japanese, one line per list item with \`- \` bullet.
-
-## Additional Notes
-The 事務局よりご案内 section and any other free-text areas, verbatim.
+Also include the auction house name and lot number if visible anywhere on the sheet.
 
 STRICT RULES:
-1. Use ONLY the section headers listed above, in the exact order above
-2. If a section has no visible content on the image, write "(not present)" under its header — do not skip the header
-3. Do NOT translate field labels or values — leave Japanese as Japanese
-4. Do NOT interpret damage codes (no "small scratch" in Notes column — just transcribe what you see or leave Notes empty)
-5. Output ONLY the Markdown document. No preamble, no code fences around the whole document, no JSON.`;
+1. Keep the japanese label exactly as written, do NOT translate
+2. Keep the value exactly as printed — preserve numbers, units, Japanese characters, half-width/full-width as is
+3. One label-value pair per line, separated by ": "
+4. If a field you expected is not visible — skip it, do NOT invent
+5. Ignore the body damage diagram — it is covered by another pass
+6. Ignore handwritten inspector notes and free-text comments — they are covered by another pass
+7. Output plain text only, no markdown, no json, no code fences, no commentary`;
 
-const OCR_USER_PROMPT = 'Extract all text from this Japanese auction sheet image into the structured Markdown format specified in your system instructions. Every section header must be present. Damage codes go into the Markdown table with specific body locations.';
+const OCR_TEXT_FIELDS_USER = 'Extract all labeled header/text fields from this Japanese auction sheet. Plain text, one label: value per line. Ignore diagrams and free-text notes.';
+
+const OCR_DAMAGES_SYSTEM = `You are an OCR specialist for Japanese car auction sheets (出品票). Your task in this pass is to find the body damage diagram and extract the codes from it.
+
+Somewhere on this sheet there is usually a diagram of the car body viewed from above or in panels. Each damage code is a letter+digit combination such as A1, A2, A3, U1, U2, U3, W1, W2, W3, S1, S2, X, XX, P, H, B1, B2, Y1, Y2, Y3, T, G, E, C1, C2. These codes are placed on or next to specific body parts on the diagram.
+
+Find EVERY damage code on the diagram, wherever it is positioned. For each code, determine the body part it is placed on or pointing to, and output one line in this exact format:
+
+CODE: body_part_in_english
+
+Body part examples: front bumper, rear bumper, hood, roof, windshield, rear window, left front door, right front door, left rear door, right rear door, left front fender, right front fender, left rear fender, right rear fender, left front wheel, right front wheel, left rear wheel, right rear wheel, trunk lid, right side panel, left side panel, underbody.
+
+STRICT RULES:
+1. Include every code visible, even if partially legible — if unclear, write "unclear" instead of guessing body part
+2. If the same code appears multiple times on different parts, output multiple lines
+3. Do NOT skip codes that are written in brackets like [3] — those indicate wheels and belong to the nearest wheel location
+4. If there is no diagram on this sheet, or you cannot find any damage codes, output exactly: no diagram
+5. Do NOT transcribe any text that is not a damage code on the diagram
+6. Do NOT interpret the codes (no "small scratch" — just the code and the location)
+7. Output plain text only, no markdown, no json, no code fences, no commentary`;
+
+const OCR_DAMAGES_USER = 'Find the body damage diagram on this Japanese auction sheet. For every damage code on the diagram, output "CODE: body_part" on its own line. If no diagram exists, output exactly: no diagram';
+
+const OCR_FREE_TEXT_SYSTEM = `You are an OCR specialist for Japanese car auction sheets (出品票). Your task in this pass is to transcribe all free-text / handwritten / commentary sections verbatim, keeping the original japanese section labels as markers.
+
+Focus on these sections (transcribe only the ones that exist on this specific sheet):
+- 検査員記入欄 (inspector's notes — usually a list of handwritten Japanese lines)
+- セールスポイント (sales points — short positive notes)
+- 注意事項欄 (cautions / things to watch out for)
+- 事務局よりご案内 (office bureau announcement / instructions)
+- 後日発送部品 (parts shipped later)
+- 新規 / 取扱書 (registration / manual notes)
+- any other handwritten or freeform area that is not a labeled header field and not the damage diagram
+
+For each section you find, output it in this exact format:
+
+[JAPANESE_SECTION_LABEL]
+line 1 verbatim
+line 2 verbatim
+...
+
+Use the original Japanese section label in square brackets as the marker, so that the next stage knows which section each block came from.
+
+STRICT RULES:
+1. Transcribe exactly as written — do NOT translate, paraphrase, reorder, or summarize
+2. Preserve original Japanese characters, punctuation, handwriting quirks
+3. One line per line on the sheet
+4. If a section is not visible on this sheet, just skip it — do NOT write "(not present)"
+5. Do NOT include labeled header fields (出品番号, 車名, 走行, etc.) — those are covered by another pass
+6. Do NOT include damage codes from the diagram — they are covered by another pass
+7. If the entire sheet has no free-text content, output exactly: no free text
+8. Output plain text only, no markdown, no json, no code fences, no commentary`;
+
+const OCR_FREE_TEXT_USER = 'Transcribe all free-text, handwritten, and commentary sections from this Japanese auction sheet. Keep each section under its original Japanese label in square brackets. Skip labeled header fields and damage codes. If no free text exists, output exactly: no free text';
 
 const PARSE_SYSTEM_PROMPT = `You are an expert parser of Japanese car auction sheet data.
-You receive a structured Markdown document extracted from a Japanese auction sheet by an OCR pass. The document has these sections: ## Vehicle Info, ## Grades, ## Equipment, ## Sales Points, ## Damage Diagram (Markdown table), ## Inspector Notes, ## Additional Notes. Parse it into the JSON schema below.
+You receive the output of three parallel OCR passes on a Japanese auction sheet, concatenated with markers. Pass 1 (=== TEXT FIELDS ===) lists labeled header fields as "japanese_label: value" lines. Pass 2 (=== DAMAGES ===) lists body damage codes as "CODE: body_part" lines, or the literal string "no diagram". Pass 3 (=== FREE TEXT ===) contains handwritten/commentary sections each prefixed with its original Japanese label in square brackets like [検査員記入欄], or the literal string "no free text". Any pass may be missing if that OCR call failed, in which case you will see "=== SECTION NAME UNAVAILABLE ===".
+
+Parse all available sections into the JSON schema below. If a whole section is unavailable, set the corresponding JSON fields to null and do not invent values. Inspector Notes from Pass 3 map to expertComments. Body damage codes from Pass 2 map to bodyDamages (use the body_part_in_english as a hint, translate to Russian for the location field).
 
 GRADING SYSTEM:
 - Overall: S > 6 > 5 > 4.5 > 4 > 3.5 > 3 > 2 > 1 > R (rebuilt) > A (accident) > *** (unrateable)
@@ -240,29 +275,105 @@ export async function POST(request: Request) {
   // RULE: Two-pass pipeline. Step 1 = OCR (vision). Step 2 = Parse (text).
   // Do NOT merge back into single pass. See knowledge/decisions.md pending ADR.
   try {
-    // ── Step 1: OCR — extract raw text from auction sheet image ──
-    const ocrResult = await analyzeImageWithFallback(dataUrl, OCR_USER_PROMPT, {
-      models: ['qwen-vl-ocr', 'qwen3-vl-flash'],
+    // ── Step 1: OCR — three parallel narrow passes ──
+    // Pass 1 = text fields (REQUIRED), Pass 2 = damages (soft-fail),
+    // Pass 3 = free text (soft-fail).
+    const ocrStart = Date.now();
+    const ocrOptionsBase = {
+      models: ['qwen-vl-ocr', 'qwen3-vl-flash'] as const,
       maxTokens: 8192,
       temperature: 0.1,
-      systemPrompt: OCR_SYSTEM_PROMPT,
-    });
+    };
 
-    const rawText = ocrResult.content;
-    console.log(`[auction-sheet] Step 1 OCR complete: model=${ocrResult.usedModel}, chars=${rawText.length}, tokens=${ocrResult.usage.totalTokens}`);
+    const [textFieldsRes, damagesRes, freeTextRes] = await Promise.allSettled([
+      analyzeImageWithFallback(dataUrl, OCR_TEXT_FIELDS_USER, {
+        ...ocrOptionsBase,
+        models: [...ocrOptionsBase.models],
+        systemPrompt: OCR_TEXT_FIELDS_SYSTEM,
+      }),
+      analyzeImageWithFallback(dataUrl, OCR_DAMAGES_USER, {
+        ...ocrOptionsBase,
+        models: [...ocrOptionsBase.models],
+        systemPrompt: OCR_DAMAGES_SYSTEM,
+      }),
+      analyzeImageWithFallback(dataUrl, OCR_FREE_TEXT_USER, {
+        ...ocrOptionsBase,
+        models: [...ocrOptionsBase.models],
+        systemPrompt: OCR_FREE_TEXT_SYSTEM,
+      }),
+    ]);
 
-    // Sanity check: if OCR returned very little text, image is likely not an auction sheet
-    if (rawText.length < 50) {
+    const ocrElapsed = ((Date.now() - ocrStart) / 1000).toFixed(1);
+
+    // Pass 1 is REQUIRED
+    if (textFieldsRes.status !== 'fulfilled') {
+      const errMsg = textFieldsRes.reason instanceof Error
+        ? textFieldsRes.reason.message
+        : String(textFieldsRes.reason);
+      console.error(`[auction-sheet] OCR Pass 1 (text fields) failed: ${errMsg}`);
+      return NextResponse.json(
+        { error: 'ai_error', message: 'Ошибка при обработке изображения. Попробуйте позже.' },
+        { status: 502 },
+      );
+    }
+
+    const textFieldsContent = textFieldsRes.value.content;
+    console.log(`[auction-sheet] Pass 1 OCR complete: model=${textFieldsRes.value.usedModel}, chars=${textFieldsContent.length}`);
+
+    // Sanity check on Pass 1
+    if (textFieldsContent.length < 30) {
       return NextResponse.json(
         { error: 'parse_error', message: 'Не удалось распознать аукционный лист. Попробуйте другое фото.' },
         { status: 502 },
       );
     }
 
+    // Pass 2 is soft-fail
+    let damagesContent: string;
+    if (damagesRes.status === 'fulfilled') {
+      damagesContent = damagesRes.value.content;
+      console.log(`[auction-sheet] Pass 2 OCR complete: model=${damagesRes.value.usedModel}, chars=${damagesContent.length}`);
+    } else {
+      const errMsg = damagesRes.reason instanceof Error ? damagesRes.reason.message : String(damagesRes.reason);
+      console.warn(`[auction-sheet] Pass 2 OCR (damages) failed (soft): ${errMsg.slice(0, 120)}`);
+      damagesContent = '';
+    }
+
+    // Pass 3 is soft-fail
+    let freeTextContent: string;
+    if (freeTextRes.status === 'fulfilled') {
+      freeTextContent = freeTextRes.value.content;
+      console.log(`[auction-sheet] Pass 3 OCR complete: model=${freeTextRes.value.usedModel}, chars=${freeTextContent.length}`);
+    } else {
+      const errMsg = freeTextRes.reason instanceof Error ? freeTextRes.reason.message : String(freeTextRes.reason);
+      console.warn(`[auction-sheet] Pass 3 OCR (free text) failed (soft): ${errMsg.slice(0, 120)}`);
+      freeTextContent = '';
+    }
+
+    console.log(`[auction-sheet] OCR total elapsed: ${ocrElapsed}s`);
+
+    // Compose combined OCR text for Step 2
+    const textFieldsSection = `=== TEXT FIELDS ===\n${textFieldsContent}`;
+    const damagesSection = damagesContent
+      ? `=== DAMAGES ===\n${damagesContent}`
+      : `=== DAMAGES UNAVAILABLE ===`;
+    const freeTextSection = freeTextContent
+      ? `=== FREE TEXT ===\n${freeTextContent}`
+      : `=== FREE TEXT UNAVAILABLE ===`;
+
+    const rawText = `${textFieldsSection}\n\n${damagesSection}\n\n${freeTextSection}`;
+
+    // Compute token totals across fulfilled passes only
+    const ocrTokens =
+      (textFieldsRes.status === 'fulfilled' ? textFieldsRes.value.usage.totalTokens : 0) +
+      (damagesRes.status === 'fulfilled' ? damagesRes.value.usage.totalTokens : 0) +
+      (freeTextRes.status === 'fulfilled' ? freeTextRes.value.usage.totalTokens : 0);
+    const ocrModelUsed = textFieldsRes.value.usedModel;
+
     // ── Step 2: Parse — structure raw text into JSON via text model ──
     // RULE: Primary = DeepSeek (fast, reliable from VDS), fallback = qwen3.5-flash.
     // Do NOT use qwen3.5-plus here — its hybrid thinking exceeds 25s timeout.
-    const parseUserPrompt = `Parse the following raw OCR text from a Japanese car auction sheet into the JSON schema specified in your system instructions.\n\n--- OCR TEXT START ---\n${rawText}\n--- OCR TEXT END ---`;
+    const parseUserPrompt = `Parse the following three-pass OCR output from a Japanese car auction sheet into the JSON schema specified in your system instructions.\n\n${rawText}`;
 
     let parseContent: string;
     let parseModel: string;
@@ -317,8 +428,8 @@ export async function POST(request: Request) {
       success: true,
       data: parsed,
       meta: {
-        model: `${ocrResult.usedModel} → ${parseModel}`,
-        tokens: ocrResult.usage.totalTokens + parseTokens,
+        model: `${ocrModelUsed} ×3 → ${parseModel}`,
+        tokens: ocrTokens + parseTokens,
         remaining,
       },
     });
