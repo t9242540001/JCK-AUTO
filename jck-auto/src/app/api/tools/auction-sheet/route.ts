@@ -1,6 +1,6 @@
 /**
  * @file route.ts
- * @description API endpoint для AI-расшифровки японских аукционных листов. Two-pass pipeline: OCR (qwen-vl-ocr) → structured parse (DeepSeek).
+ * @description API endpoint для AI-расшифровки японских аукционных листов. Two-pass pipeline: OCR (qwen-vl-ocr, structured Markdown output) → structured parse (DeepSeek primary, qwen3.5-flash fallback).
  *              Supports two-mode rate limiting: anonymous (3 lifetime) / Telegram-auth (10/day).
  * @runs VDS
  * @input POST multipart/form-data с изображением (jpg/png/webp/heic, до 10 МБ)
@@ -11,7 +11,7 @@
  * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var,
  *              src/lib/dashscope (analyzeImageWithFallback, callQwenText), src/lib/deepseek (callDeepSeek), src/lib/rateLimiter,
  *              sharp 0.34.5 (compression; HEIC supported via libheif 1.20.2)
- * @lastModified 2026-04-15
+ * @lastModified 2026-04-16
  */
 
 import { NextResponse } from 'next/server';
@@ -31,22 +31,50 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 // Step 2 = Parse (text model structures into JSON). Do NOT merge into single prompt.
 
 const OCR_SYSTEM_PROMPT = `You are an OCR specialist for Japanese car auction sheets (出品票).
-Read ALL text visible on the image exactly as printed or handwritten. Do not skip any field, number, code, or annotation.
 
-For the body damage diagram (車体図 / inspection diagram):
-- List each damage code with its exact location on the vehicle body
-- Format each as: "CODE on LOCATION" (e.g. "X3 on right front fender", "A1 on left rear door", "U4 on rear panel")
-- Include every code visible on the diagram, even partially legible ones
+Read ALL text visible on the image exactly as printed or handwritten. Do not skip any field, number, code, or annotation. Then organize your output as a structured Markdown document using the template below.
 
-For the inspector notes section (検査員記入欄):
-- Transcribe every line exactly as written in original language
+Output format — Markdown with these exact section headers in order:
 
-Output ALL recognized text as plain text. Do NOT interpret, translate, summarize, or restructure. Do NOT output JSON.`;
+## Vehicle Info
+List all header fields exactly as written, one per line, format: japanese_field_label: value
+Include (if present): 出品番号, 初度登録, 車名, ドア形状, グレード, 評価点, 車歴, 排気量, 燃料, 型式, シフト, エアコン, 外装色, カラーNo., 内装色, 乗車定員, 最大積載量, 輸入車, リサイクル預託金, 走行, 車検, 登録番号, 名義変更期限, 車台番号, 諸元 (長さ/幅/高さ).
 
-const OCR_USER_PROMPT = 'Read all text from this Japanese auction sheet image. Include every visible field, number, damage code with its body location, and inspector notes. Plain text output only, no JSON.';
+## Grades
+Lines with this exact format:
+- Overall: <value from 評価点>
+- Exterior: <value from 外装 box>
+- Interior: <value from 内装 box>
+
+## Equipment
+Transcribe the 純正装備 line verbatim — every code as written (ナビ, TV, ABS, エアB, PS, PW, etc.).
+
+## Sales Points
+Transcribe the セールスポイント section verbatim.
+
+## Damage Diagram
+A Markdown table with exactly these columns:
+| Code | Location | Notes |
+|------|----------|-------|
+One row per damage code visible on the body diagram. Location MUST be specific English body part (e.g. "right front fender", "left rear door", "roof", "rear bumper", "hood", "right front wheel"), NOT "body" or "車体". If you cannot determine exact location, write "unspecified". Include every code you can see, even partial.
+
+## Inspector Notes
+The 検査員記入欄 section. Every line verbatim in original Japanese, one line per list item with \`- \` bullet.
+
+## Additional Notes
+The 事務局よりご案内 section and any other free-text areas, verbatim.
+
+STRICT RULES:
+1. Use ONLY the section headers listed above, in the exact order above
+2. If a section has no visible content on the image, write "(not present)" under its header — do not skip the header
+3. Do NOT translate field labels or values — leave Japanese as Japanese
+4. Do NOT interpret damage codes (no "small scratch" in Notes column — just transcribe what you see or leave Notes empty)
+5. Output ONLY the Markdown document. No preamble, no code fences around the whole document, no JSON.`;
+
+const OCR_USER_PROMPT = 'Extract all text from this Japanese auction sheet image into the structured Markdown format specified in your system instructions. Every section header must be present. Damage codes go into the Markdown table with specific body locations.';
 
 const PARSE_SYSTEM_PROMPT = `You are an expert parser of Japanese car auction sheet data.
-You receive raw OCR text extracted from a Japanese auction sheet. Parse it into the JSON schema below.
+You receive a structured Markdown document extracted from a Japanese auction sheet by an OCR pass. The document has these sections: ## Vehicle Info, ## Grades, ## Equipment, ## Sales Points, ## Damage Diagram (Markdown table), ## Inspector Notes, ## Additional Notes. Parse it into the JSON schema below.
 
 GRADING SYSTEM:
 - Overall: S > 6 > 5 > 4.5 > 4 > 3.5 > 3 > 2 > 1 > R (rebuilt) > A (accident) > *** (unrateable)
