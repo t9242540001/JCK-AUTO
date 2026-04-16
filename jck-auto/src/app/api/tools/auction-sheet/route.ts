@@ -1,15 +1,15 @@
 /**
  * @file route.ts
- * @description API endpoint для AI-расшифровки японских аукционных листов. Two-pass pipeline: OCR (qwen-vl-ocr) → structured parse (qwen3.5-plus).
+ * @description API endpoint для AI-расшифровки японских аукционных листов. Two-pass pipeline: OCR (qwen-vl-ocr) → structured parse (qwen3.5-flash).
  *              Supports two-mode rate limiting: anonymous (3 lifetime) / Telegram-auth (10/day).
  * @runs VDS
  * @input POST multipart/form-data с изображением (jpg/png/webp/heic, до 10 МБ)
  * @output JSON с распознанными данными аукционного листа
- * @cost ~$0.003-0.005/запрос (Step 1: OCR vision + Step 2: text parse)
+ * @cost ~$0.002-0.004/запрос (Step 1: OCR + Step 2: qwen3.5-flash or DeepSeek fallback)
  * @rule Rate limit: anonymous — 3 запроса lifetime с одного IP; auth — 10/day по telegram_id
  * @rule Не логировать содержимое изображений
  * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var,
- *              src/lib/dashscope (analyzeImageWithFallback, callQwenText), src/lib/rateLimiter,
+ *              src/lib/dashscope (analyzeImageWithFallback, callQwenText), src/lib/deepseek (callDeepSeek), src/lib/rateLimiter,
  *              sharp 0.34.5 (compression; HEIC supported via libheif 1.20.2)
  * @lastModified 2026-04-15
  */
@@ -19,6 +19,7 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import sharp from 'sharp';
 import { analyzeImageWithFallback, callQwenText } from '@/lib/dashscope';
+import { callDeepSeek } from '@/lib/deepseek';
 import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
@@ -231,22 +232,45 @@ export async function POST(request: Request) {
     }
 
     // ── Step 2: Parse — structure raw text into JSON via text model ──
+    // RULE: Primary = qwen3.5-flash (fast, no thinking phase), fallback = DeepSeek.
+    // Do NOT use qwen3.5-plus here — its hybrid thinking exceeds 25s timeout.
     const parseUserPrompt = `Parse the following raw OCR text from a Japanese car auction sheet into the JSON schema specified in your system instructions.\n\n--- OCR TEXT START ---\n${rawText}\n--- OCR TEXT END ---`;
 
-    const parseResult = await callQwenText(parseUserPrompt, {
-      model: 'qwen3.5-plus',
-      maxTokens: 4096,
-      temperature: 0.1,
-      systemPrompt: PARSE_SYSTEM_PROMPT,
-    });
+    let parseContent: string;
+    let parseModel: string;
+    let parseTokens: number;
 
-    console.log(`[auction-sheet] Step 2 parse complete: model=qwen3.5-plus, tokens=${parseResult.usage.totalTokens}`);
+    try {
+      const qwenResult = await callQwenText(parseUserPrompt, {
+        model: 'qwen3.5-flash',
+        maxTokens: 4096,
+        temperature: 0.1,
+        systemPrompt: PARSE_SYSTEM_PROMPT,
+      });
+      parseContent = qwenResult.content;
+      parseModel = 'qwen3.5-flash';
+      parseTokens = qwenResult.usage.totalTokens;
+      console.log(`[auction-sheet] Step 2 parse complete: model=${parseModel}, tokens=${parseTokens}`);
+    } catch (step2Err) {
+      const errMsg = step2Err instanceof Error ? step2Err.message : String(step2Err);
+      console.warn(`[auction-sheet] Step 2 qwen3.5-flash failed: ${errMsg.slice(0, 120)}, trying DeepSeek fallback...`);
+
+      const dsResult = await callDeepSeek(parseUserPrompt, {
+        maxTokens: 4096,
+        temperature: 0.1,
+        systemPrompt: PARSE_SYSTEM_PROMPT,
+      });
+      parseContent = dsResult.content;
+      parseModel = 'deepseek-chat';
+      parseTokens = dsResult.usage.totalTokens;
+      console.log(`[auction-sheet] Step 2 parse complete (fallback): model=${parseModel}, tokens=${parseTokens}`);
+    }
 
     let parsed: unknown;
     try {
-      parsed = parseJsonFromContent(parseResult.content);
+      parsed = parseJsonFromContent(parseContent);
     } catch {
-      console.error('[auction-sheet] JSON parse failed after Step 2. Raw content length:', parseResult.content.length);
+      console.error('[auction-sheet] JSON parse failed after Step 2. Content length:', parseContent.length);
       return NextResponse.json(
         { error: 'parse_error', message: 'Не удалось распознать аукционный лист. Попробуйте другое фото.' },
         { status: 502 },
@@ -262,8 +286,8 @@ export async function POST(request: Request) {
       success: true,
       data: parsed,
       meta: {
-        model: `${ocrResult.usedModel} → qwen3.5-plus`,
-        tokens: ocrResult.usage.totalTokens + parseResult.usage.totalTokens,
+        model: `${ocrResult.usedModel} → ${parseModel}`,
+        tokens: ocrResult.usage.totalTokens + parseTokens,
         remaining,
       },
     });
