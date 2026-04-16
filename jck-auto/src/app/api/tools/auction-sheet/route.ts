@@ -1,24 +1,24 @@
 /**
  * @file route.ts
- * @description API endpoint для AI-расшифровки японских аукционных листов через Qwen-VL.
+ * @description API endpoint для AI-расшифровки японских аукционных листов. Two-pass pipeline: OCR (qwen-vl-ocr) → structured parse (qwen3.5-plus).
  *              Supports two-mode rate limiting: anonymous (3 lifetime) / Telegram-auth (10/day).
  * @runs VDS
  * @input POST multipart/form-data с изображением (jpg/png/webp/heic, до 10 МБ)
  * @output JSON с распознанными данными аукционного листа
- * @cost ~$0.002/запрос (Qwen vision fallback chain: qwen-vl-ocr → qwen3-vl-flash → qwen3.5-plus)
+ * @cost ~$0.003-0.005/запрос (Step 1: OCR vision + Step 2: text parse)
  * @rule Rate limit: anonymous — 3 запроса lifetime с одного IP; auth — 10/day по telegram_id
  * @rule Не логировать содержимое изображений
  * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var,
- *              src/lib/dashscope (analyzeImageWithFallback), src/lib/rateLimiter,
+ *              src/lib/dashscope (analyzeImageWithFallback, callQwenText), src/lib/rateLimiter,
  *              sharp 0.34.5 (compression; HEIC supported via libheif 1.20.2)
- * @lastModified 2026-04-14
+ * @lastModified 2026-04-15
  */
 
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import sharp from 'sharp';
-import { analyzeImageWithFallback } from '@/lib/dashscope';
+import { analyzeImageWithFallback, callQwenText } from '@/lib/dashscope';
 import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
@@ -26,71 +26,76 @@ import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 МБ
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 
-const SYSTEM_PROMPT = `Ты — эксперт по расшифровке японских аукционных листов. Анализируй загруженное изображение и извлеки все данные.
+// RULE: Two-pass pipeline prompts. Step 1 = OCR (vision model reads text).
+// Step 2 = Parse (text model structures into JSON). Do NOT merge into single prompt.
 
-СИСТЕМА ОЦЕНОК:
-- Общая оценка: S > 6 > 5 > 4.5 > 4 > 3.5 > 3 > 2 > 1 > R (восстановленный) > A (аварийный) > *** (не подлежит оценке)
-- Оценка салона: A (отлично) > B (хорошо) > C (удовлетворительно) > D (плохо)
-- Аукционы: USS, TAA, HAA, JU, CAA, AUCNET, JAA и др.
+const OCR_SYSTEM_PROMPT = `You are an OCR specialist for Japanese car auction sheets (出品票).
+Read ALL text visible on the image exactly as printed or handwritten. Do not skip any field, number, code, or annotation.
 
-КОДЫ ДЕФЕКТОВ:
-- A1 (мелкая царапина), A2 (царапина), A3 (большая царапина)
-- E/U1 (маленькая вмятина), U2 (вмятина), U3 (большая вмятина)
-- W1 (мелкий ремонт/подкрас), W2 (ремонт с покраской), W3 (значительный ремонт)
-- S1 (следы ржавчины), S2 (значительная ржавчина)
-- X (деталь заменена), XX (деталь заменена на неоригинальную)
-- P (краска отличается от оригинала), H (краска потускнела)
-- C1 (мелкая коррозия), C2 (коррозия)
-- B1 (маленькая вмятина с царапиной), B2 (вмятина с царапиной)
-- Y1 (мелкая трещина), Y2 (трещина), Y3 (большая трещина)
+For the body damage diagram (車体図 / inspection diagram):
+- List each damage code with its exact location on the vehicle body
+- Format each as: "CODE on LOCATION" (e.g. "X3 on right front fender", "A1 on left rear door", "U4 on rear panel")
+- Include every code visible on the diagram, even partially legible ones
 
-РАСПОЛОЖЕНИЕ ДЕФЕКТОВ:
-Схема кузова на аукционном листе показывает вид сверху. Стороны: передний бампер, капот, крыша, задний бампер, левая/правая передняя дверь, левая/правая задняя дверь, левое/правое переднее крыло, левое/правое заднее крыло.
+For the inspector notes section (検査員記入欄):
+- Transcribe every line exactly as written in original language
 
-КОМПЛЕКТАЦИЯ (сокращения):
-AC (кондиционер), AAC (климат-контроль), PS (гидроусилитель), PW (электростеклоподъёмники), AW (литые диски), SR (люк), ABS, AB (подушки безопасности), TV, NAVI (навигация), CD, MD, ETC (электронная система оплаты), HID/LED (фары), RS (задний спойлер), 4WD
+Output ALL recognized text as plain text. Do NOT interpret, translate, summarize, or restructure. Do NOT output JSON.`;
 
-ФОРМАТ ОТВЕТА — строго JSON:
+const OCR_USER_PROMPT = 'Read all text from this Japanese auction sheet image. Include every visible field, number, damage code with its body location, and inspector notes. Plain text output only, no JSON.';
+
+const PARSE_SYSTEM_PROMPT = `You are an expert parser of Japanese car auction sheet data.
+You receive raw OCR text extracted from a Japanese auction sheet. Parse it into the JSON schema below.
+
+GRADING SYSTEM:
+- Overall: S > 6 > 5 > 4.5 > 4 > 3.5 > 3 > 2 > 1 > R (rebuilt) > A (accident) > *** (unrateable)
+- Interior: A (excellent) > B (good) > C (fair) > D (poor)
+
+DEFECT CODES AND SEVERITY:
+minor: A1 (small scratch), U1/E1 (small dent), W1 (minor touch-up), S1 (rust traces), C1 (minor corrosion), B1 (small dent+scratch), Y1 (small crack), P (paint differs), H (faded paint), G (windshield stone chip)
+moderate: A2 (scratch), U2 (dent), W2 (repainted), S2 (significant rust), C2 (corrosion), B2 (dent+scratch), Y2 (crack)
+major: A3 (large scratch), U3 (large dent), W3 (major repair), X (part replaced), XX (replaced non-original), Y3 (large crack), T (needs replacement)
+
+EQUIPMENT CODES (decode to Russian):
+AC=кондиционер, AAC=климат-контроль, PS=гидроусилитель, PW=электростеклоподъёмники, AW=литые диски, SR=люк, ABS, AB=подушки безопасности, TV, NAVI=навигация, CD, MD, ETC=система электронной оплаты, HID/LED=ксенон/LED фары, RS=задний спойлер, 4WD=полный привод
+
+JAPANESE CALENDAR CONVERSION:
+R (Reiwa 令和): R1=2019, R2=2020, R3=2021, R4=2022, R5=2023, R6=2024, R7=2025
+H (Heisei 平成): H20=2008, H21=2009, H22=2010, H23=2011, H24=2012, H25=2013, H26=2014, H27=2015, H28=2016, H29=2017, H30=2018, H31=2019
+
+JSON SCHEMA — output ONLY this object, nothing else:
 {
-  "auctionName": "название аукциона или null",
-  "lotNumber": "номер лота или null",
-  "overallGrade": "общая оценка (S, 6, 5, 4.5, 4, 3.5, 3, 2, 1, R, A, ***) или null",
-  "interiorGrade": "оценка салона (A, B, C, D) или null",
-  "make": "марка или null",
-  "model": "модель или null",
-  "year": "год (формат: 'R3 (2021)' для японского календаря или просто '2021') или null",
-  "engineVolume": "объём двигателя в см³ или null",
-  "engineType": "тип двигателя (бензин/дизель/гибрид/электро) или null",
-  "transmission": "коробка передач (AT/MT/CVT) или null",
-  "mileage": "пробег в км или null",
-  "mileageWarning": true/false,
-  "color": "цвет кузова или null",
-  "ownership": "тип владения или null",
-  "bodyDamages": [
-    {
-      "location": "расположение на русском",
-      "code": "код дефекта",
-      "description": "расшифровка на русском",
-      "severity": "minor|moderate|major"
-    }
-  ],
-  "equipment": ["расшифрованные опции на русском"],
-  "expertComments": "комментарии эксперта переведённые на русском или null",
-  "unrecognized": ["что не удалось распознать"],
-  "confidence": "high|medium|low",
-  "recommendation": "краткая рекомендация по покупке на русском",
-  "warnings": ["предупреждения"]
+  "auctionName": "auction house name in English (USS, TAA, HAA, JU, CAA...) or null",
+  "lotNumber": "lot number as string or null",
+  "overallGrade": "grade (S/6/5/4.5/4/3.5/3/2/1/R/A/***) or null",
+  "interiorGrade": "interior grade (A/B/C/D) or null",
+  "make": "brand in English (Toyota, Honda, Nissan, Mazda, Subaru...) or null",
+  "model": "model in English (Wish, Allion, Crown, Fit, Impreza...) or null",
+  "year": "Western calendar year as string (e.g. '2015') or null",
+  "engineVolume": "displacement in cc as string (e.g. '1800') or null",
+  "engineType": "бензин or дизель or гибрид or электро or null",
+  "transmission": "AT or MT or CVT or null",
+  "mileage": "mileage in km as string (e.g. '199559') or null",
+  "mileageWarning": false,
+  "color": "color in Russian or null",
+  "ownership": "ownership type in Russian (личное использование, корпоративное...) or null",
+  "bodyDamages": [{"location": "body part in Russian", "code": "defect code", "description": "defect description in Russian", "severity": "minor|moderate|major"}],
+  "equipment": ["each decoded option in Russian (e.g. 'климат-контроль', 'навигация', 'ABS')"],
+  "expertComments": "inspector notes translated to Russian or null",
+  "unrecognized": ["OCR text items that could not be mapped to any field"],
+  "confidence": "high or medium or low",
+  "recommendation": "brief purchase recommendation in Russian based on grade, mileage, and damage",
+  "warnings": ["any concerns in Russian (high mileage for age, many repairs, replaced parts...)"]
 }
 
-ПРАВИЛА:
-- Все тексты на русском языке
-- Если данные не удалось распознать — записать в unrecognized, НЕ выдумывать
-- Если пробег вызывает сомнения (несоответствие возрасту) — mileageWarning: true
-- confidence: high если распознано >80% полей, medium если 50-80%, low если <50%
-- Год из японского календаря: R = Reiwa (2019+), H = Heisei (1989-2019), конвертировать в европейский
-- Ответ — ТОЛЬКО JSON, без пояснений, без markdown-обёрток`;
-
-const USER_PROMPT = 'Расшифруй этот аукционный лист. Извлеки все данные которые видишь. Ответ — строго JSON по заданной схеме.';
+STRICT RULES:
+1. Brands and models ALWAYS in English (Toyota, not トヨタ, not Тойота)
+2. Descriptions, equipment labels, comments, recommendations, warnings — in Russian
+3. If a field is NOT present in the OCR text — set null. NEVER invent or guess
+4. If mileage seems too high for vehicle age — set mileageWarning: true and add warning
+5. confidence: "high" if >80% fields recognized, "medium" if 50-80%, "low" if <50%
+6. Convert Japanese calendar years to Western calendar using the table above
+7. Output ONLY valid JSON — no markdown fences, no explanation, no preamble`;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
@@ -203,25 +208,52 @@ export async function POST(request: Request) {
   const base64 = compressed.toString('base64');
   const dataUrl = `data:image/jpeg;base64,${base64}`;
 
-  // Call Qwen-VL
+  // RULE: Two-pass pipeline. Step 1 = OCR (vision). Step 2 = Parse (text).
+  // Do NOT merge back into single pass. See knowledge/decisions.md pending ADR.
   try {
-    const result = await analyzeImageWithFallback(dataUrl, USER_PROMPT, {
-      maxTokens: 4096,
+    // ── Step 1: OCR — extract raw text from auction sheet image ──
+    const ocrResult = await analyzeImageWithFallback(dataUrl, OCR_USER_PROMPT, {
+      models: ['qwen-vl-ocr', 'qwen3-vl-flash'],
+      maxTokens: 8192,
       temperature: 0.1,
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: OCR_SYSTEM_PROMPT,
     });
 
-    let parsed: unknown;
-    try {
-      parsed = parseJsonFromContent(result.content);
-    } catch {
+    const rawText = ocrResult.content;
+    console.log(`[auction-sheet] Step 1 OCR complete: model=${ocrResult.usedModel}, chars=${rawText.length}, tokens=${ocrResult.usage.totalTokens}`);
+
+    // Sanity check: if OCR returned very little text, image is likely not an auction sheet
+    if (rawText.length < 50) {
       return NextResponse.json(
         { error: 'parse_error', message: 'Не удалось распознать аукционный лист. Попробуйте другое фото.' },
         { status: 502 },
       );
     }
 
-    // Record usage only after success
+    // ── Step 2: Parse — structure raw text into JSON via text model ──
+    const parseUserPrompt = `Parse the following raw OCR text from a Japanese car auction sheet into the JSON schema specified in your system instructions.\n\n--- OCR TEXT START ---\n${rawText}\n--- OCR TEXT END ---`;
+
+    const parseResult = await callQwenText(parseUserPrompt, {
+      model: 'qwen3.5-plus',
+      maxTokens: 4096,
+      temperature: 0.1,
+      systemPrompt: PARSE_SYSTEM_PROMPT,
+    });
+
+    console.log(`[auction-sheet] Step 2 parse complete: model=qwen3.5-plus, tokens=${parseResult.usage.totalTokens}`);
+
+    let parsed: unknown;
+    try {
+      parsed = parseJsonFromContent(parseResult.content);
+    } catch {
+      console.error('[auction-sheet] JSON parse failed after Step 2. Raw content length:', parseResult.content.length);
+      return NextResponse.json(
+        { error: 'parse_error', message: 'Не удалось распознать аукционный лист. Попробуйте другое фото.' },
+        { status: 502 },
+      );
+    }
+
+    // Record usage only after both steps succeed
     recordUsage(ip, telegramId);
 
     const remaining = checkRateLimit(ip, telegramId).remaining;
@@ -230,8 +262,8 @@ export async function POST(request: Request) {
       success: true,
       data: parsed,
       meta: {
-        model: result.usedModel,
-        tokens: result.usage.totalTokens,
+        model: `${ocrResult.usedModel} → qwen3.5-plus`,
+        tokens: ocrResult.usage.totalTokens + parseResult.usage.totalTokens,
         remaining,
       },
     });
