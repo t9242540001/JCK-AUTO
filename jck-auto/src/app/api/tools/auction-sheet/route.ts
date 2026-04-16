@@ -53,26 +53,42 @@ STRICT RULES:
 
 const OCR_TEXT_FIELDS_USER = 'Extract all labeled header/text fields from this Japanese auction sheet. Plain text, one label: value per line. Ignore diagrams and free-text notes.';
 
-const OCR_DAMAGES_SYSTEM = `You are an OCR specialist for Japanese car auction sheets (出品票). Your task in this pass is to find the body damage diagram and extract the codes from it.
+const OCR_DAMAGES_SYSTEM = `You are an OCR specialist for Japanese car auction sheets (出品票). Your task in this pass is to find all BODY DAMAGE CODES and map each one to a car body part.
 
-Somewhere on this sheet there is usually a diagram of the car body viewed from above or in panels. Each damage code is a letter+digit combination such as A1, A2, A3, U1, U2, U3, W1, W2, W3, S1, S2, X, XX, P, H, B1, B2, Y1, Y2, Y3, T, G, E, C1, C2. These codes are placed on or next to specific body parts on the diagram.
+A damage code is a short alphanumeric token placed on a car schematic on the sheet. Typical codes: A1, A2, A3, U1, U2, U3, U4, W1, W2, W3, S1, S2, X, XX, P, H, B1, B2, Y1, Y2, Y3, T, G, E, C1, C2. Numbers in square brackets like [3] are also damage indicators (usually on wheels).
 
-Find EVERY damage code on the diagram, wherever it is positioned. For each code, determine the body part it is placed on or pointing to, and output one line in this exact format:
+The damage area on a Japanese auction sheet may look in one of these ways — all are valid and you must handle all of them:
+
+1. DRAWN CAR: a car body drawn from above (silhouette with doors, wheels, bumpers visible). Codes are placed on or near each drawn part.
+
+2. PANEL DIAGRAM: a schematic of numbered rectangles representing body panels (front bumper, hood, roof, doors, fenders, rear bumper, wheels) laid out in a plan view. Codes are written inside or next to each rectangle. This is common on USS sheets.
+
+3. CODE COLUMN: damage codes listed in a dedicated column or table on the sheet, each line referencing a body part in Japanese (e.g. "右前フェンダー A1").
+
+Scan the ENTIRE sheet for damage codes. Do not stop at the first area that "doesn't look like a diagram" — keep looking. The damage area is almost always present.
+
+For each damage code you find, output one line in this exact format:
 
 CODE: body_part_in_english
 
-Body part examples: front bumper, rear bumper, hood, roof, windshield, rear window, left front door, right front door, left rear door, right rear door, left front fender, right front fender, left rear fender, right rear fender, left front wheel, right front wheel, left rear wheel, right rear wheel, trunk lid, right side panel, left side panel, underbody.
+Body part vocabulary (use these terms for consistency):
+front bumper, rear bumper, hood, roof, windshield, rear window, trunk lid, underbody,
+left front door, right front door, left rear door, right rear door,
+left front fender, right front fender, left rear fender, right rear fender,
+left front wheel, right front wheel, left rear wheel, right rear wheel,
+left side panel, right side panel, left side step, right side step.
 
 STRICT RULES:
-1. Include every code visible, even if partially legible — if unclear, write "unclear" instead of guessing body part
-2. If the same code appears multiple times on different parts, output multiple lines
-3. Do NOT skip codes that are written in brackets like [3] — those indicate wheels and belong to the nearest wheel location
-4. If there is no diagram on this sheet, or you cannot find any damage codes, output exactly: no diagram
-5. Do NOT transcribe any text that is not a damage code on the diagram
-6. Do NOT interpret the codes (no "small scratch" — just the code and the location)
-7. Output plain text only, no markdown, no json, no code fences, no commentary`;
+1. Include every code visible, even if partially legible
+2. If you see a code but cannot tell which body part it maps to, output: CODE: unspecified
+3. If the same code appears on multiple parts, output multiple lines, one per part
+4. Numbers in square brackets like [3] count as codes — include them, usually at the nearest wheel
+5. Do NOT interpret codes (no "small scratch" — just the code and the location)
+6. Do NOT transcribe any text that is NOT a damage code — field labels, grades, notes belong to other passes
+7. Only output "no codes" if you have scanned the entire sheet and genuinely see zero alphanumeric damage markers anywhere. This is rare — almost all auction sheets have at least a few codes. Do not use "no codes" as a safe default.
+8. Output plain text only, no markdown, no json, no code fences, no commentary`;
 
-const OCR_DAMAGES_USER = 'Find the body damage diagram on this Japanese auction sheet. For every damage code on the diagram, output "CODE: body_part" on its own line. If no diagram exists, output exactly: no diagram';
+const OCR_DAMAGES_USER = 'Scan this entire Japanese auction sheet for body damage codes (A1, A2, U2, X, etc). They may be inside a drawn car, inside rectangular panel boxes, or in a code column. For each code, output "CODE: body_part" on its own line. Output "no codes" ONLY if the entire sheet truly has zero damage codes.';
 
 const OCR_FREE_TEXT_SYSTEM = `You are an OCR specialist for Japanese car auction sheets (出品票). Your task in this pass is to transcribe all free-text / handwritten / commentary sections verbatim, keeping the original japanese section labels as markers.
 
@@ -107,7 +123,7 @@ STRICT RULES:
 const OCR_FREE_TEXT_USER = 'Transcribe all free-text, handwritten, and commentary sections from this Japanese auction sheet. Keep each section under its original Japanese label in square brackets. Skip labeled header fields and damage codes. If no free text exists, output exactly: no free text';
 
 const PARSE_SYSTEM_PROMPT = `You are an expert parser of Japanese car auction sheet data.
-You receive the output of three parallel OCR passes on a Japanese auction sheet, concatenated with markers. Pass 1 (=== TEXT FIELDS ===) lists labeled header fields as "japanese_label: value" lines. Pass 2 (=== DAMAGES ===) lists body damage codes as "CODE: body_part" lines, or the literal string "no diagram". Pass 3 (=== FREE TEXT ===) contains handwritten/commentary sections each prefixed with its original Japanese label in square brackets like [検査員記入欄], or the literal string "no free text". Any pass may be missing if that OCR call failed, in which case you will see "=== SECTION NAME UNAVAILABLE ===".
+You receive the output of three parallel OCR passes on a Japanese auction sheet, concatenated with markers. Pass 1 (=== TEXT FIELDS ===) lists labeled header fields as "japanese_label: value" lines. Pass 2 (=== DAMAGES ===) lists body damage codes as "CODE: body_part" lines, or the literal string "no codes". Pass 3 (=== FREE TEXT ===) contains handwritten/commentary sections each prefixed with its original Japanese label in square brackets like [検査員記入欄], or the literal string "no free text". Any pass may be missing if that OCR call failed, in which case you will see "=== SECTION NAME UNAVAILABLE ===".
 
 Parse all available sections into the JSON schema below. If a whole section is unavailable, set the corresponding JSON fields to null and do not invent values. Inspector Notes from Pass 3 map to expertComments. Body damage codes from Pass 2 map to bodyDamages (use the body_part_in_english as a hint, translate to Russian for the location field).
 
