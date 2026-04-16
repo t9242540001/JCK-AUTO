@@ -309,7 +309,11 @@ export async function POST(request: Request) {
       }),
       analyzeImageWithFallback(dataUrl, OCR_DAMAGES_USER, {
         ...ocrOptionsBase,
-        models: [...ocrOptionsBase.models],
+        // RULE: Pass 2 uses qwen3-vl-flash primary (visual reasoning),
+        // qwen-vl-ocr as fallback. qwen-vl-ocr alone returns "no codes"
+        // for every sheet — it cannot visually parse damage diagrams.
+        // Do NOT switch back to ocrOptionsBase.models here.
+        models: ['qwen3-vl-flash', 'qwen-vl-ocr'] as const,
         systemPrompt: OCR_DAMAGES_SYSTEM,
       }),
       analyzeImageWithFallback(dataUrl, OCR_FREE_TEXT_USER, {
