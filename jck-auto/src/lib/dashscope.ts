@@ -3,12 +3,12 @@
  * @description Клиент DashScope API: генерация картинок (Qwen-Image) + Vision/OCR (Qwen-VL)
  * @runs VDS напрямую (без прокси)
  * @env DASHSCOPE_API_KEY в .env.local
- * @cost Qwen-Image-2.0-Pro ~$0.04/картинка | Qwen3-VL-Flash ~$0.001/запрос | analyzeImageWithFallback tries qwen-vl-ocr → qwen3-vl-flash → qwen3.5-plus
+ * @cost Qwen-Image-2.0-Pro ~$0.04/картинка | Qwen3-VL-Flash ~$0.001/запрос | analyzeImageWithFallback tries qwen3-vl-flash → qwen3.5-plus
  * @rule Два разных API: Qwen-Image = нативный DashScope, Qwen-VL = OpenAI-совместимый
  * @rule URL картинок от Qwen-Image валидны 24 часа — скачивать сразу
  * @rule Не логировать промпты и API-ключ — только модель, результат, стоимость
  * @rule DASHSCOPE_API_KEY проверять при вызове, не при импорте
- * @lastModified 2026-04-14
+ * @lastModified 2026-04-15
  */
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -330,6 +330,18 @@ async function analyzeImage(
     );
   }
 
+  // RULE: Treat finish_reason='length' as failure, NOT success.
+  // DashScope returns HTTP 200 with truncated content when max_tokens
+  // is hit. Without this check, analyzeImageWithFallback sees
+  // "success" and never advances to the next model in the chain.
+  // See knowledge/decisions.md — pending ADR for auction-sheet truncation fix.
+  const finishReason = choices?.[0]?.finish_reason;
+  if (finishReason === 'length') {
+    throw new Error(
+      `DashScope Vision response truncated at max_tokens=${maxTokens} (finish_reason: length). Model: ${model}.`,
+    );
+  }
+
   recordRequest();
 
   const usage = data.usage as {
@@ -357,7 +369,7 @@ async function analyzeImage(
  * @output VisionResponse + usedModel (какая модель в итоге сработала)
  * @important На 4xx (кроме 408/429) ошибка пробрасывается без перехода к следующей модели —
  *            это логическая ошибка (невалидный запрос/ключ/картинка), повтор не поможет
- * @important Дефолтная цепочка: qwen-vl-ocr → qwen3-vl-flash → qwen3.5-plus
+ * @important Дефолтная цепочка: qwen3-vl-flash → qwen3.5-plus (qwen-vl-ocr removed — see ADR)
  */
 async function analyzeImageWithFallback(
   imageSource: string,
@@ -366,7 +378,13 @@ async function analyzeImageWithFallback(
     models?: NonNullable<VisionOptions['model']>[];
   },
 ): Promise<VisionResponse & { usedModel: string }> {
-  const models = options?.models ?? ['qwen-vl-ocr', 'qwen3-vl-flash', 'qwen3.5-plus'];
+  // RULE: Default chain order is structured-output-capable models first.
+  // qwen-vl-ocr is REMOVED — it is an OCR model, not designed to follow
+  // JSON-schema instructions. It always hits max_tokens on structured
+  // prompts (~30 fields), wasting ~22s per call. qwen3-vl-flash is fast,
+  // cheap, and follows JSON instructions reliably.
+  // See knowledge/decisions.md — pending ADR for auction-sheet truncation fix.
+  const models = options?.models ?? ['qwen3-vl-flash', 'qwen3.5-plus'];
   const attempts: string[] = [];
   let lastError: Error | null = null;
 
