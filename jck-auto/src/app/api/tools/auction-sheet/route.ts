@@ -1,6 +1,6 @@
 /**
  * @file route.ts
- * @description API endpoint для AI-расшифровки японских аукционных листов. Two-pass pipeline: OCR (qwen-vl-ocr) → structured parse (qwen3.5-flash).
+ * @description API endpoint для AI-расшифровки японских аукционных листов. Two-pass pipeline: OCR (qwen-vl-ocr) → structured parse (DeepSeek).
  *              Supports two-mode rate limiting: anonymous (3 lifetime) / Telegram-auth (10/day).
  * @runs VDS
  * @input POST multipart/form-data с изображением (jpg/png/webp/heic, до 10 МБ)
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
     }
 
     // ── Step 2: Parse — structure raw text into JSON via text model ──
-    // RULE: Primary = qwen3.5-flash (fast, no thinking phase), fallback = DeepSeek.
+    // RULE: Primary = DeepSeek (fast, reliable from VDS), fallback = qwen3.5-flash.
     // Do NOT use qwen3.5-plus here — its hybrid thinking exceeds 25s timeout.
     const parseUserPrompt = `Parse the following raw OCR text from a Japanese car auction sheet into the JSON schema specified in your system instructions.\n\n--- OCR TEXT START ---\n${rawText}\n--- OCR TEXT END ---`;
 
@@ -241,6 +241,22 @@ export async function POST(request: Request) {
     let parseTokens: number;
 
     try {
+      // RULE: DeepSeek is primary for Step 2 — DashScope text models
+      // (qwen3.5-flash/plus) timeout from VDS. Do NOT swap back without
+      // verifying DashScope text API availability first.
+      const dsResult = await callDeepSeek(parseUserPrompt, {
+        maxTokens: 4096,
+        temperature: 0.1,
+        systemPrompt: PARSE_SYSTEM_PROMPT,
+      });
+      parseContent = dsResult.content;
+      parseModel = 'deepseek-chat';
+      parseTokens = dsResult.usage.totalTokens;
+      console.log(`[auction-sheet] Step 2 parse complete: model=${parseModel}, tokens=${parseTokens}`);
+    } catch (step2Err) {
+      const errMsg = step2Err instanceof Error ? step2Err.message : String(step2Err);
+      console.warn(`[auction-sheet] Step 2 DeepSeek failed: ${errMsg.slice(0, 120)}, trying qwen3.5-flash fallback...`);
+
       const qwenResult = await callQwenText(parseUserPrompt, {
         model: 'qwen3.5-flash',
         maxTokens: 4096,
@@ -250,19 +266,6 @@ export async function POST(request: Request) {
       parseContent = qwenResult.content;
       parseModel = 'qwen3.5-flash';
       parseTokens = qwenResult.usage.totalTokens;
-      console.log(`[auction-sheet] Step 2 parse complete: model=${parseModel}, tokens=${parseTokens}`);
-    } catch (step2Err) {
-      const errMsg = step2Err instanceof Error ? step2Err.message : String(step2Err);
-      console.warn(`[auction-sheet] Step 2 qwen3.5-flash failed: ${errMsg.slice(0, 120)}, trying DeepSeek fallback...`);
-
-      const dsResult = await callDeepSeek(parseUserPrompt, {
-        maxTokens: 4096,
-        temperature: 0.1,
-        systemPrompt: PARSE_SYSTEM_PROMPT,
-      });
-      parseContent = dsResult.content;
-      parseModel = 'deepseek-chat';
-      parseTokens = dsResult.usage.totalTokens;
       console.log(`[auction-sheet] Step 2 parse complete (fallback): model=${parseModel}, tokens=${parseTokens}`);
     }
 
