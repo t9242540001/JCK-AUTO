@@ -5,7 +5,6 @@
  * @env DEEPSEEK_API_KEY
  * @cost input $0.28/M, output $0.42/M
  * @rule retry только на сетевые/5xx/429; не логировать промпты и ключ; проверять ключ при вызове, не при импорте
- * @lastModified 2026-03-31
  */
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -148,10 +147,23 @@ async function callDeepSeek(
         throw new Error(`DeepSeek API error ${response.status}: ${responseText}`);
       }
 
+      let rawText: string;
+      try {
+        rawText = await response.text();
+      } catch {
+        lastError = new Error('Failed to read DeepSeek response body');
+        continue;
+      }
+
       let data: Record<string, unknown>;
       try {
-        data = (await response.json()) as Record<string, unknown>;
+        data = JSON.parse(rawText) as Record<string, unknown>;
       } catch {
+        const preview = rawText.slice(0, 500);
+        console.error(
+          `[DeepSeek] JSON parse failed on attempt ${attempt + 1}/${MAX_RETRIES}. ` +
+          `Raw response (first 500 chars): ${preview}`
+        );
         lastError = new Error('Failed to parse DeepSeek API response as JSON');
         continue;
       }
