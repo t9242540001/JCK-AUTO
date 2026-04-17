@@ -2,9 +2,9 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-16
-  @version:     1.1
-  @lines:       ~180
+  @updated:     2026-04-17
+  @version:     1.2
+  @lines:       ~165
 -->
 
 # Bugs — open issues tracker
@@ -64,22 +64,6 @@
 - **Action:** Prompt 09.3.7 (planned) — add diagnostic log in deepseek.ts
   that captures first 500 chars of actual response body on JSON parse
   failure. Then retest Allion to see what DeepSeek actually returned.
-
-### С-6 — AuctionSheetClient crashes with "Application error" on 502
-- **Page:** /tools/auction-sheet
-- **File:** src/app/tools/auction-sheet/AuctionSheetClient.tsx
-- **Symptom:** when API returns 502 (e.g. during С-5 scenario),
-  React client throws: "Application error: a client-side exception has
-  occurred while loading jckauto.ru". Entire page becomes inaccessible,
-  user must reload.
-- **Expected behavior:** display the error message (`data.message` from
-  response JSON) inline, same as existing 429/400/parse_error paths.
-- **Hypothesis:** component uses `data.data` without checking `data.success`
-  or `data.error` first; when 502 returns `{ error, message }` without
-  `data`, downstream `.map()` or property access on undefined throws.
-- **Action:** wrap result rendering in a try/catch or add explicit
-  error-state rendering for the `{ error, message }` shape. One-file
-  prompt, no backend changes needed.
 
 ## Important (noticeable but workarounds exist)
 

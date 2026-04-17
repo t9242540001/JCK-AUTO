@@ -132,6 +132,11 @@ export default function AuctionSheetClient() {
         setError(json as ApiError); setState("error"); return;
       }
       const data = json as ApiResponse;
+      if (!data.data) {
+        setError({ error: "parse_error", message: "Не удалось обработать результат. Попробуйте ещё раз." });
+        setState("error");
+        return;
+      }
       setResult(data.data);
       setMeta(data.meta);
       setState("result");
@@ -259,12 +264,12 @@ export default function AuctionSheetClient() {
           {/* Body damages */}
           <div className="rounded-2xl border border-border bg-surface p-6">
             <h3 className="font-heading text-lg font-semibold text-text">Состояние кузова</h3>
-            {result.bodyDamages.length > 0 ? (
+            {(result.bodyDamages ?? []).length > 0 ? (
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-border text-left text-xs text-text-muted"><th className="pb-2 pr-3">Расположение</th><th className="pb-2 pr-3">Код</th><th className="pb-2 pr-3">Описание</th><th className="pb-2">Серьёзность</th></tr></thead>
                   <tbody>
-                    {result.bodyDamages.map((d, i) => (
+                    {(result.bodyDamages ?? []).map((d, i) => (
                       <tr key={i} className="border-b border-border/50">
                         <td className="py-2 pr-3 text-text">{d.location}</td>
                         <td className="py-2 pr-3 font-mono text-text">{d.code}</td>
@@ -279,32 +284,32 @@ export default function AuctionSheetClient() {
           </div>
 
           {/* Equipment */}
-          {result.equipment.length > 0 && (
+          {(result.equipment ?? []).length > 0 && (
             <div className="rounded-2xl border border-border bg-surface p-6">
               <h3 className="font-heading text-lg font-semibold text-text">Комплектация</h3>
               <div className="mt-4 flex flex-wrap gap-2">
-                {result.equipment.map((e) => <span key={e} className="rounded-full bg-surface-alt px-3 py-1 text-sm text-text">{e}</span>)}
+                {(result.equipment ?? []).map((e) => <span key={e} className="rounded-full bg-surface-alt px-3 py-1 text-sm text-text">{e}</span>)}
               </div>
             </div>
           )}
 
           {/* Expert comments + warnings */}
-          {(result.expertComments || result.warnings.length > 0) && (
+          {(result.expertComments || (result.warnings ?? []).length > 0) && (
             <div className="rounded-2xl border border-border bg-surface p-6">
               <h3 className="font-heading text-lg font-semibold text-text">Комментарии</h3>
               {result.expertComments && <p className="mt-3 text-sm text-text-muted">{result.expertComments}</p>}
-              {result.warnings.map((w, i) => (
+              {(result.warnings ?? []).map((w, i) => (
                 <div key={i} className="mt-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-800">{w}</div>
               ))}
             </div>
           )}
 
           {/* Unrecognized */}
-          {result.unrecognized.length > 0 && (
+          {(result.unrecognized ?? []).length > 0 && (
             <div className="rounded-2xl border border-border bg-surface p-6">
               <h3 className="font-heading text-lg font-semibold text-text">Не распознано</h3>
               <p className="mt-2 text-xs text-text-muted">Эти данные не удалось распознать автоматически</p>
-              <ul className="mt-3 list-inside list-disc text-sm text-text-muted">{result.unrecognized.map((u, i) => <li key={i}>{u}</li>)}</ul>
+              <ul className="mt-3 list-inside list-disc text-sm text-text-muted">{(result.unrecognized ?? []).map((u, i) => <li key={i}>{u}</li>)}</ul>
             </div>
           )}
 
