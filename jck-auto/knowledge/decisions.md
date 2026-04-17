@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.5
-  @lines:       ~920
+  @version:     1.6
+  @lines:       ~970
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -13,6 +13,64 @@
 -->
 
 # Architectural Decisions
+
+## [2026-04-18] Raise dashscope.ts RATE_LIMIT_PER_MINUTE 6 → 60
+
+**Status:** Accepted (temporary)
+
+**Confidence:** High
+
+**Context:**
+Production logs showed Pass 0 classifier calls taking up to 19.4s
+(normal: 2–4s) and user requests returning 504 Gateway Time-out
+after 1.1 minutes. Root cause: local rate limiter in `dashscope.ts`
+set to `RATE_LIMIT_PER_MINUTE = 6`, while the auction-sheet pipeline
+now issues 4 DashScope calls per user-request (Pass 0 classifier
+added in prior commit). 6/4 = 1.5 user-requests/minute before
+`waitForRateLimit()` blocks for 10–50 seconds.
+
+**Real upstream limits (verified in Alibaba Model Studio console,
+JCKAUTO workspace, Singapore region):** Qwen-VL-OCR 600 RPM,
+Qwen3-VL-Flash 1200 RPM. Our 6/min was ~100× lower than the
+strictest active model — no defensive value.
+
+**Decision:**
+Raise `RATE_LIMIT_PER_MINUTE` from 6 to 60. 60/4 = 15 concurrent
+user-requests/minute before local throttling kicks in, with a 10×
+margin below real upstream limits. Three `@rule` anchor comments
+added above the constant in code to prevent accidental regression.
+
+**Alternatives considered:**
+- Remove local rate limiter entirely: rejected — defense against
+  runaway loops or abuse scenarios has non-zero value, even if
+  Alibaba would reject eventually. Local rejection is faster and
+  doesn't cost API calls.
+- Raise to 120 or higher: rejected — no current justification, and
+  higher values risk hitting upstream limits on parallel users. 60
+  gives generous headroom for current single-digit daily traffic.
+
+**Consequences:**
+- `+` Immediate restoration of auction-sheet service.
+- `+` News pipeline / article generator / Encar translator inherit
+  the same uplift — they share the limiter. Acceptable since they
+  run on cron, didn't suffer user-facing issues, but benefit from
+  no throttling.
+- `−` Still NOT a real solution. Parallel users or rapid sequential
+  requests will still compete for API slots, just with more room.
+  **True fix is a server-side queue with concurrency=1 (planned as
+  P-0.2).** This ADR is a stopgap until that lands.
+- `−` If traffic grows significantly without the queue being
+  implemented, the limiter may need another uplift — `@rule` anchors
+  ensure we re-evaluate carefully rather than blindly raising.
+
+**Files changed:**
+- `jck-auto/src/lib/dashscope.ts` (`RATE_LIMIT_PER_MINUTE = 60`,
+  three `@rule` anchor comments above the constant).
+- `jck-auto/knowledge/integrations.md` (new "Rate limits" subsection
+  in DashScope section).
+- `jck-auto/knowledge/INDEX.md` (dates/versions bumped).
+
+---
 
 ## [2026-04-18] DeepSeek timeout 60s → 180s, retries 3 → 2, nginx proxy_read_timeout 60s → 200s for /api/tools/auction-sheet
 

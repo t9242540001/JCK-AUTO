@@ -100,7 +100,17 @@ const QWEN_FLASH_INPUT_PRICE_PER_M = 0.05;
 const QWEN_FLASH_OUTPUT_PRICE_PER_M = 0.25;
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 2;
-const RATE_LIMIT_PER_MINUTE = 6;
+// @rule Do NOT lower below 60 without introducing a server-side queue first.
+// @rule Do NOT raise above 100 without analyzing Alibaba upstream headroom:
+//       real Account-level RPM limits (Model Studio console, JCKAUTO workspace):
+//         Qwen-VL-OCR          — 600 RPM
+//         Qwen3-VL-Flash       — 1200 RPM
+//       Our local limit is intentionally ~10× below the strictest active model
+//       — defense against runaway loops / abuse, NOT against upstream.
+// @rule If auction-sheet pipeline adds more parallel DashScope calls per request,
+//       re-evaluate this number: current ratio is 4 calls/request, 60/4 = 15
+//       concurrent user-requests/minute before local throttling kicks in.
+const RATE_LIMIT_PER_MINUTE = 60;
 
 // ─── RATE LIMITER ─────────────────────────────────────────────────────────
 
