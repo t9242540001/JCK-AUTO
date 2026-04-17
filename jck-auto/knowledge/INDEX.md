@@ -2,8 +2,8 @@
   @file:        knowledge/INDEX.md
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
-  @updated:     2026-04-17
-  @version:     1.16
+  @updated:     2026-04-18
+  @version:     1.17
   @lines:       48
 -->
 
@@ -13,15 +13,15 @@
 
 | File | Description | Updated |
 |------|-------------|---------|
-| [infrastructure.md](infrastructure.md) | Server, PM2 (3 processes), deploy commands, nginx (bot-webhook/storage, 60s timeout + Sharp), Cloudflare Worker tg-proxy (4 routing modes), VDS provider network restrictions | 2026-04-10 |
+| [infrastructure.md](infrastructure.md) | Server, PM2 (3 processes), deploy commands, nginx (default 60s + per-endpoint overrides for /api/tools/auction-sheet: 200s timeout + 15MB body), Cloudflare Worker tg-proxy (4 routing modes), VDS provider network restrictions | 2026-04-18 |
 | [deploy.md](deploy.md) | Deploy pipeline: two-slot build, self-healing, runtime log observability, diagnostic order | 2026-04-14 |
 | [architecture.md](architecture.md) | Stack, file navigator, URL structure, key relationships | 2026-04-08 |
-| [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek, CBR, Google Drive, Telegram | 2026-04-14 |
+| [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek (180s timeout / 2 retries), CBR, Google Drive, Telegram | 2026-04-18 |
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
 | [catalog.md](catalog.md) | Google Drive conventions, 5-step sync chain, screenshot priority | 2026-04-08 |
 | [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-10 |
 | [roadmap.md](roadmap.md) | Done / In progress / Planned features | 2026-04-16 |
-| [decisions.md](decisions.md) | Architectural Decision Records (ADR log) — latest: Pass 0 sheet-type classifier for auction-sheet pipeline, multi-pass OCR, Pass 2 qwen3-vl-flash, DeepSeek primary Step 2, REQUEST_TIMEOUT_MS 60s, finish_reason=length, capture workflow registration | 2026-04-17 |
+| [decisions.md](decisions.md) | Architectural Decision Records (ADR log) — latest: DeepSeek timeout 60s→180s / retries 3→2 / nginx 200s+15MB for auction-sheet, Pass 0 sheet-type classifier, multi-pass OCR, Pass 2 qwen3-vl-flash, DeepSeek primary Step 2, finish_reason=length, capture workflow registration | 2026-04-18 |
 | [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-10 |
 | [stack.md](stack.md) | Tech stack: Next.js 15, Node.js, AI services (DashScope/DeepSeek/Claude), storage, key configs | 2026-04-08 |
 | [exchange-rates.md](exchange-rates.md) | VTB scraper + CBR fallback, markups, /api/exchange-rates endpoint, UI labels, CORS rules | 2026-04-08 |
@@ -36,7 +36,7 @@
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
-| [tools.md](tools.md) | /tools/* API endpoints: auction-sheet pipeline (Pass 0 sheet-type classifier + 3 parallel OCR passes + DeepSeek Step 2), Sharp compression, rate limiting, diagnostics | 2026-04-17 |
+| [tools.md](tools.md) | /tools/* API endpoints: auction-sheet pipeline (Pass 0 classifier + 3 parallel OCR + DeepSeek Step 2 180s/2 retries), Sharp compression, nginx per-endpoint 200s/15MB, rate limiting, diagnostics | 2026-04-18 |
 | [bugs.md](bugs.md) | Open bugs tracker — С-1 (partial fix), С-2–С-5, Б-1–Б-8. С-6 closed. Includes Allion instability (С-5), middleware-manifest (Б-7) | 2026-04-17 |
 
 ## Quick Links

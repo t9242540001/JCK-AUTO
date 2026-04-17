@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-17
-  @version:     1.4
-  @lines:       ~850
+  @updated:     2026-04-18
+  @version:     1.5
+  @lines:       ~920
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -13,6 +13,81 @@
 -->
 
 # Architectural Decisions
+
+## [2026-04-18] DeepSeek timeout 60s → 180s, retries 3 → 2, nginx proxy_read_timeout 60s → 200s for /api/tools/auction-sheet
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Production logs showed systematic DeepSeek failures during Step 2 of
+the auction-sheet pipeline: repeated "Failed to read response body"
+(3 retries) and "Failed to parse JSON" (3 retries) entries. Root
+cause — response times for heavy Japanese auction sheets (1700+
+output tokens) exceed the 60s fetch timeout; `controller.abort()`
+fires, fetch throws, and the wrapper logs "Failed to read body" with
+no further context. Combined with three retries (up to 180s on
+DeepSeek alone) and nginx 60s cap, requests routinely failed with
+"Ошибка сети" before the qwen3.5-flash fallback could complete.
+
+**Decision:**
+1. Raise `REQUEST_TIMEOUT_MS` in `src/lib/deepseek.ts` from 60_000 to
+   180_000.
+2. Reduce `MAX_RETRIES` from 3 to 2 so worst-case total stays
+   reasonable.
+3. On nginx: add per-endpoint regex location for
+   `/api/tools/auction-sheet` with `proxy_read_timeout 200s`
+   (was 60s default) and `client_max_body_size 15M` (was 1M default).
+4. Improve DeepSeek error diagnostics: distinguish AbortError
+   (timeout), HTTP non-2xx, body read failure, and generic network
+   errors. Log actual error type, elapsed time, and attempt number.
+
+**Alternatives considered:**
+- Keep 60s and only switch fallback faster: rejected — wasted
+  DeepSeek's primary advantage (~$0.001 per call vs qwen3.5-flash
+  ~$0.002).
+- Move Step 2 to qwen3.5-plus: rejected — its thinking mode was the
+  exact cause of the original С-1 incident.
+- Skip retries entirely (`MAX_RETRIES = 1`): rejected — transient
+  5xx from DeepSeek is common; one retry is cheap insurance.
+
+**Consequences:**
+- `+` User-facing "Ошибка сети" on heavy sheets should drop
+  significantly.
+- `+` Better ops diagnostics: future incidents show real error type,
+  not "read body failed".
+- `−` Worst-case total time per request rises from ~180s to up to
+  ~360s, but hard-capped by nginx at 200s → second retry effectively
+  only runs on fast failures.
+- `−` Affects ALL callers of `callDeepSeek` (news pipeline, article
+  generator), not just auction-sheet. Benefit is the same (longer
+  timeout, better logs), but they inherit 180s. Acceptable because
+  they run on cron outside user-facing latency budgets.
+
+**Files changed:**
+- `jck-auto/src/lib/deepseek.ts` (`REQUEST_TIMEOUT_MS`, `MAX_RETRIES`,
+  typed catch-block diagnostics, per-attempt elapsed logging,
+  final retry-exhaustion log, `@rule` header update).
+- `/etc/nginx/sites-available/jckauto` (VDS-side) — new regex
+  `location ~ ^/api/tools/auction-sheet(/|$)` with 200s timeouts,
+  15M body size, buffering off. Backup at
+  `/etc/nginx/sites-available/jckauto.backup-2026-04-18`.
+- `jck-auto/knowledge/infrastructure.md` ("Per-endpoint nginx overrides").
+- `jck-auto/knowledge/integrations.md` (DeepSeek timeout/retries updated).
+- `jck-auto/knowledge/tools.md` (nginx 200s / 15MB mention, DeepSeek 180s).
+
+**`@rule` enforced in deepseek.ts header:**
+`retry only on network/5xx/429; max 2 attempts; 180s timeout per
+attempt; never log prompts or API key; check key at call-time, not
+at import`
+
+**`@rule` enforced in infrastructure.md:**
+`Do NOT remove this block without updating DeepSeek timeout in
+src/lib/deepseek.ts simultaneously. 180s DeepSeek + OCR + classifier
+can exceed default 60s nginx timeout.`
+
+---
 
 ## [2026-04-17] Introduce Pass 0 sheet-type classifier for auction-sheet pipeline
 

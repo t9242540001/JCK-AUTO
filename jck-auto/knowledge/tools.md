@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/tools.md
   @project:     JCK AUTO
-  @description: API tools documentation — auction-sheet (Pass 0 classifier + multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx constraints
-  @updated:     2026-04-17
-  @version:     1.3
-  @lines:       ~185
+  @description: API tools documentation — auction-sheet (Pass 0 classifier + multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB)
+  @updated:     2026-04-18
+  @version:     1.4
+  @lines:       ~200
 -->
 
 # Tools API — /tools/*
@@ -28,7 +28,11 @@ AI-расшифровка японских аукционных листов. Д
 | WebP | image/webp | |
 | HEIC | image/heic | поддерживается через libheif 1.20.2 в sharp 0.34.5 |
 
-Максимальный размер: **10 МБ**
+Максимальный размер: **10 МБ** (жёсткий лимит проверяется в `route.ts`).
+Nginx разрешает до **15 МБ** (`client_max_body_size 15M` в per-endpoint
+location), чтобы `route.ts` оставался единой точкой правды для
+пользовательского лимита и отдавал понятное JSON-сообщение вместо
+nginx-овой 413.
 
 ### HEIC — статус поддержки
 
@@ -138,6 +142,10 @@ endpoint (`dashscope.aliyuncs.com`).
 - Step 2 (text): `maxTokens: 4096`, `temperature: 0.1`
 - `REQUEST_TIMEOUT_MS = 60_000` (на одну попытку в `dashscope.ts`).
   См. ADR `[2026-04-15] REQUEST_TIMEOUT_MS 25s → 60s`.
+- Step 2 (DeepSeek): `REQUEST_TIMEOUT_MS = 180_000` на попытку,
+  `MAX_RETRIES = 2` (в `deepseek.ts`). Повышено 2026-04-18 под тяжёлые
+  японские листы с 1700+ output-токенами.
+  См. ADR `[2026-04-18] DeepSeek timeout 60s → 180s, retries 3 → 2`.
 
 **Стоимость:** ~$0.004–0.006 за запрос (3 OCR passes + 1 text parse).
 
@@ -181,7 +189,21 @@ grep -r "proxy_read_timeout\|proxy_send_timeout" /etc/nginx/
 tail -100 /var/log/nginx/error.log | grep "upstream timed out"
 ```
 
-Текущий nginx timeout: 60 с. Ограничение закрыто комбинацией: Sharp-сжатие (`route.ts`) + `REQUEST_TIMEOUT_MS = 60_000` на попытку в `dashscope.ts` + параллельные OCR-вызовы (общее время ≈ время самого медленного pass). При DeepSeek primary на Step 2 (~10 с) общее время запроса укладывается в nginx-лимит даже в пессимистичном сценарии.
+**Per-endpoint nginx для `/api/tools/auction-sheet`** (2026-04-18):
+- `proxy_read_timeout 200s` (было 60s) — покрывает Pass 0 classifier
+  (~2–3 с) + 3 параллельных OCR (~5–15 с на самый медленный) + DeepSeek
+  Step 2 (до 180 с по таймауту).
+- `client_max_body_size 15M` (было 1M) — устраняет тихий отказ при
+  загрузке крупных HEIC до nginx-уровня. Пользовательский лимит 10 МБ
+  остаётся в `route.ts`.
+
+Full per-endpoint config и backup path — см.
+`knowledge/infrastructure.md` → "Per-endpoint nginx overrides".
+
+Пока nginx был 60 с, ограничение закрывалось комбинацией: Sharp-сжатие
+(`route.ts`) + `REQUEST_TIMEOUT_MS = 60_000` на попытку в `dashscope.ts`
++ параллельные OCR-вызовы (общее время ≈ время самого медленного pass).
+С 200 с — безопасный запас под DeepSeek 180 с + OCR + классификатор.
 
 ### Диагностический curl
 
