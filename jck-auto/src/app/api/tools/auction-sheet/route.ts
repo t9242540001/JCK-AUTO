@@ -122,6 +122,22 @@ STRICT RULES:
 
 const OCR_FREE_TEXT_USER = 'Transcribe all free-text, handwritten, and commentary sections from this Japanese auction sheet. Keep each section under its original Japanese label in square brackets. Skip labeled header fields and damage codes. If no free text exists, output exactly: no free text';
 
+const CLASSIFIER_SYSTEM = `You are classifying a Japanese car auction sheet (出品票) by how its data is recorded. Your ONLY job is to output a single classification token.
+
+Look at the sheet and decide:
+
+- "printed" — all labeled fields (grade, mileage, year, etc.) are machine-printed / typed / dot-matrix. Damage diagram may include hand-drawn codes, but the header table is printed. Typical: USS sheets, CAA auto-inspection sheets, most modern TAA sheets.
+
+- "handwritten" — the majority of labeled field values (grade, interior grade, mileage, equipment notes) are filled in by hand with pen/marker on a blank form. Characters look irregular, lines vary in thickness. Typical: HAA神戸 paper sheets, some older TAA/CAA sheets.
+
+- "mixed" — the form template is printed, some fields are printed (VIN, lot number), but key evaluation fields (overall grade, interior grade, inspector notes, mileage) are handwritten.
+
+Output EXACTLY one of these three tokens on a single line: printed, handwritten, mixed.
+
+Do NOT output anything else — no explanation, no confidence, no punctuation, no quotes. Just the token.`;
+
+const CLASSIFIER_USER = 'Classify this Japanese auction sheet. Output exactly one token: printed, handwritten, or mixed.';
+
 const PARSE_SYSTEM_PROMPT = `You are an expert parser of Japanese car auction sheet data.
 You receive the output of three parallel OCR passes on a Japanese auction sheet, concatenated with markers. Pass 1 (=== TEXT FIELDS ===) lists labeled header fields as "japanese_label: value" lines. Pass 2 (=== DAMAGES ===) lists body damage codes as "CODE: body_part" lines, or the literal string "no codes". Pass 3 (=== FREE TEXT ===) contains handwritten/commentary sections each prefixed with its original Japanese label in square brackets like [検査員記入欄], or the literal string "no free text". Any pass may be missing if that OCR call failed, in which case you will see "=== SECTION NAME UNAVAILABLE ===".
 
@@ -219,6 +235,60 @@ async function getTelegramIdFromCookie(): Promise<string | undefined> {
   }
 }
 
+type SheetType = 'printed' | 'handwritten' | 'mixed';
+
+/**
+ * Pass 0 — classify the auction sheet by how its data is recorded.
+ * Advisory-only: failure defaults to 'printed' so the current
+ * pipeline continues to work.
+ *
+ * @rule Classifier output is advisory, NOT blocking. On any failure
+ *       (timeout, unexpected output, exception) return type='printed'.
+ *       Existing pipeline MUST continue to work even if classifier
+ *       returns nothing useful.
+ * @rule Classifier uses ONLY qwen3-vl-flash — fast and cheap.
+ *       Do NOT add qwen3.5-plus to the classifier chain; the whole
+ *       point of routing is to avoid paying qwen3.5-plus cost on
+ *       every request.
+ * @rule maxTokens=20 is intentional. If the model outputs more than
+ *       one short word, the prompt is not being followed and we
+ *       treat it as failure (default to 'printed').
+ */
+async function classifySheet(
+  dataUrl: string,
+): Promise<{ type: SheetType; model: string; elapsed: number }> {
+  const start = Date.now();
+  try {
+    const result = await analyzeImageWithFallback(dataUrl, CLASSIFIER_USER, {
+      models: ['qwen3-vl-flash'] as const,
+      maxTokens: 20,
+      temperature: 0,
+      systemPrompt: CLASSIFIER_SYSTEM,
+    });
+    const raw = result.content.trim().toLowerCase();
+    const elapsed = (Date.now() - start) / 1000;
+
+    if (raw === 'printed' || raw === 'handwritten' || raw === 'mixed') {
+      console.log(
+        `[auction-sheet] Pass 0 classifier: type=${raw} model=${result.usedModel} elapsed=${elapsed.toFixed(1)}s`,
+      );
+      return { type: raw, model: result.usedModel, elapsed };
+    }
+
+    console.warn(
+      `[auction-sheet] Pass 0 classifier returned unexpected output: "${result.content.slice(0, 50)}" — defaulting to printed (elapsed=${elapsed.toFixed(1)}s)`,
+    );
+    return { type: 'printed', model: result.usedModel, elapsed };
+  } catch (err) {
+    const elapsed = (Date.now() - start) / 1000;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[auction-sheet] Pass 0 classifier failed: ${msg.slice(0, 120)} — defaulting to printed after ${elapsed.toFixed(1)}s`,
+    );
+    return { type: 'printed', model: 'classifier-failed', elapsed };
+  }
+}
+
 // ─── ROUTE ────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -287,6 +357,11 @@ export async function POST(request: Request) {
     .toBuffer();
   const base64 = compressed.toString('base64');
   const dataUrl = `data:image/jpeg;base64,${base64}`;
+
+  // ── Pass 0: classify sheet type (advisory, non-blocking) ──
+  // RULE: sheet type is used by meta for observability only in this
+  // prompt. Model routing per sheet type is added in the next prompt.
+  const sheetClassification = await classifySheet(dataUrl);
 
   // RULE: Two-pass pipeline. Step 1 = OCR (vision). Step 2 = Parse (text).
   // Do NOT merge back into single pass. See knowledge/decisions.md pending ADR.
@@ -451,6 +526,9 @@ export async function POST(request: Request) {
         model: `${ocrModelUsed} ×3 → ${parseModel}`,
         tokens: ocrTokens + parseTokens,
         remaining,
+        sheetType: sheetClassification.type,
+        classifierModel: sheetClassification.model,
+        classifierElapsed: sheetClassification.elapsed,
       },
     });
   } catch (err) {
