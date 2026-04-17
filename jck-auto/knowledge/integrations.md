@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/integrations.md
   @project:     JCK AUTO
-  @description: External APIs — usage, files, rate limits, costs, env vars (DeepSeek 180s/2 retries)
+  @description: External APIs — usage, files, rate limits, costs, env vars (DeepSeek 180s/2 retries, DashScope local limit 60 RPM)
   @updated:     2026-04-18
-  @version:     1.2
-  @lines:       ~125
+  @version:     1.3
+  @lines:       ~150
 -->
 
 # External Integrations
@@ -51,6 +51,28 @@ verify activation in Model Studio console before writing code.
 - ~$0.002 per vision call (qwen3.5-plus or fallback)
 - ~$0.01 per article (qwen3.5-plus text)
 - ~$0.04 per cover image (qwen-image-2.0-pro)
+
+### Rate limits
+
+**Alibaba upstream (per Account, verified 2026-04-18 in Model Studio console):**
+
+| Model | RPM | Tokens/60s |
+|---|---|---|
+| Qwen3-VL-Flash | 1,200 | 1,000,000 |
+| Qwen-VL-OCR | 600 | 6,000,000 |
+| Qwen3-VL-Flash-2026-01-22 (snapshot) | 60 | 100,000 |
+| Qwen3-VL-Flash-2025-10-15 (snapshot) | 120 | 1,000,000 |
+
+**Our local limit (`src/lib/dashscope.ts:RATE_LIMIT_PER_MINUTE`):** 60 RPM.
+
+Intentionally ~10× below the strictest active model — serves as
+defense against runaway loops and abuse, NOT against upstream
+throttling. One auction-sheet user-request issues 4 DashScope calls
+(Pass 0 + Pass 1 + Pass 2 + Pass 3), so 60 RPM = 15 concurrent
+user-requests/minute before local waits kick in.
+
+See ADR `[2026-04-18] Raise dashscope.ts RATE_LIMIT_PER_MINUTE 6 → 60`
+(decisions.md).
 
 ## DeepSeek
 
