@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/integrations.md
   @project:     JCK AUTO
-  @description: External APIs — usage, files, rate limits, costs, env vars
-  @updated:     2026-04-14
-  @version:     1.1
-  @lines:       118
+  @description: External APIs — usage, files, rate limits, costs, env vars (DeepSeek 180s/2 retries)
+  @updated:     2026-04-18
+  @version:     1.2
+  @lines:       ~125
 -->
 
 # External Integrations
@@ -54,12 +54,16 @@ verify activation in Model Studio console before writing code.
 
 ## DeepSeek
 
-- **Used for:** News processing (3 parallel summary calls), Encar engine power estimation, Encar field translation (Korean→Russian)
-- **Files:** `src/lib/deepseek.ts`, `src/lib/encarClient.ts`, `src/services/news/processor.ts`
+- **Used for:** News processing (3 parallel summary calls), Encar engine power estimation, Encar field translation (Korean→Russian), auction-sheet Step 2 parse
+- **Files:** `src/lib/deepseek.ts`, `src/lib/encarClient.ts`, `src/services/news/processor.ts`, `src/app/api/tools/auction-sheet/route.ts`
 - **Model:** deepseek-chat
 - **Rate limit:** 10 req/min (internal limiter in deepseek.ts)
+- **Timeout:** **180s** per attempt (was 60s — raised 2026-04-18 for heavy Japanese auction sheets with 1700+ output tokens).
+- **Retries:** **2** (was 3 — reduced 2026-04-18 so worst-case total latency stays reasonable).
+- **Worst-case total:** was ~180s (3 × 60s) → now up to ~360s (2 × 180s), but nginx caps `/api/tools/auction-sheet` at 200s → the second retry effectively only runs on fast failures (4xx rejected, 429/5xx that fail fast). For other callers (news cron, article generator) the 360s ceiling is acceptable — they run outside user-facing latency budgets.
 - **Cost:** input $0.28/M tokens, output $0.42/M tokens (~$0.002/news digest)
 - **Env:** `DEEPSEEK_API_KEY`
+- **See ADR:** `[2026-04-18] DeepSeek timeout 60s → 180s, retries 3 → 2, nginx proxy_read_timeout 60s → 200s for /api/tools/auction-sheet` (decisions.md).
 
 ## CBR (Central Bank of Russia)
 

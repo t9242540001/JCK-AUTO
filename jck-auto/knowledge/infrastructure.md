@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/infrastructure.md
   @project:     JCK AUTO
-  @description: Server config, PM2 processes, deploy procedures, constraints
-  @updated:     2026-04-10
-  @version:     1.6
-  @lines:       124
+  @description: Server config, PM2 processes, deploy procedures, constraints, per-endpoint nginx overrides
+  @updated:     2026-04-18
+  @version:     1.7
+  @lines:       ~260
 -->
 
 # Infrastructure
@@ -149,9 +149,39 @@ location / {
 ### Таймауты nginx
 
 - **Дефолт:** 60 секунд (`proxy_read_timeout` явно не задан).
-- **Затрагивает:** `/api/tools/auction-sheet` — DashScope vision-анализ может приближаться к лимиту.
+- **Затрагивает:** большинство API-маршрутов сайта.
 - **Митигация:** сжатие изображений через Sharp в `route.ts` (resize до 2000px + JPEG 85).
 - **Note:** **НЕ** увеличивать таймаут nginx в качестве обходного решения — чинить размер изображения.
+- **Исключения:** для `/api/tools/auction-sheet` действует per-endpoint override — см. ниже.
+
+### Per-endpoint nginx overrides
+
+#### `/api/tools/auction-sheet`
+
+Long-running AI pipeline (Pass 0 classifier + 3 parallel OCR passes +
+DeepSeek parse + future queue wait). Requires extended timeouts and
+larger body size for HEIC uploads.
+
+- `proxy_read_timeout 200s` (default was 60s)
+- `proxy_send_timeout 200s` (default was 60s)
+- `proxy_connect_timeout 10s`
+- `client_body_timeout 60s`
+- `client_max_body_size 15M` (default was 1M)
+- `proxy_buffering off` (for future queue-status streaming)
+- `proxy_request_buffering off`
+
+Config file: `/etc/nginx/sites-available/jckauto` — regex location
+block `location ~ ^/api/tools/auction-sheet(/|$)` placed BEFORE the
+general `location /` block (regex matches take priority over prefix
+matches in nginx).
+
+Last backup: `/etc/nginx/sites-available/jckauto.backup-2026-04-18`
+(before the timeout increase). Restore with:
+`sudo cp /etc/nginx/sites-available/jckauto.backup-2026-04-18 /etc/nginx/sites-available/jckauto && sudo nginx -t && sudo systemctl reload nginx`
+
+@rule Do NOT remove this block without updating DeepSeek timeout in
+      `src/lib/deepseek.ts` simultaneously. 180s DeepSeek + OCR +
+      classifier can exceed default 60s nginx timeout.
 
 ### SSL
 

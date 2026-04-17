@@ -4,7 +4,7 @@
  * @runs VDS напрямую
  * @env DEEPSEEK_API_KEY
  * @cost input $0.28/M, output $0.42/M
- * @rule retry только на сетевые/5xx/429; не логировать промпты и ключ; проверять ключ при вызове, не при импорте
+ * @rule retry only on network/5xx/429; max 2 attempts; 180s timeout per attempt; never log prompts or API key; check key at call-time, not at import
  */
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -38,8 +38,8 @@ const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-chat';
 const DEFAULT_MAX_TOKENS = 2048;
 const DEFAULT_TEMPERATURE = 0.3;
-const REQUEST_TIMEOUT_MS = 60_000;
-const MAX_RETRIES = 3;
+const REQUEST_TIMEOUT_MS = 180_000;
+const MAX_RETRIES = 2;
 const RATE_LIMIT_PER_MINUTE = 10;
 const INPUT_PRICE_PER_M = 0.28;
 const OUTPUT_PRICE_PER_M = 0.42;
@@ -119,6 +119,7 @@ async function callDeepSeek(
       );
     }
 
+    const attemptStart = Date.now();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -140,17 +141,24 @@ async function callDeepSeek(
 
       if (!response.ok) {
         const responseText = await response.text();
+        console.error(
+          `[DeepSeek] HTTP ${response.status} on attempt ${attempt + 1}/${MAX_RETRIES}: ${responseText.slice(0, 200)}`,
+        );
         if (response.status === 429 || response.status >= 500) {
-          lastError = new Error(`DeepSeek API error ${response.status}: ${responseText}`);
+          lastError = new Error(`DeepSeek API error ${response.status}`);
           continue;
         }
-        throw new Error(`DeepSeek API error ${response.status}: ${responseText}`);
+        throw new Error(`DeepSeek API error ${response.status}`);
       }
 
       let rawText: string;
       try {
         rawText = await response.text();
-      } catch {
+      } catch (bodyErr) {
+        const underlyingMsg = bodyErr instanceof Error ? bodyErr.message : String(bodyErr);
+        console.error(
+          `[DeepSeek] failed to read response body on attempt ${attempt + 1}/${MAX_RETRIES}: ${underlyingMsg}`,
+        );
         lastError = new Error('Failed to read DeepSeek response body');
         continue;
       }
@@ -205,15 +213,38 @@ async function callDeepSeek(
         },
       };
     } catch (err) {
+      // Preserve: DeepSeek-logical errors (empty response, HTTP 4xx non-retryable)
+      // propagate without retry. MUST remain the first check so we don't waste
+      // 2 × 180s on hopeless cases.
       if (err instanceof Error && err.message.startsWith('DeepSeek')) {
         throw err;
       }
-      lastError = err instanceof Error ? err : new Error(String(err));
+
+      const elapsedSec = ((Date.now() - attemptStart) / 1000).toFixed(1);
+      const isAbort =
+        (err instanceof Error && err.name === 'AbortError') ||
+        (typeof DOMException !== 'undefined' && err instanceof DOMException && err.name === 'AbortError');
+
+      if (isAbort) {
+        console.error(
+          `[DeepSeek] request aborted after ${elapsedSec}s (timeout=${REQUEST_TIMEOUT_MS / 1000}s, attempt ${attempt + 1}/${MAX_RETRIES})`,
+        );
+        lastError = new Error(`DeepSeek request timeout after ${elapsedSec}s`);
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[DeepSeek] network error on attempt ${attempt + 1}/${MAX_RETRIES} after ${elapsedSec}s: ${msg}`,
+        );
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
     } finally {
       clearTimeout(timeoutId);
     }
   }
 
+  console.error(
+    `[DeepSeek] all ${MAX_RETRIES} retries exhausted. Last error: ${lastError?.message ?? 'unknown'}`,
+  );
   throw new Error(
     `DeepSeek API failed after ${MAX_RETRIES} retries: ${lastError?.message}`,
   );
