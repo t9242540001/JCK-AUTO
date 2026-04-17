@@ -2,8 +2,8 @@
   @file:        knowledge/INDEX.md
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
-  @updated:     2026-04-16
-  @version:     1.14
+  @updated:     2026-04-17
+  @version:     1.15
   @lines:       48
 -->
 
@@ -37,7 +37,7 @@
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
 | [tools.md](tools.md) | /tools/* API endpoints: auction-sheet multi-pass OCR pipeline (3 parallel passes + DeepSeek Step 2), Sharp compression, rate limiting, diagnostics | 2026-04-16 |
-| [bugs.md](bugs.md) | Open bugs tracker — С-1 (partial fix), С-2–С-6, Б-1–Б-8. Includes Allion instability (С-5), frontend resilience (С-6), middleware-manifest (Б-7) | 2026-04-16 |
+| [bugs.md](bugs.md) | Open bugs tracker — С-1 (partial fix), С-2–С-5, Б-1–Б-8. С-6 closed. Includes Allion instability (С-5), middleware-manifest (Б-7) | 2026-04-17 |
 
 ## Quick Links
 
