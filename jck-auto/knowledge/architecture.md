@@ -2,9 +2,9 @@
   @file:        knowledge/architecture.md
   @project:     JCK AUTO
   @description: Stack, file navigator, URL structure, key file relationships
-  @updated:     2026-04-09
-  @version:     1.0
-  @lines:       130
+  @updated:     2026-04-18
+  @version:     1.1
+  @lines:       ~160
 -->
 
 # Architecture
@@ -111,3 +111,25 @@ Bot /calc ──→ fetchCBRRates() (direct, server-side)
 
 News pipeline: rssParser → collector → processor (DeepSeek) → coverGenerator (DashScope) → publisher
 ```
+
+## Request Queues
+
+### Auction-sheet request queue
+
+Server-side in-memory queue in `src/lib/auctionSheetQueue.ts`.
+
+- **Concurrency:** 1 (strict — one request processed at a time)
+- **Max queue size:** 10 (11th rejected with `queue_full`)
+- **Completed-jobs TTL:** 15 minutes (to survive mobile screen-off / tab switches)
+- **jobId:** `crypto.randomUUID()` (RFC 9562 v4)
+- **Persistence:** none — state lives in single PM2 process memory
+- **On restart:** pending jobs lost; active job aborted; clients must resubmit
+
+Why concurrency=1: DashScope upstream soft-throttles concurrent requests
+on the same API key (not via HTTP 429, but via elongated response times),
+which causes timeouts for users even when we're far below the published
+RPM cap. See `decisions.md` — ADR "[2026-04-18] Introduce server-side
+in-memory queue for auction-sheet (concurrency=1, TTL=15min)".
+
+Tests: `src/lib/auctionSheetQueue.test.ts`, run via
+`npx tsx --test src/lib/auctionSheetQueue.test.ts`.

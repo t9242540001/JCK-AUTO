@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.6
-  @lines:       ~970
+  @version:     1.7
+  @lines:       ~1020
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -13,6 +13,87 @@
 -->
 
 # Architectural Decisions
+
+## [2026-04-18] Introduce server-side in-memory queue for auction-sheet (concurrency=1, TTL=15min)
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Even with local `RATE_LIMIT_PER_MINUTE=60` in `dashscope.ts`, parallel
+user requests hit DashScope upstream soft-throttling (no HTTP 429,
+just elongated latency per concurrent call on the same API key),
+causing timeouts and "Ошибка сети" for users. Published RPM limits
+(Qwen-VL-OCR 600, Qwen3-VL-Flash 1200) are not relevant — the
+bottleneck is concurrent-calls-per-key, not requests-per-minute. The
+auction-sheet pipeline makes 4 DashScope calls + 1 DeepSeek call per
+user request, so two overlapping users mean ~8 concurrent DashScope
+calls on one key.
+
+**Decision:**
+Introduce `AuctionSheetQueue` singleton in
+`src/lib/auctionSheetQueue.ts`. Concurrency=1 (strict). Max queue
+size=10 (`queue_full` rejection beyond). Completed-jobs kept in
+memory for 15 minutes (TTL) so mobile clients can poll results after
+screen turn-off or tab switch. jobId via `crypto.randomUUID()`
+(RFC 9562 v4, 122 bits entropy, built into Node 20, zero deps).
+In-memory only — no Redis/DB; single PM2 process is our runtime.
+State loss on restart is accepted trade-off. This prompt P-0.2a
+delivers the queue module + tests only; integration into the API
+route happens in P-0.2d.
+
+**Alternatives considered:**
+- Concurrency=2 or higher: rejected — doesn't solve soft-throttling
+  (still competing calls per key), merely reduces the problem.
+  Strict serialization guarantees zero upstream contention.
+- Nanoid or `crypto.randomBytes` for jobId: rejected —
+  `crypto.randomUUID()` is built-in, ~4× faster than nanoid,
+  RFC-standard, zero deps. Short IDs are not a feature we need
+  (jobId goes into an API path, not a URL slug).
+- Redis or Postgres persistence: rejected — single-process
+  deployment, state loss on restart is rare and acceptable. Adding
+  Redis would mean new infra, new failure mode, new config.
+  Reconsider only if we move to multi-process.
+- In-memory library (p-queue): rejected — small amount of custom
+  code gives us exact control over stats, TTL, logging, and
+  `queue_full` semantics. p-queue would require customization for
+  all of these anyway.
+
+**Consequences:**
+- `+` Zero concurrent DashScope calls per key → no soft-throttling
+  → predictable latency.
+- `+` Queue position and ETA become observable → UX can show a
+  progress bar in future prompt P-0.2e.
+- `+` Stats (peak size, throughput, failure rate) available for
+  future Telegram alerting (P-0.6).
+- `−` During peak load, users wait. At 30s per job × 10 jobs =
+  5 min max wait for the last. Acceptable for our use case
+  (thoughtful car purchase research).
+- `−` Process restart loses pending jobs. Mitigations: PM2
+  auto-restart is fast (~5s), clients show "Попробуйте ещё" button.
+  Acceptable.
+- `−` Jobs running in a single process memory means result objects
+  consume RAM. At 15-min TTL × worst case ~40 jobs/hour × few KB per
+  result = negligible (under 1MB). Verified by computed upper bound.
+
+**Files added:**
+- `jck-auto/src/lib/auctionSheetQueue.ts` (queue class + singleton,
+  3 `@rule` anchors, under 200 lines).
+- `jck-auto/src/lib/auctionSheetQueue.test.ts` (9 test cases via
+  `node:test`, run with `npx tsx --test`).
+
+**Files changed:**
+- `jck-auto/knowledge/architecture.md` (new "Request Queues" →
+  "Auction-sheet request queue" section).
+- `jck-auto/knowledge/INDEX.md` (dates/versions bumped).
+
+**`@rule` enforced in auctionSheetQueue.ts header:**
+`Concurrency MUST stay 1 — DashScope upstream soft-throttles
+concurrent requests per API key, and concurrency=1 is the whole
+point of this module.`
+
+---
 
 ## [2026-04-18] Raise dashscope.ts RATE_LIMIT_PER_MINUTE 6 → 60
 
