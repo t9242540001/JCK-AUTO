@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/tools.md
   @project:     JCK AUTO
-  @description: API tools documentation — auction-sheet (multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx constraints
-  @updated:     2026-04-16
-  @version:     1.2
-  @lines:       165
+  @description: API tools documentation — auction-sheet (Pass 0 classifier + multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx constraints
+  @updated:     2026-04-17
+  @version:     1.3
+  @lines:       ~185
 -->
 
 # Tools API — /tools/*
@@ -58,6 +58,34 @@ const compressed = await sharp(Buffer.from(bytes))
 Результат: размер полезной нагрузки уменьшился в 3–5 раз. Вместе с fallback-цепочкой DashScope (см. ниже) это позволяет уложиться в nginx timeout 60 с даже в худших сценариях.
 
 ### Архитектура pipeline
+
+**Pass 0 — classifier**
+
+Классифицирует входной лист как `printed` / `handwritten` / `mixed`
+перед тремя параллельными OCR-проходами.
+
+- Назначение: дать сигнал для per-type model routing в Pass 1–3
+  (следующая итерация). Сейчас результат прокидывается только в
+  `meta` ответа API — pipeline моделей он ещё не меняет.
+- Модель: `qwen3-vl-flash` (single-model chain, без fallback).
+  Параметры: `maxTokens: 20`, `temperature: 0`.
+- Промпт: `CLASSIFIER_SYSTEM` требует вывести ровно один из трёх
+  токенов без пояснений. `maxTokens=20` — осознанное ограничение:
+  если модель вывела больше, промпт не выполнен → soft-fail.
+- Политика отказа: soft-fail. На любую ошибку (таймаут, исключение,
+  нераспознанный токен) возвращается `type: 'printed'` — безопасный
+  дефолт, так как текущий pipeline оптимизирован под печатные листы.
+  Классификатор НЕ блокирует запрос.
+- Стоимость: ~$0.001 за классификацию (+2–3 с латентности).
+- Выход: `meta.sheetType` / `meta.classifierModel` / `meta.classifierElapsed`
+  в ответе API для наблюдаемости.
+- См. ADR `[2026-04-17] Introduce Pass 0 sheet-type classifier for
+  auction-sheet pipeline` в decisions.md.
+
+**`@rule`-якоря в route.ts (classifySheet):**
+- `RULE: Classifier output is advisory, NOT blocking.`
+- `RULE: Classifier uses ONLY qwen3-vl-flash — fast and cheap.`
+- `RULE: maxTokens=20 is intentional.`
 
 **Step 1 — три параллельных OCR-прохода**
 

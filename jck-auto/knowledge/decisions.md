@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-16
-  @version:     1.3
-  @lines:       ~790
+  @updated:     2026-04-17
+  @version:     1.4
+  @lines:       ~850
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -13,6 +13,68 @@
 -->
 
 # Architectural Decisions
+
+## [2026-04-17] Introduce Pass 0 sheet-type classifier for auction-sheet pipeline
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Handwritten auction sheets (HAA, parts of TAA/CAA) currently fail on
+Pass 1 because `qwen-vl-ocr` and `qwen3-vl-flash` have weak
+handwriting recognition. Different sheet types need different model
+chains, but a routing decision requires a signal: the pipeline has no
+visibility today into whether an incoming sheet is printed (USS, CAA)
+or handwritten (HAA, some TAA).
+
+**Decision:**
+Introduce a new Pass 0 — a lightweight classifier that categorizes
+the incoming sheet as `printed`, `handwritten`, or `mixed`, using
+`qwen3-vl-flash` with a narrow, single-token output prompt
+(`maxTokens: 20`, `temperature: 0`). Classifier is advisory and
+non-blocking: any failure (timeout, unexpected output, exception)
+defaults to `'printed'` so the current pipeline continues to work.
+Result is returned via `meta.sheetType` (plus `meta.classifierModel`
+and `meta.classifierElapsed`) for observability in this iteration;
+subsequent iterations will use it for per-pass model routing.
+
+**Alternatives considered:**
+- Route all sheets through the stronger model (`qwen3.5-plus`):
+  rejected — 6–10× cost increase and nginx timeout risk for the
+  70–80% of sheets that are printed.
+- Content-based fallback after Pass 1 (retry on stronger model if
+  Pass 1 output is too short): rejected as primary approach —
+  unbounded latency for handwritten sheets and fragile heuristic.
+  May be added later as a secondary safety net.
+
+**Consequences:**
+- `+` Observability improves immediately — logs and API `meta`
+  show sheet type for every request.
+- `+` Enables per-type model routing in the next prompt without
+  further architectural change.
+- `−` +~$0.001 and +2–3 seconds per request on every sheet.
+- `−` One more external call in the request path, adds a failure
+  surface (mitigated by soft-fail policy).
+
+**Files changed:**
+- `jck-auto/src/app/api/tools/auction-sheet/route.ts` (two new
+  prompt constants, `classifySheet` helper, Pass 0 call, three new
+  `meta` fields).
+- `jck-auto/knowledge/tools.md` (new Pass 0 subsection).
+- `jck-auto/knowledge/INDEX.md` (updated dates and descriptions).
+
+**`@rule` enforced in route.ts:**
+`RULE: Classifier output is advisory, NOT blocking. On any failure
+(timeout, unexpected output, exception) return type='printed'.`
+`RULE: Classifier uses ONLY qwen3-vl-flash — fast and cheap. Do NOT
+add qwen3.5-plus to the classifier chain; the whole point of routing
+is to avoid paying qwen3.5-plus cost on every request.`
+`RULE: maxTokens=20 is intentional. If the model outputs more than
+one short word, the prompt is not being followed and we treat it as
+failure (default to 'printed').`
+
+---
 
 ## [2026-04-16] Pass 2 uses qwen3-vl-flash (visual reasoning), not qwen-vl-ocr
 
