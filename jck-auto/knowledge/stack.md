@@ -1,9 +1,9 @@
 # Стек технологий
-> Обновлено: 2026-04-08
+> Обновлено: 2026-04-18
 
 ## Фреймворк и рантайм
 
-- **Next.js 15** — App Router, TypeScript strict, RSC + client components
+- **Next.js 16.1.6** — App Router, TypeScript strict (`ignoreBuildErrors: true`), Turbopack default для `next build`, RSC + client components
 - **Node.js v20.20.0** — runtime на VDS
 - **TypeScript** — strict mode, ignoreBuildErrors: true в next.config.ts
 
@@ -45,4 +45,15 @@
 
 - `next.config.ts`: serverExternalPackages: ['pdfkit'], images: { unoptimized: true }
 - `vercel.json` — в проекте, но деплой на VDS через PM2, не Vercel
-- ISR: `/catalog` revalidate=3600 (1ч)
+- Рендеринг: `/catalog` и `/catalog/cars/[id]` — force-dynamic (SSR, без ISR)
+
+## Очередь запросов (in-memory)
+
+- **`src/lib/auctionSheetQueue.ts`** — серверная in-memory очередь для
+  `/api/tools/auction-sheet` (Pass 0 + 3-pass OCR + DeepSeek Step 2).
+  Concurrency=1, max queue=10, completed-jobs TTL=15min, jobId = UUID v4.
+- **Контракт:** POST возвращает `202 {jobId, statusUrl, position, etaSec}`,
+  клиент поллит `GET /api/tools/auction-sheet/job/[jobId]` каждые 2s.
+- **Persistence:** отсутствует — состояние живёт в памяти PM2-процесса;
+  при рестарте очередь теряется, активная задача отменяется.
+- **Тесты:** `src/lib/auctionSheetQueue.test.ts` (Node `node:test`).
