@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: API tools documentation — auction-sheet async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
   @updated:     2026-04-18
-  @version:     1.8
-  @lines:       ~320
+  @version:     1.9
+  @lines:       ~335
 -->
 
 # Tools API — /tools/*
@@ -278,6 +278,18 @@ enum «Include (if visible)», чтобы Pass 1 гарантированно п
 
 См. ADR `[2026-04-18] Extend parse schema for auction-sheet with 10 new
 fields`.
+
+**Client-side refactor in progress (2026-04-18):** TypeScript-интерфейсы
+вынесены в `src/app/tools/auction-sheet/auctionSheetTypes.ts`, pure
+форматирующие хелперы — в `src/app/tools/auction-sheet/auctionSheetHelpers.ts`.
+На момент создания оба файла существуют как скаффолдинг — ни один
+модуль пока не импортирует их; `AuctionSheetClient.tsx` по-прежнему
+владеет inline-копиями типов и хелперов до завершающего prompt 07,
+который подменит imports и уберёт дубликаты. `AuctionResult` в новом
+types-файле уже соответствует серверной схеме (11 новых полей из
+Prompt 01 — VIN, modelCode, registrationNumber, inspectionValidUntil,
+recycleFee, seats, colorCode, dimensions, salesPoints, bodyType). Полный
+план разбиения — см. `decisions.md § Active iterations`.
 
 **Логика переключения в `analyzeImageWithFallback` (vision):**
 - 4xx (кроме 429) — фатальные, fallback не запускается

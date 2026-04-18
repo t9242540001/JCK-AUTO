@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.10
-  @lines:       ~1250
+  @version:     1.11
+  @lines:       ~1270
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -13,6 +13,28 @@
 -->
 
 # Architectural Decisions
+
+## § Active iterations
+
+> Section for multi-prompt refactors that are not yet complete. Each entry
+> stays here until its final commit lands, at which point it gets promoted
+> to a full Accepted ADR below and this entry is removed.
+
+### [WIP 2026-04-18] Split AuctionSheetClient into types + helpers + view modules
+
+**Status:** WIP (in progress, prompts 02–07)
+
+**Context:** AuctionSheetClient.tsx is 655 lines and owns: inline types, inline helpers, upload zone, processing views, error view, result view, orchestrator. The universal file-size guideline is 200 lines. Splitting in one prompt would touch 7+ files and violate the one-file-per-prompt rule.
+
+**Plan:**
+- Prompt 02 (this one) — extract types to `auctionSheetTypes.ts`, pure helpers to `auctionSheetHelpers.ts`. No imports yet.
+- Prompt 03 — extract `UploadZone` component.
+- Prompt 04 — extract `ProcessingViews` component.
+- Prompt 05 — extract `ErrorView` component.
+- Prompt 06 — extract `ResultView` component, add UI for 11 new fields, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block.
+- Prompt 07 — final cleanup: switch AuctionSheetClient to imports, remove inline duplicates, re-verify under 200 lines.
+
+**Decision (expected at closure):** to be promoted to Accepted ADR after prompt 07 lands, documenting the final module boundaries.
 
 ## [2026-04-18] Async-only contract for POST /api/tools/auction-sheet (jobId + polling)
 

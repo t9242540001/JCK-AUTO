@@ -1,0 +1,127 @@
+/**
+ * @file        auctionSheetTypes.ts
+ * @description TypeScript types for the auction-sheet tool — API response shapes, job status, component state. Mirrors the extended JSON schema defined in src/app/api/tools/auction-sheet/route.ts (PARSE_SYSTEM_PROMPT).
+ * @rule        Keep in sync with PARSE_SYSTEM_PROMPT schema in route.ts. A drift between server schema and this interface silently drops fields at the client layer.
+ */
+
+export interface BodyDamage {
+  location: string;
+  code: string;
+  description: string;
+  severity: "minor" | "moderate" | "major";
+}
+
+/**
+ * VIN extraction confidence from the parser.
+ * - "high" — VIN clearly printed and fully extracted
+ * - "medium" — partial or slightly blurred read
+ * - "unreadable" — the VIN cell exists on the sheet but characters are illegible
+ * - null — there is no VIN cell on the sheet at all
+ */
+export type VinConfidence = "high" | "medium" | "unreadable" | null;
+
+export interface CarDimensions {
+  length: number | null; // cm
+  width: number | null;  // cm
+  height: number | null; // cm
+}
+
+/**
+ * Result of formatVin() helper. UI layer decides rendering.
+ * - { value: "...", note: null }     — VIN present, high confidence
+ * - { value: "...", note: "..." }    — VIN present but partial
+ * - { value: null, note: "..." }     — VIN cell exists but unreadable
+ * - { value: null, note: null }      — no VIN cell at all
+ */
+export interface FormattedVin {
+  value: string | null;
+  note: string | null;
+}
+
+export interface AuctionResult {
+  auctionName: string | null;
+  lotNumber: string | null;
+  overallGrade: string | null;
+  interiorGrade: string | null;
+  make: string | null;
+  model: string | null;
+  year: string | null;
+  engineVolume: string | null;
+  engineType: string | null;
+  transmission: string | null;
+  mileage: string | null;
+  mileageWarning: boolean;
+  color: string | null;
+  ownership: string | null;
+  // --- fields added 2026-04-18 via Prompt 01 schema extension ---
+  vin: string | null;
+  vinConfidence: VinConfidence;
+  modelCode: string | null;
+  registrationNumber: string | null;
+  inspectionValidUntil: string | null; // ISO-8601 "YYYY-MM"
+  recycleFee: number | null;           // JPY integer
+  seats: number | null;
+  colorCode: string | null;
+  dimensions: CarDimensions | null;
+  salesPoints: string[];               // empty [] when no block
+  bodyType: string | null;
+  // --- end new fields ---
+  bodyDamages: BodyDamage[];
+  equipment: string[];
+  expertComments: string | null;
+  unrecognized: string[];
+  confidence: "high" | "medium" | "low";
+  recommendation: string | null;
+  warnings: string[];
+}
+
+export interface ApiResponse {
+  success: boolean;
+  data: AuctionResult;
+  meta: { model: string; tokens: number; remaining: number };
+}
+
+export interface ApiError {
+  error: string;
+  message: string;
+  resetIn?: number;
+}
+
+export interface AcceptedResponse {
+  jobId: string;
+  statusUrl: string;
+  position: number;
+  etaSec: number;
+}
+
+export interface JobStatusResponse {
+  jobId: string;
+  status: "queued" | "processing" | "done" | "failed";
+  position: number;
+  etaSec: number;
+  enqueuedAt: number;
+  startedAt: number | null;
+  completedAt: number | null;
+  result?: {
+    data: AuctionResult;
+    meta: { model: string; tokens: number; remaining: number };
+  };
+  error?: string;
+}
+
+export interface QueueFullError {
+  error: "queue_full";
+  message: string;
+  queueSize: number;
+  maxSize: number;
+  retryInSeconds: number;
+}
+
+export type State =
+  | "idle"
+  | "preview"
+  | "submitting"
+  | "queued"
+  | "processing"
+  | "result"
+  | "error";
