@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.7
-  @lines:       ~1020
+  @version:     1.8
+  @lines:       ~1080
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -13,6 +13,78 @@
 -->
 
 # Architectural Decisions
+
+## [2026-04-18] Async-only contract for POST /api/tools/auction-sheet (jobId + polling)
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+The server-side queue (P-0.2a), job-status endpoint (P-0.2b), and admin stats
+endpoint (P-0.2c) are all in place, but the POST route still runs the full AI
+pipeline synchronously — blocking the HTTP connection for 30–200 seconds per
+request. Under real concurrency this means nginx workers are tied up waiting
+for DashScope/DeepSeek, the user holds an open connection for minutes, and
+mobile clients lose the result if the screen sleeps. We also can't actually
+enforce concurrency=1 (the whole point of the queue) while POST itself invokes
+the AI directly and bypasses the queue.
+
+**Decision:**
+POST `/api/tools/auction-sheet` becomes async-only. The handler now runs only
+synchronous, bounded-time work: rate-limit check, formData parse, file
+validation, Sharp compression. On success it calls
+`auctionSheetQueue.enqueue(() => runPipeline(compressed, ip, telegramId))` and
+returns `202 Accepted` with `{jobId, statusUrl, position, etaSec}` plus a
+`Location` header pointing at the job-status endpoint. The full AI pipeline
+(Pass 0 classifier + 3 parallel OCR passes + Step 2 parse) is extracted into
+a private `runPipeline()` helper that lives only inside the queue worker;
+POST never calls DashScope or DeepSeek directly. `recordUsage` and the second
+`checkRateLimit` for `remaining` move inside `runPipeline` so quota is only
+consumed on full success — failed jobs (thrown errors) leave the user's quota
+intact.
+
+Error mapping is deliberately reshuffled:
+- `429` → per-user rate-limit exhaustion (unchanged)
+- `400` → malformed request or unreadable image (`invalid_request`,
+  `no_file`, `file_too_large`, `invalid_type`, `invalid_image`)
+- `503` + `Retry-After: 300` → `QueueFullError` (server capacity
+  exhaustion, affects all users)
+- `500` → unexpected enqueue failure
+- Pipeline errors (`ai_error:` / `parse_error:`) never escape to HTTP —
+  they surface via the job polling endpoint as `{status:'failed', error}`.
+
+Sharp compression stays in the POST handler, before enqueue: this lets us
+reject corrupt uploads synchronously with 400 instead of burning a queue slot
+on a doomed job.
+
+**Alternatives considered:**
+- Hybrid contract (POST blocks on job if queue is empty, returns 202 only
+  when another job is ahead): rejected. Creates two execution paths and two
+  error surfaces; nginx `proxy_read_timeout` still has to cover the long
+  path; clients still need polling logic for the queued case. Pure async
+  simplifies both sides.
+- 429 for QueueFullError instead of 503: rejected. 429 means "you are
+  sending too many requests" — a specific user signal. Queue-full is a
+  shared-capacity event that affects every caller regardless of their
+  individual request rate, which is precisely what 503 with `Retry-After`
+  describes in RFC 9110.
+- Keep pipeline inside POST and just wrap it in a semaphore: rejected.
+  Doesn't solve the "connection held for 3+ minutes" problem or
+  mobile-polling friendliness.
+
+**Consequences:**
+- Clients (web + future bot integration) must poll
+  `/api/tools/auction-sheet/job/[jobId]` — required UI/client refactor in
+  follow-up prompt P-0.2e.
+- Queue concurrency=1 is now actually enforced end-to-end; DashScope
+  upstream soft-throttling no longer affects concurrent users.
+- nginx `proxy_read_timeout=200s` for the POST endpoint becomes vastly
+  over-spec (POST now returns in ~200ms) — we leave it in place because it
+  still applies to the polling path for long-running jobs.
+- Error observability splits: transport errors stay in nginx/PM2 logs for
+  POST; AI-pipeline errors are available both via the job record and the
+  `[auction-sheet]` console logs emitted by the queue worker.
 
 ## [2026-04-18] Introduce server-side in-memory queue for auction-sheet (concurrency=1, TTL=15min)
 

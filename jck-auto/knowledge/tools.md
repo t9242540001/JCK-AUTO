@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/tools.md
   @project:     JCK AUTO
-  @description: API tools documentation — auction-sheet (Pass 0 classifier + multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
+  @description: API tools documentation — auction-sheet async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
   @updated:     2026-04-18
-  @version:     1.6
-  @lines:       ~250
+  @version:     1.7
+  @lines:       ~290
 -->
 
 # Tools API — /tools/*
@@ -17,8 +17,22 @@
 
 ### Endpoints
 
-- **POST** `/api/tools/auction-sheet` — submit a photo. (Integration with queue
-  pending — see prompt P-0.2d. Currently: synchronous.)
+- **POST** `/api/tools/auction-sheet` — submit a photo. **Async-only contract.**
+  The handler runs validation + Sharp compression synchronously, enqueues the
+  AI pipeline into `auctionSheetQueue` (concurrency=1), and returns
+  `202 Accepted` with `{jobId, statusUrl, position, etaSec}`. Headers:
+  `Location: /api/tools/auction-sheet/job/{jobId}`, `Cache-Control: no-store`.
+  Does NOT block on the AI pipeline — clients MUST poll `statusUrl`. Error
+  statuses returned synchronously by POST:
+  - `429` — per-user rate limit exhausted (`error: rate_limit`)
+  - `400` — malformed upload (`no_file` / `file_too_large` / `invalid_type` /
+    `invalid_request` / `invalid_image`)
+  - `503` + `Retry-After: 300` — queue is full (`error: queue_full`)
+  - `500` — unexpected enqueue failure (`error: enqueue_failed`)
+  Pipeline errors (`ai_error:` / `parse_error:`) surface only via the job
+  polling endpoint as `{status:'failed', error}`.
+  See ADR `[2026-04-18] Async-only contract for POST /api/tools/auction-sheet
+  (jobId + polling)`.
 - **GET** `/api/tools/auction-sheet/job/[jobId]` — poll status of an enqueued job.
   File: `src/app/api/tools/auction-sheet/job/[jobId]/route.ts`. Returns `200`
   with JSON body:
@@ -63,7 +77,45 @@ Cookie живёт 30 дней. При истечении — повторить 
 
 ### Назначение
 
-AI-расшифровка японских аукционных листов. Двухшаговый pipeline: Step 1 — три параллельных OCR-прохода (text fields / damages / free text) через DashScope; Step 2 — структурирование результата в JSON через DeepSeek (primary) или qwen3.5-flash (fallback). На выходе — JSON с оценкой кузова, дефектами, пробегом, комплектацией и рекомендацией.
+AI-расшифровка японских аукционных листов по **асинхронному контракту**: клиент
+отправляет фото одним POST-запросом и сразу получает `202 Accepted` с `jobId`;
+сама AI-обработка (Pass 0 classifier + три параллельных OCR-прохода + Step 2
+parse) идёт под замком очереди `auctionSheetQueue` (concurrency=1). Клиент
+периодически опрашивает GET `/api/tools/auction-sheet/job/[jobId]` и получает
+в итоге `{status:'done', result}` — `result` содержит `{success:true, data, meta}`
+с оценкой кузова, дефектами, пробегом, комплектацией и рекомендацией.
+
+Step 1 OCR (три параллельных прохода через DashScope) и Step 2 parse (DeepSeek
+primary, qwen3.5-flash fallback) живут ТОЛЬКО внутри `runPipeline()` — POST
+handler не делает синхронных вызовов AI.
+
+### Flow (async contract)
+
+1. **POST** `/api/tools/auction-sheet` (multipart/form-data, поле `image`):
+   - проверка rate-limit → 429 при исчерпании;
+   - парсинг `formData` → 400 `invalid_request`;
+   - валидация файла → 400 `no_file` / `file_too_large` / `invalid_type`;
+   - **Sharp-сжатие СИНХРОННО** в том же хэндлере (2000×2000 JPEG q:85) —
+     битый или нечитаемый файл отбрасывается **до** enqueue → 400 `invalid_image`;
+   - `auctionSheetQueue.enqueue(() => runPipeline(compressed, ip, telegramId))`
+     → `QueueFullError` → 503 + `Retry-After: 300`; иначе — `jobId`;
+   - ответ `202 Accepted` с `{jobId, statusUrl, position, etaSec}`,
+     заголовок `Location: /api/tools/auction-sheet/job/{jobId}`.
+2. **Queue worker** (concurrency=1) вызывает `runPipeline(compressedBuffer, ip, telegramId)`:
+   - Pass 0 classifier (advisory, soft-fail → 'printed');
+   - Step 1 OCR: три параллельных прохода (Pass 1 REQUIRED — throw `ai_error:`
+     при падении; Pass 2/3 soft-fail);
+   - Step 2 parse (DeepSeek → qwen3.5-flash fallback);
+   - при успехе: `recordUsage(ip, telegramId)` и второй `checkRateLimit()` для
+     `remaining` → возвращается `{data, meta}`, job получает `status='done'`;
+   - при ошибке внутри pipeline — `throw new Error('ai_error: ...')` или
+     `throw new Error('parse_error: ...')`; квота клиента НЕ списывается,
+     job получает `status='failed'` с полем `error`.
+3. **GET** `/api/tools/auction-sheet/job/[jobId]` — клиент опрашивает раз в
+   ~2 секунды, пока не получит `done` или `failed`.
+
+Ключевая инвариант: **квота списывается только на успешных jobs**; любое
+падение pipeline оставляет лимит пользователя нетронутым.
 
 ### Форматы файлов
 
@@ -210,6 +262,11 @@ endpoint (`dashscope.aliyuncs.com`).
 - `RULE: Three parallel OCR passes, each with one narrow task. Do NOT merge into a single multi-task prompt`
 - `RULE: Pass 2 uses qwen3-vl-flash primary (visual reasoning), qwen-vl-ocr as fallback`
 - `RULE: DeepSeek is primary for Step 2 — DashScope text models (qwen3.5-flash/plus) timeout from VDS`
+- `@rule The full AI pipeline (Pass 0 classifier + three OCR passes + Step 2 parse) lives ONLY inside runPipeline`
+- `@rule recordUsage and the second checkRateLimit call MUST happen inside runPipeline AFTER the full pipeline succeeds`
+- `@rule Sharp compression MUST run BEFORE enqueue, inside the POST handler`
+- `@rule POST returns 202 Accepted (NOT 200)` — see async contract above
+- `@rule QueueFullError MUST map to HTTP 503 Service Unavailable + Retry-After: 300 (NOT 429)`
 
 ### Rate Limiting
 
