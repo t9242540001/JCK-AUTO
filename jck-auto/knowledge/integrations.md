@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/integrations.md
   @project:     JCK AUTO
-  @description: External APIs — usage, files, rate limits, costs, env vars (DeepSeek 180s/2 retries, DashScope local limit 60 RPM)
+  @description: External APIs — usage, files, rate limits, costs, env vars (DeepSeek 180s/2 retries, DashScope local limit 60 RPM), admin access env
   @updated:     2026-04-18
-  @version:     1.3
-  @lines:       ~150
+  @version:     1.4
+  @lines:       ~170
 -->
 
 # External Integrations
@@ -142,3 +142,17 @@ See ADR `[2026-04-18] Raise dashscope.ts RATE_LIMIT_PER_MINUTE 6 → 60`
 | DashScope text | ~$0.30/mo | 1x/day |
 | DashScope vision | ~$0.06/mo | On demand |
 | **Total** | **~$2-3/mo** | Current load |
+
+## Admin access
+
+Some endpoints require admin authorization. Admin identity is
+determined by `telegramId` from the JWT cookie `tg_auth` (issued
+via the Telegram Login Widget flow).
+
+- **Env var:** `ADMIN_TELEGRAM_IDS` — comma-separated list of Telegram
+  user IDs. Example: `ADMIN_TELEGRAM_IDS=12345678,87654321`. Empty or
+  missing → all admin endpoints fail-closed (always 403). Not stored in
+  git — configured via `.env.local` on VDS, reload via `pm2 restart jckauto`.
+
+Currently protected endpoints:
+- `GET /api/tools/auction-sheet/stats` (queue metrics)
