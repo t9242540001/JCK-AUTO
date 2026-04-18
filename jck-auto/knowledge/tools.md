@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/tools.md
   @project:     JCK AUTO
-  @description: API tools documentation — auction-sheet (Pass 0 classifier + multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB)
+  @description: API tools documentation — auction-sheet (Pass 0 classifier + multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status endpoint
   @updated:     2026-04-18
-  @version:     1.4
-  @lines:       ~200
+  @version:     1.5
+  @lines:       ~220
 -->
 
 # Tools API — /tools/*
@@ -14,6 +14,22 @@
 **Route:** `POST /api/tools/auction-sheet`  
 **File:** `src/app/api/tools/auction-sheet/route.ts`  
 **Page:** `src/app/tools/auction-sheet/page.tsx`
+
+### Endpoints
+
+- **POST** `/api/tools/auction-sheet` — submit a photo. (Integration with queue
+  pending — see prompt P-0.2d. Currently: synchronous.)
+- **GET** `/api/tools/auction-sheet/job/[jobId]` — poll status of an enqueued job.
+  File: `src/app/api/tools/auction-sheet/job/[jobId]/route.ts`. Returns `200`
+  with JSON body:
+  - `{status:'queued', position, etaSec, ...}` while waiting in line
+  - `{status:'processing', etaSec, ...}` while being handled
+  - `{status:'done', result, ...}` when finished — `result` is the same JSON
+    previously returned synchronously by POST
+  - `{status:'failed', error, ...}` when job threw
+  Returns `400` for malformed `jobId`, `404` for unknown/expired `jobId`.
+  Cache-Control: no-store. Intended polling interval: ~2 seconds.
+  See ADR `[2026-04-18] Introduce server-side in-memory queue for auction-sheet`.
 
 ### Назначение
 
