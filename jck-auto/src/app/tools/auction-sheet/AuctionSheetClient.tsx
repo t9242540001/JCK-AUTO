@@ -1,10 +1,24 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Upload, Loader2, X, Download, RefreshCw, Send, AlertTriangle } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 import TelegramAuthBlock from "@/components/TelegramAuthBlock";
+
+// @rule This component is async-first. POST /api/tools/auction-sheet returns
+//       202 Accepted with jobId; the client polls GET /job/[jobId] every 2s.
+//       Do NOT revert to synchronous fetch — backend no longer supports it.
+// @rule jobId is persisted in localStorage so users surviving screen-off /
+//       tab-switch can resume. On mount, check localStorage first.
+//       On "done", "failed", or explicit reset — remove from localStorage.
+// @rule Polling uses AbortController + setTimeout (NOT setInterval). Every
+//       unmount / state change / cleanup must abort pending fetch AND
+//       clear pending timeout — otherwise requests leak.
+// @rule This file is ~450 lines after this prompt. It exceeds the 200-line
+//       universal file-size guideline. A refactor split (state machine +
+//       subcomponents) is planned but NOT part of this prompt — do not
+//       attempt mid-work.
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
 
@@ -51,7 +65,56 @@ interface ApiError {
   resetIn?: number;
 }
 
-type State = "idle" | "preview" | "loading" | "result" | "error";
+interface AcceptedResponse {
+  jobId: string;
+  statusUrl: string;
+  position: number;
+  etaSec: number;
+}
+
+interface JobStatusResponse {
+  jobId: string;
+  status: "queued" | "processing" | "done" | "failed";
+  position: number;
+  etaSec: number;
+  enqueuedAt: number;
+  startedAt: number | null;
+  completedAt: number | null;
+  result?: {
+    data: AuctionResult;
+    meta: { model: string; tokens: number; remaining: number };
+  };
+  error?: string;
+}
+
+interface QueueFullError {
+  error: "queue_full";
+  message: string;
+  queueSize: number;
+  maxSize: number;
+  retryInSeconds: number;
+}
+
+type State =
+  | "idle"
+  | "preview"
+  | "submitting"
+  | "queued"
+  | "processing"
+  | "result"
+  | "error";
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────
+
+const POLL_INTERVAL_MS = 2000;
+const MAX_CONSECUTIVE_POLL_FAILURES = 5;
+const ACTIVE_JOB_STORAGE_KEY = "jckauto.auction_sheet.active_job";
+const PROCESSING_STAGE_DURATIONS_MS = [5000, 15000, Infinity];
+const PROCESSING_STAGE_LABELS = [
+  "Распознаём лист…",
+  "Распознаём текст…",
+  "Расшифровываем данные…",
+];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
@@ -100,6 +163,140 @@ export default function AuctionSheetClient() {
   const [usedCount, setUsedCount] = useState<number>(0);
   const [isLimitReached, setIsLimitReached] = useState<boolean>(false);
 
+  // Async-flow state
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobPosition, setJobPosition] = useState<number>(0);
+  const [jobEtaSec, setJobEtaSec] = useState<number>(0);
+  const [processingStage, setProcessingStage] = useState<number>(0);
+
+  // Refs for polling lifecycle
+  const pollAbortRef = useRef<AbortController | null>(null);
+  const pollTimeoutRef = useRef<number | null>(null);
+  const processingStartRef = useRef<number | null>(null);
+
+  const pollJob = useCallback(async (jobId: string, consecutiveFailures = 0) => {
+    const controller = new AbortController();
+    pollAbortRef.current = controller;
+
+    try {
+      const res = await fetch(`/api/tools/auction-sheet/job/${jobId}`, {
+        signal: controller.signal,
+      });
+
+      if (res.status === 404) {
+        localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
+        setError({ error: "job_not_found", message: "Расшифровка устарела. Загрузите лист заново." });
+        setState("error");
+        setActiveJobId(null);
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const snapshot: JobStatusResponse = await res.json();
+
+      if (snapshot.status === "done" && snapshot.result) {
+        localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
+        setResult(snapshot.result.data);
+        setMeta(snapshot.result.meta);
+        setActiveJobId(null);
+        const used = 3 - (snapshot.result.meta.remaining ?? 0);
+        setUsedCount(Math.max(0, used));
+        setState("result");
+        return;
+      }
+
+      if (snapshot.status === "failed") {
+        localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
+        setError({
+          error: "pipeline_failed",
+          message: snapshot.error || "Не удалось расшифровать лист. Попробуйте другое фото.",
+        });
+        setActiveJobId(null);
+        setState("error");
+        return;
+      }
+
+      // queued or processing — update state and schedule next poll
+      setJobPosition(snapshot.position);
+      setJobEtaSec(snapshot.etaSec);
+      if (snapshot.status === "queued") setState("queued");
+      else if (snapshot.status === "processing") {
+        setState("processing");
+        if (processingStartRef.current === null && snapshot.startedAt !== null) {
+          processingStartRef.current = snapshot.startedAt;
+        }
+      }
+
+      pollTimeoutRef.current = window.setTimeout(
+        () => pollJob(jobId, 0),
+        POLL_INTERVAL_MS,
+      );
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+
+      const failures = consecutiveFailures + 1;
+      if (failures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+        setError({
+          error: "network",
+          message: "Потеряна связь с сервером. Проверьте подключение и попробуйте ещё раз.",
+        });
+        setState("error");
+        return;
+      }
+
+      // Exponential backoff: 2s, 4s, 8s, 16s, 32s (cap 60s)
+      const backoffMs = Math.min(POLL_INTERVAL_MS * Math.pow(2, failures - 1), 60_000);
+      pollTimeoutRef.current = window.setTimeout(
+        () => pollJob(jobId, failures),
+        backoffMs,
+      );
+    }
+  }, []);
+
+  // Abort pending fetch + timeout on unmount
+  useEffect(() => {
+    return () => {
+      pollAbortRef.current?.abort();
+      if (pollTimeoutRef.current !== null) {
+        window.clearTimeout(pollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Session restore on mount — resume polling if jobId is in localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(ACTIVE_JOB_STORAGE_KEY);
+    if (stored) {
+      setActiveJobId(stored);
+      void pollJob(stored, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Rotate processing stage label while state === "processing"
+  useEffect(() => {
+    if (state !== "processing") return;
+    if (processingStartRef.current === null) processingStartRef.current = Date.now();
+
+    const update = () => {
+      const elapsed = Date.now() - (processingStartRef.current ?? Date.now());
+      let stage = 0;
+      let acc = 0;
+      for (let i = 0; i < PROCESSING_STAGE_DURATIONS_MS.length; i++) {
+        acc += PROCESSING_STAGE_DURATIONS_MS[i];
+        if (elapsed < acc) { stage = i; break; }
+      }
+      setProcessingStage(stage);
+    };
+
+    update();
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
+  }, [state]);
+
   const handleFile = useCallback((f: File) => {
     if (f.size > 10 * 1024 * 1024) { setError({ error: "file_too_large", message: "Файл слишком большой (максимум 10 МБ)" }); setState("error"); return; }
     if (!["image/jpeg", "image/png", "image/webp", "image/heic"].includes(f.type)) { setError({ error: "invalid_type", message: "Поддерживаемые форматы: JPG, PNG, WebP, HEIC" }); setState("error"); return; }
@@ -111,38 +308,77 @@ export default function AuctionSheetClient() {
 
   const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }, [handleFile]);
 
-  const clearFile = () => { setFile(null); if (preview) URL.revokeObjectURL(preview); setPreview(null); setState("idle"); setResult(null); setMeta(null); setError(null); };
+  const clearFile = () => {
+    pollAbortRef.current?.abort();
+    if (pollTimeoutRef.current !== null) {
+      window.clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+    localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
+    processingStartRef.current = null;
+    setActiveJobId(null);
+    setJobPosition(0);
+    setJobEtaSec(0);
+    setProcessingStage(0);
+    setFile(null);
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(null);
+    setState("idle");
+    setResult(null);
+    setMeta(null);
+    setError(null);
+  };
 
   const handleAnalyze = async () => {
     if (!file) return;
-    setState("loading");
+    setState("submitting");
+
     try {
       const fd = new FormData();
       fd.append("image", file);
       const res = await fetch("/api/tools/auction-sheet", { method: "POST", body: fd });
-      const json = await res.json();
-      if (!res.ok) {
-        if (json.error === 'rate_limit') {
-          setIsLimitReached(true);
-          setUsedCount(3);
-          setState('error');
-          setError(json as ApiError);
-          return;
-        }
-        setError(json as ApiError); setState("error"); return;
-      }
-      const data = json as ApiResponse;
-      if (!data.data) {
-        setError({ error: "parse_error", message: "Не удалось обработать результат. Попробуйте ещё раз." });
+
+      if (res.status === 503) {
+        const body = (await res.json()) as QueueFullError;
+        setError({ error: "queue_full", message: body.message });
         setState("error");
         return;
       }
-      setResult(data.data);
-      setMeta(data.meta);
-      setState("result");
-      const used = 3 - (data.meta.remaining ?? 0);
-      setUsedCount(Math.max(0, used));
-    } catch { setError({ error: "network", message: "Ошибка сети. Проверьте подключение." }); setState("error"); }
+
+      if (res.status === 429) {
+        const body = await res.json();
+        setIsLimitReached(true);
+        setUsedCount(3);
+        setError(body as ApiError);
+        setState("error");
+        return;
+      }
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ message: "Не удалось отправить файл." }));
+        setError({
+          error: body.error ?? "submit_error",
+          message: body.message ?? "Ошибка при отправке.",
+        });
+        setState("error");
+        return;
+      }
+
+      // 202 Accepted — expect {jobId, statusUrl, position, etaSec}
+      const accepted = (await res.json()) as AcceptedResponse;
+
+      localStorage.setItem(ACTIVE_JOB_STORAGE_KEY, accepted.jobId);
+      setActiveJobId(accepted.jobId);
+      setJobPosition(accepted.position);
+      setJobEtaSec(accepted.etaSec);
+      setState(accepted.position > 0 ? "queued" : "processing");
+      if (accepted.position === 0) processingStartRef.current = Date.now();
+
+      void pollJob(accepted.jobId, 0);
+    } catch {
+      setError({ error: "network", message: "Ошибка сети. Проверьте подключение." });
+      setState("error");
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -213,13 +449,39 @@ export default function AuctionSheetClient() {
         </>
       )}
 
-      {/* Loading */}
-      {state === "loading" && (
+      {/* Submitting — POST in flight */}
+      {state === "submitting" && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center">
           {preview && <img src={preview} alt="Анализируемый лист" className="mx-auto mb-6 h-24 rounded-xl object-contain opacity-60" />}
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 font-medium text-text">Анализируем аукционный лист...</p>
-          <p className="mt-1 text-sm text-text-muted">Обычно это занимает 10–15 секунд</p>
+          <p className="mt-3 font-medium text-text">Отправляем файл на сервер…</p>
+        </div>
+      )}
+
+      {/* Queued */}
+      {state === "queued" && (
+        <div className="rounded-2xl border border-border bg-surface p-8 text-center">
+          {preview && <img src={preview} alt="В очереди" className="mx-auto mb-6 h-24 rounded-xl object-contain opacity-60" />}
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 font-medium text-text">В очереди на обработку</p>
+          <p className="mt-1 text-sm text-text-muted">
+            Позиция в очереди: {jobPosition}. Ожидание около {Math.ceil(jobEtaSec)} сек.
+          </p>
+          <p className="mt-2 text-xs text-text-muted">
+            Не закрывайте страницу. Мы продолжим обработку, даже если вы свернёте браузер.
+          </p>
+        </div>
+      )}
+
+      {/* Processing */}
+      {state === "processing" && (
+        <div className="rounded-2xl border border-border bg-surface p-8 text-center">
+          {preview && <img src={preview} alt="Обработка" className="mx-auto mb-6 h-24 rounded-xl object-contain opacity-60" />}
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 font-medium text-text">{PROCESSING_STAGE_LABELS[processingStage]}</p>
+          <p className="mt-1 text-sm text-text-muted">
+            Обычно занимает 20–60 секунд. Рукописные листы — до 2 минут.
+          </p>
         </div>
       )}
 
@@ -350,7 +612,24 @@ export default function AuctionSheetClient() {
       {state === "error" && error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
           <p className="font-medium text-red-800">{error.message}</p>
-          {error.error === "rate_limit" ? (
+          {error.error === "queue_full" ? (
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                onClick={() => { setError(null); setState("preview"); }}
+                className="rounded-xl bg-secondary px-6 py-3 font-medium text-white"
+              >
+                Попробовать через несколько минут
+              </button>
+              <a
+                href={CONTACTS.telegram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary"
+              >
+                Написать менеджеру — он поможет вам подобрать машину
+              </a>
+            </div>
+          ) : error.error === "rate_limit" ? (
             <TelegramAuthBlock
               usedCount={usedCount}
               maxCount={3}

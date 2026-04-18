@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-18
-  @version:     1.22
+  @version:     1.23
   @lines:       48
 -->
 
@@ -15,7 +15,7 @@
 |------|-------------|---------|
 | [infrastructure.md](infrastructure.md) | Server, PM2 (3 processes), deploy commands, nginx (default 60s + per-endpoint overrides for /api/tools/auction-sheet: 200s timeout + 15MB body), Cloudflare Worker tg-proxy (4 routing modes), VDS provider network restrictions | 2026-04-18 |
 | [deploy.md](deploy.md) | Deploy pipeline: two-slot build, self-healing, runtime log observability, diagnostic order | 2026-04-14 |
-| [architecture.md](architecture.md) | Stack, file navigator, URL structure, key relationships + queue | 2026-04-18 |
+| [architecture.md](architecture.md) | Stack, file navigator, URL structure, key relationships + queue + client async flow (poll + session restore) | 2026-04-18 |
 | [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek (180s timeout / 2 retries), CBR, Google Drive, Telegram, rate limits + admin access env | 2026-04-18 |
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
 | [catalog.md](catalog.md) | Google Drive conventions, 5-step sync chain, screenshot priority | 2026-04-08 |

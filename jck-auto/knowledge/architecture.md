@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/architecture.md
   @project:     JCK AUTO
-  @description: Stack, file navigator, URL structure, key file relationships
+  @description: Stack, file navigator, URL structure, key file relationships, request queues (server + client async flow)
   @updated:     2026-04-18
-  @version:     1.1
-  @lines:       ~160
+  @version:     1.2
+  @lines:       ~195
 -->
 
 # Architecture
@@ -133,3 +133,26 @@ in-memory queue for auction-sheet (concurrency=1, TTL=15min)".
 
 Tests: `src/lib/auctionSheetQueue.test.ts`, run via
 `npx tsx --test src/lib/auctionSheetQueue.test.ts`.
+
+### Client-side: async pipeline with session restore
+
+The auction-sheet client (`src/app/tools/auction-sheet/AuctionSheetClient.tsx`)
+uses the async POST contract (see ADR `[2026-04-18] Async-only contract...`).
+
+- **Submit:** `POST /api/tools/auction-sheet` → expect `202 + {jobId, statusUrl, position, etaSec}`.
+- **Persist:** `jobId` saved to `localStorage['jckauto.auction_sheet.active_job']`.
+- **Poll:** every 2 seconds, `GET ${statusUrl}`. AbortController + setTimeout
+  (not setInterval) so pending requests can be cleanly cancelled.
+- **States:** submitting → queued → processing → result | error.
+- **Processing stages (UI):** 3 stages rotated by timer (5s → 15s → ∞).
+  These are illusory; the server doesn't stream real progress.
+- **Session restore:** on mount, read localStorage. If active jobId present,
+  start polling immediately. If server returns 404, TTL expired → clear and reset.
+- **Network resilience:** polling failures retried with exponential backoff
+  (2s, 4s, 8s, 16s, 32s, capped at 60s). After 5 consecutive failures → give up
+  with "Потеряна связь" message.
+- **Mobile behavior:** if screen turns off for 5 minutes and user returns,
+  session restore picks up the jobId from localStorage and fetches current
+  status. Completed-jobs TTL (15 min server-side) covers this window.
+- **Cleanup:** on `done`, `failed`, explicit reset → remove localStorage entry,
+  abort pending fetch, clear scheduled timeout.
