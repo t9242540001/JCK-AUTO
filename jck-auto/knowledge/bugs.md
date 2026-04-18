@@ -2,8 +2,8 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-17
-  @version:     1.2
+  @updated:     2026-04-18
+  @version:     1.3
   @lines:       ~165
 -->
 
@@ -33,37 +33,17 @@
   Generic "Ошибка сети" no longer reproduces on normal-size auction sheet photos.
   Remaining edge case — see С-5 (handwritten HAA sheets trigger DeepSeek JSON
   parse fail, cascade exceeds nginx 60s timeout).
+  **Status Update 2026-04-18:** User-visible symptom fully closed by the
+  async queue contract (ADR [2026-04-18] Async-only contract for POST
+  /api/tools/auction-sheet) + per-endpoint nginx 200s timeout + 15MB body —
+  slow cascades no longer cause "Ошибка сети", because the client polls
+  a job status endpoint instead of holding an HTTP request open. С-1 closed.
 
 ### С-3 — wrong CTA on all services pages
 - **Pages:** /services/* (all)
 - **Symptom:** "Позвонить" button instead of standard <LeadFormTrigger>. Not centered, action unclear.
 - **File:** shared services page template or CTA component (verify before fix)
 - **Action:** locate shared CTA component → replace with <LeadFormTrigger> → verify centering
-
-### С-5 — auction sheet fails on handwritten HAA sheets (Allion case)
-- **Page:** /tools/auction-sheet
-- **Symptom:** "Ошибка сети. Проверьте подключение." specifically on
-  handwritten HAA-format sheets (reproducible on Toyota Allion test photo).
-  Normal printed USS sheets (like Toyota Wish) work fine.
-- **Started after:** Multi-pass OCR pipeline deployed 2026-04-16.
-  Architecture itself is sound — the bug is in Step 2 fallback cascade.
-- **Diagnostics captured:**
-  - Pass 1 OCR: chars=271 (compared to 510 on printed sheets — OCR quality
-    lower on handwritten input, but not empty)
-  - Pass 2 OCR: chars=17 ("no codes") — OK for Allion, damages minimal
-  - Pass 3 OCR: chars=71 — OK
-  - Step 2 primary (DeepSeek): "Failed to parse DeepSeek API response as
-    JSON" — 3 retries, all fail identically
-  - Step 2 fallback (qwen3.5-flash): DashScope timeout after 60s (DashScope
-    text models unreliable from VDS — see ADR [2026-04-15] DeepSeek primary)
-  - Total: >70s, nginx closes connection, user sees "Ошибка сети"
-- **Hypothesis:** DeepSeek returns non-JSON (HTML error page? truncated
-  stream? empty string?) on specific OCR content patterns. Not yet
-  diagnosed — deepseek.ts does not log the actual response body on parse
-  failure.
-- **Action:** Prompt 09.3.7 (planned) — add diagnostic log in deepseek.ts
-  that captures first 500 chars of actual response body on JSON parse
-  failure. Then retest Allion to see what DeepSeek actually returned.
 
 ## Important (noticeable but workarounds exist)
 
@@ -136,6 +116,36 @@
   unregistered → rename workflow file (fallback plan).
 
 ## Verify status (potentially stale)
+
+### С-5 — auction sheet fails on handwritten HAA sheets (Allion case)
+- **Page:** /tools/auction-sheet
+- **Symptom (original):** "Ошибка сети. Проверьте подключение." specifically on
+  handwritten HAA-format sheets (reproducible on Toyota Allion test photo).
+  Normal printed USS sheets (like Toyota Wish) work fine.
+- **Started after:** Multi-pass OCR pipeline deployed 2026-04-16.
+  Architecture itself is sound — the bug is in Step 2 fallback cascade.
+- **Diagnostics captured:**
+  - Pass 1 OCR: chars=271 (compared to 510 on printed sheets — OCR quality
+    lower on handwritten input, but not empty)
+  - Pass 2 OCR: chars=17 ("no codes") — OK for Allion, damages minimal
+  - Pass 3 OCR: chars=71 — OK
+  - Step 2 primary (DeepSeek): "Failed to parse DeepSeek API response as
+    JSON" — 3 retries, all fail identically
+  - Step 2 fallback (qwen3.5-flash): DashScope timeout after 60s (DashScope
+    text models unreliable from VDS — see ADR [2026-04-15] DeepSeek primary)
+  - Total: >70s, nginx closes connection, user sees "Ошибка сети"
+- **Status Update 2026-04-18:** User-impact symptom closed. Async queue
+  contract (ADR [2026-04-18]) + DeepSeek timeout 180s / 2 retries
+  (ADR [2026-04-18]) + nginx 200s per-endpoint timeout together prevent
+  the cascade from ever surfacing as "Ошибка сети". The underlying root
+  cause — DeepSeek occasionally emitting non-JSON for specific OCR
+  content patterns — is NOT yet explained, but no longer user-visible.
+  Moved to Verify status: needs live retest on Allion photo to confirm
+  it now produces a usable analysis (or a graceful `parse_error:` failure
+  with result screen), not a timeout.
+- **Action:** live retest on Toyota Allion handwritten sheet. If result
+  card appears → close. If still fails → the old Prompt 09.3.7 plan
+  (log first 500 chars of DeepSeek response on parse failure) resurfaces.
 
 ### Б-5 — ~10-15% car photos rejected by Telegram
 - **Symptom:** "wrong type of the web page content" via Worker, even though server returns valid JPEG

@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.8
+  @version:     1.9
   @lines:       ~1080
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -85,6 +85,11 @@ on a doomed job.
 - Error observability splits: transport errors stay in nginx/PM2 logs for
   POST; AI-pipeline errors are available both via the job record and the
   `[auction-sheet]` console logs emitted by the queue worker.
+- (+) Client-side resilience: jobId persisted in `localStorage` enables
+  session restore after screen-off / tab-switch / browser crash. Full
+  client flow documented in `architecture.md` → "Client-side: async
+  pipeline with session restore" (3-stage processing UI, exponential
+  backoff on polling failures, 15-min server TTL as recovery window).
 
 ## [2026-04-18] Introduce server-side in-memory queue for auction-sheet (concurrency=1, TTL=15min)
 

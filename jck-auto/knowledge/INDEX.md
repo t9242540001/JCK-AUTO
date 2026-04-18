@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-18
-  @version:     1.23
+  @version:     1.24
   @lines:       48
 -->
 
@@ -20,10 +20,10 @@
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
 | [catalog.md](catalog.md) | Google Drive conventions, 5-step sync chain, screenshot priority | 2026-04-08 |
 | [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-10 |
-| [roadmap.md](roadmap.md) | Done / In progress / Planned features | 2026-04-16 |
+| [roadmap.md](roadmap.md) | Done / In progress / Planned features | 2026-04-18 |
 | [decisions.md](decisions.md) | Architectural Decision Records (ADR log) — latest: Async-only contract for POST /api/tools/auction-sheet (jobId + polling), Introduce server-side in-memory queue for auction-sheet (concurrency=1, TTL=15min), Raise dashscope.ts RATE_LIMIT_PER_MINUTE 6 → 60, DeepSeek timeout 60s→180s / retries 3→2 / nginx 200s+15MB for auction-sheet, Pass 0 sheet-type classifier, multi-pass OCR, Pass 2 qwen3-vl-flash, DeepSeek primary Step 2, finish_reason=length, capture workflow registration | 2026-04-18 |
 | [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-10 |
-| [stack.md](stack.md) | Tech stack: Next.js 15, Node.js, AI services (DashScope/DeepSeek/Claude), storage, key configs | 2026-04-08 |
+| [stack.md](stack.md) | Tech stack: Next.js 16.1.6 (Turbopack), Node 20, AI services (DashScope/DeepSeek/Claude), in-memory queue for auction-sheet, storage, key configs | 2026-04-18 |
 | [exchange-rates.md](exchange-rates.md) | VTB scraper + CBR fallback, markups, /api/exchange-rates endpoint, UI labels, CORS rules | 2026-04-08 |
 | [customs-reference.md](customs-reference.md) | ETS brackets, recycling fee conditions, legal entity logic, normative sources | 2026-04-08 |
 | [encar-analyzer.md](encar-analyzer.md) | Encar API data flow, Korean→Russian translation, power estimation, rate limiter | 2026-04-08 |
@@ -37,7 +37,7 @@
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
 | [tools.md](tools.md) | /tools/* API endpoints: auction-sheet async-only contract (POST 202 + job polling), pipeline (Pass 0 classifier + 3 parallel OCR + DeepSeek Step 2 180s/2 retries), Sharp compression, nginx per-endpoint 200s/15MB, rate limiting, diagnostics + job status endpoint + stats endpoint | 2026-04-18 |
-| [bugs.md](bugs.md) | Open bugs tracker — С-1 (partial fix), С-2–С-5, Б-1–Б-8. С-6 closed. Includes Allion instability (С-5), middleware-manifest (Б-7) | 2026-04-17 |
+| [bugs.md](bugs.md) | Open bugs tracker — С-1 closed, С-5 user-impact closed (moved to Verify), С-2–С-4 open, Б-1–Б-8 open. Middleware-manifest restart loop (Б-7), Capture workflow verification (Б-8) pending | 2026-04-18 |
 
 ## Quick Links
 

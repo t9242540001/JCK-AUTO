@@ -2,8 +2,8 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources
-  @updated:     2026-04-16
-  @version:     1.3
+  @updated:     2026-04-18
+  @version:     1.4
   @lines:       69
 -->
 
@@ -39,6 +39,7 @@
 - [x] Privacy page /privacy updated with Telegram data collection section
 - [x] Auction-sheet multi-pass OCR architecture (three parallel passes + DeepSeek Step 2)
 - [x] Deploy pipeline stabilization (PAT_AUTO_MERGE, push-trigger-only, two-slot atomic build, article cron decoupled)
+- [x] Async queue for auction-sheet — server-side in-memory queue (concurrency=1, max 10, TTL 15min), POST /api/tools/auction-sheet returns 202 + jobId, client polls GET /api/tools/auction-sheet/job/[jobId] every 2s с localStorage session restore. См. ADR [2026-04-18] "Async-only contract..." и [2026-04-18] "Introduce server-side in-memory queue...".
 
 ## In Progress
 
@@ -54,6 +55,7 @@
 - [ ] Add images to first 12 blog articles
 - [ ] Register in Yandex.Webmaster and Google Search Console
 - [ ] "Leave request" button on car detail page → /api/lead → managers group
+- [ ] Refactor `src/app/tools/auction-sheet/AuctionSheetClient.tsx` — после P-0.2e файл ~655 строк, много локальной логики (polling state machine, session restore, 3-stage UI). Разбить на хуки (`useAuctionSheetJob`, `useProcessingStage`) и подкомпоненты (SubmittingView / QueuedView / ProcessingView / ResultView / ErrorView) для удобства тестирования.
 
 ## Planned — Bot
 
