@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.9
-  @lines:       ~1080
+  @version:     1.10
+  @lines:       ~1250
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -1139,3 +1139,108 @@ direct Claude reading without copy-paste.
 - `strip_components: 4` for scp source path is empirically tuned. If
   the first run lands the file in a wrong subdirectory on VDS, adjust
   ±1 in a follow-up.
+
+## [2026-04-18] Extend parse schema for auction-sheet with 10 new fields
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Pass 1 of the multi-pass OCR pipeline (`OCR_TEXT_FIELDS_SYSTEM` in
+`src/app/api/tools/auction-sheet/route.ts`) already instructed the model
+to extract `車台番号` (chassis/VIN), `型式` (model code), `登録番号`
+(registration plate), `車検` (inspection date), `リサイクル預託金`
+(recycle fee), `乗車定員` (seats), `カラーNo.` (color code) and `諸元`
+(dimensions) from every sheet. Pass 3 (`OCR_FREE_TEXT_SYSTEM`) already
+captured `[セールスポイント]` (sales points) as a bracketed block. None
+of these had a corresponding field in `PARSE_SYSTEM_PROMPT`'s JSON
+schema, so the data was either silently lost or pushed into the generic
+`unrecognized` bucket. Production telemetry confirmed this: the
+user-visible "Не распознано" block regularly contained VIN,
+registration plate and dimension values — data that belongs in
+structured fields. Additionally, `ドア形状` (body type code like 3D /
+4SD / 5W) was missing from the Pass 1 explicit label enumeration, so
+the OCR model was not reliably picking it up.
+
+**Decision:**
+Extend `PARSE_SYSTEM_PROMPT` JSON schema with 10 new structured fields
+(11 properties, since VIN is split into value + confidence):
+
+- `vin` + `vinConfidence` — VIN string plus a three-state confidence
+  enum (`high` / `medium` / `unreadable` / `null`).
+- `modelCode` — Japanese model classification code from `型式`.
+- `registrationNumber` — registration plate from `登録番号`.
+- `inspectionValidUntil` — shaken validity in ISO-8601 `YYYY-MM`
+  precision after Japanese-calendar conversion.
+- `recycleFee` — recycle fee from `リサイクル預託金` as a JSON integer
+  (yen).
+- `seats` — seating capacity from `乗車定員` as a JSON integer.
+- `colorCode` — manufacturer color code from `カラーNo.`.
+- `dimensions` — object `{length, width, height}` in centimeters
+  (JSON integers) from `諸元`.
+- `salesPoints` — array of Russian-translated sales points from the
+  `[セールスポイント]` block of Pass 3.
+- `bodyType` — Russian decoding of `ドア形状` (3D → 3-дверный, 4SD →
+  4-дверный седан, 5W → 5-дверный универсал, 5D → 5-дверный хэтчбек,
+  2D → 2-дверный купе; unknown codes passed through as-is).
+
+Add `ドア形状` to the `OCR_TEXT_FIELDS_SYSTEM` "Include (if visible)"
+enumeration so Pass 1 reliably surfaces the body-type code. Append six
+STRICT RULES (8–13) to `PARSE_SYSTEM_PROMPT` covering VIN three-state
+semantics, integer-typing for numeric fields, sales-points sourcing,
+body-type fallback, and Japanese-calendar conversion for inspection
+date.
+
+Introduce a three-state VIN confidence so the UI can honestly surface
+"VIN is physically present on the sheet but photo quality prevented a
+reliable read" — distinct from "the sheet has no VIN cell at all".
+
+No changes to pipeline orchestration, error handling, rate limits, or
+the queue. The other OCR prompts (`OCR_DAMAGES_SYSTEM`,
+`OCR_FREE_TEXT_SYSTEM`, `CLASSIFIER_SYSTEM`) are untouched.
+
+**Alternatives considered:**
+- Postprocess the OCR blob with regex after Step 2: rejected. Creates a
+  second source of truth outside the model's schema contract and drifts
+  whenever OCR output format shifts.
+- Wait for the full client refactor before extending the schema:
+  rejected. Backend extension is backward-compatible — old clients and
+  cached bundles silently ignore unknown JSON fields. Serializing the
+  work helps rollback isolation and allows the client UI (prompts 02–07)
+  to reference a stable schema contract.
+- Migrate the bot handler (`src/bot/handlers/auctionSheet.ts`) schema in
+  the same commit: rejected. The bot handler runs its own legacy prompt
+  on a separate code path; migrating it is tracked as a future effort
+  (see `bugs.md` Б-2 / Б-3). Scope-creep kept out of this prompt.
+- Duplicate `セールスポイント` into Pass 1 for structured access:
+  rejected. Pass 1 output format is strict `label: value` per line,
+  whereas sales points are a multi-line bracketed block. Leaving the
+  block in Pass 3 and reading it from the `[セールスポイント]` marker
+  in Step 2 is architecturally cleaner.
+
+**Consequences:**
+- (+) Data that OCR already extracts becomes available to downstream
+  consumers (web UI, future bot PDF export, tg-integration).
+- (+) The "Не распознано" block shrinks to genuinely leftover text once
+  the client renders the new fields.
+- (+) VIN confidence semantics give the UI an honest way to surface
+  "sheet shows VIN but photo quality insufficient" without silently
+  dropping the signal.
+- (+) Future bot handler migration inherits the richer schema for free.
+- (−) DeepSeek output token budget grows an estimated 200–400 tokens per
+  parse. Well within the `maxTokens: 4096` cap, no impact on nginx
+  timeout.
+- (−) Cached client bundles continue rendering only the old field set
+  until users refresh. Not a breaking change because the old fields are
+  unchanged.
+
+**Files changed:**
+- `jck-auto/src/app/api/tools/auction-sheet/route.ts` —
+  `OCR_TEXT_FIELDS_SYSTEM` (enum only) and `PARSE_SYSTEM_PROMPT`
+  (schema + STRICT RULES 8–13) constants. No other part of the file
+  was modified.
+- `jck-auto/knowledge/tools.md` — new paragraph in "Step 2 —
+  структурирование в JSON" subsection listing the 10 fields.
+- `jck-auto/knowledge/INDEX.md` — `tools.md` and `decisions.md` row
+  descriptions and dates updated.
