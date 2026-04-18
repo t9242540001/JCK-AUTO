@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Upload, Loader2, X, Download, RefreshCw, Send, AlertTriangle } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 import TelegramAuthBlock from "@/components/TelegramAuthBlock";
+import UploadZone from "./UploadZone";
 
 // @rule This component is async-first. POST /api/tools/auction-sheet returns
 //       202 Accepted with jobId; the client polls GET /job/[jobId] every 2s.
@@ -118,12 +119,6 @@ const PROCESSING_STAGE_LABELS = [
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} Б`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
-}
-
 function gradeColor(grade: string | null): string {
   if (!grade) return "text-text-muted";
   const n = parseFloat(grade);
@@ -158,7 +153,6 @@ export default function AuctionSheetClient() {
   const [result, setResult] = useState<AuctionResult | null>(null);
   const [meta, setMeta] = useState<ApiResponse["meta"] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [usedCount, setUsedCount] = useState<number>(0);
   const [isLimitReached, setIsLimitReached] = useState<boolean>(false);
@@ -397,38 +391,15 @@ export default function AuctionSheetClient() {
     <div className="mx-auto mt-12 max-w-4xl px-4">
       {/* Upload zone */}
       {(state === "idle" || state === "preview") && (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => state === "idle" && inputRef.current?.click()}
-          className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
-            dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-          }`}
-        >
-          <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-
-          {state === "idle" && (
-            <>
-              <Upload className="mx-auto h-10 w-10 text-text-muted" />
-              <p className="mt-3 font-medium text-text">Перетащите фото аукционного листа или нажмите для выбора</p>
-              <p className="mt-1 text-xs text-text-muted">JPG, PNG, WebP, HEIC — до 10 МБ</p>
-            </>
-          )}
-
-          {state === "preview" && file && preview && (
-            <div className="flex flex-col items-center gap-4 sm:flex-row sm:text-left">
-              <img src={preview} alt="Превью" className="h-32 w-auto rounded-xl object-contain" />
-              <div className="flex-1">
-                <p className="font-medium text-text">{file.name}</p>
-                <p className="text-sm text-text-muted">{formatSize(file.size)}</p>
-                <button onClick={(e) => { e.stopPropagation(); clearFile(); }} className="mt-2 flex items-center gap-1 text-sm text-red-500 hover:text-red-700">
-                  <X className="h-3 w-3" /> Убрать
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <UploadZone
+          state={state}
+          file={file}
+          preview={preview}
+          dragOver={dragOver}
+          onFileSelect={handleFile}
+          onDragOverChange={setDragOver}
+          onClear={clearFile}
+        />
       )}
 
       {state === "preview" && (

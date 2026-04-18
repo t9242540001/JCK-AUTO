@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.11
+  @version:     1.12
   @lines:       ~1270
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -27,8 +27,9 @@
 **Context:** AuctionSheetClient.tsx is 655 lines and owns: inline types, inline helpers, upload zone, processing views, error view, result view, orchestrator. The universal file-size guideline is 200 lines. Splitting in one prompt would touch 7+ files and violate the one-file-per-prompt rule.
 
 **Plan:**
-- Prompt 02 (this one) — extract types to `auctionSheetTypes.ts`, pure helpers to `auctionSheetHelpers.ts`. No imports yet.
-- Prompt 03 — extract `UploadZone` component.
+- Prompt 02 — extract types to `auctionSheetTypes.ts`, pure helpers to `auctionSheetHelpers.ts`. No imports yet. ✅ done (commit 13e2be8)
+- Prompt 02.5 (out-of-band) — track С-6 cross-tab session leak ✅ done (commit 5781c0d)
+- Prompt 03 — extract `UploadZone` component. ✅ done (this commit)
 - Prompt 04 — extract `ProcessingViews` component.
 - Prompt 05 — extract `ErrorView` component.
 - Prompt 06 — extract `ResultView` component, add UI for 11 new fields, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block.
