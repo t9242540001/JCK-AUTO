@@ -1,17 +1,20 @@
 /**
  * @file route.ts
- * @description API endpoint для AI-расшифровки японских аукционных листов. Multi-pass OCR (three parallel qwen-vl-ocr passes: text fields / damage codes / free text) → structured parse (DeepSeek primary, qwen3.5-flash fallback).
- *              Supports two-mode rate limiting: anonymous (3 lifetime) / Telegram-auth (10/day).
+ * @description POST endpoint for Japanese auction-sheet AI decode.
+ *              Async-only contract: enqueues pipeline via auctionSheetQueue,
+ *              returns 202 Accepted with jobId. Clients poll the result
+ *              via GET /api/tools/auction-sheet/job/[jobId].
  * @runs VDS
- * @input POST multipart/form-data с изображением (jpg/png/webp/heic, до 10 МБ)
- * @output JSON с распознанными данными аукционного листа
- * @cost ~$0.004-0.006/запрос (3 OCR passes параллельно + 1 parse call)
- * @rule Rate limit: anonymous — 3 запроса lifetime с одного IP; auth — 10/day по telegram_id
- * @rule Не логировать содержимое изображений
- * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET env var,
- *              src/lib/dashscope (analyzeImageWithFallback, callQwenText), src/lib/deepseek (callDeepSeek), src/lib/rateLimiter,
- *              sharp 0.34.5 (compression; HEIC supported via libheif 1.20.2)
- * @lastModified 2026-04-16
+ * @input POST multipart/form-data with image (jpg/png/webp/heic, up to 10 MB)
+ * @output 202 Accepted {jobId, statusUrl, position, etaSec}.
+ *         429/400/503 for rate-limited / malformed / queue-full.
+ * @cost ~$0.004-0.006/request once job runs (3 OCR passes + 1 parse call).
+ * @rule Rate limit: anonymous — 3 per IP lifetime; Telegram-auth — 10/day.
+ * @rule Не логировать содержимое изображений.
+ * @dependencies jose (jwtVerify), next/headers (cookies), JWT_SECRET,
+ *               src/lib/dashscope, src/lib/deepseek, src/lib/rateLimiter,
+ *               src/lib/auctionSheetQueue (queue with concurrency=1),
+ *               sharp 0.34.5 (HEIC via libheif 1.20.2)
  */
 
 import { NextResponse } from 'next/server';
@@ -21,6 +24,7 @@ import sharp from 'sharp';
 import { analyzeImageWithFallback, callQwenText } from '@/lib/dashscope';
 import { callDeepSeek } from '@/lib/deepseek';
 import { checkRateLimit, recordUsage } from '@/lib/rateLimiter';
+import { auctionSheetQueue, QueueFullError } from '@/lib/auctionSheetQueue';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 
@@ -289,13 +293,202 @@ async function classifySheet(
   }
 }
 
+// ─── PIPELINE ─────────────────────────────────────────────────────────────
+
+interface PipelineResult {
+  data: unknown;
+  meta: {
+    model: string;
+    tokens: number;
+    remaining: number;
+    sheetType: SheetType;
+    classifierModel: string;
+    classifierElapsed: number;
+  };
+}
+
+/**
+ * runPipeline — executes Pass 0 classifier + 3 parallel OCR passes + Step 2
+ * parse on an already-compressed JPEG buffer. Runs inside the queue worker.
+ *
+ * @rule The full AI pipeline (Pass 0 classifier + three OCR passes + Step 2
+ *       parse) lives ONLY inside runPipeline. The POST handler MUST NOT call
+ *       DashScope or DeepSeek directly — every model call has to run under
+ *       the queue's concurrency=1 lock.
+ * @rule recordUsage and the second checkRateLimit call MUST happen inside
+ *       runPipeline AFTER the full pipeline succeeds. A failed job (thrown
+ *       error) MUST NOT consume the user's quota.
+ */
+async function runPipeline(
+  compressedJpegBuffer: Buffer,
+  ip: string,
+  telegramId: string | undefined,
+): Promise<PipelineResult> {
+  const base64 = compressedJpegBuffer.toString('base64');
+  const dataUrl = `data:image/jpeg;base64,${base64}`;
+
+  // Pass 0: classify sheet type (advisory, non-blocking)
+  const sheetClassification = await classifySheet(dataUrl);
+
+  // Step 1: OCR — three parallel narrow passes.
+  // Pass 1 = text fields (REQUIRED), Pass 2 = damages (soft-fail),
+  // Pass 3 = free text (soft-fail).
+  const ocrStart = Date.now();
+  const ocrOptionsBase = {
+    models: ['qwen-vl-ocr', 'qwen3-vl-flash'] as const,
+    maxTokens: 8192,
+    temperature: 0.1,
+  };
+
+  const [textFieldsRes, damagesRes, freeTextRes] = await Promise.allSettled([
+    analyzeImageWithFallback(dataUrl, OCR_TEXT_FIELDS_USER, {
+      ...ocrOptionsBase,
+      models: [...ocrOptionsBase.models],
+      systemPrompt: OCR_TEXT_FIELDS_SYSTEM,
+    }),
+    analyzeImageWithFallback(dataUrl, OCR_DAMAGES_USER, {
+      ...ocrOptionsBase,
+      // RULE: Pass 2 uses qwen3-vl-flash primary (visual reasoning),
+      // qwen-vl-ocr as fallback. qwen-vl-ocr alone returns "no codes"
+      // for every sheet — it cannot visually parse damage diagrams.
+      // Do NOT switch back to ocrOptionsBase.models here.
+      models: ['qwen3-vl-flash', 'qwen-vl-ocr'] as const,
+      systemPrompt: OCR_DAMAGES_SYSTEM,
+    }),
+    analyzeImageWithFallback(dataUrl, OCR_FREE_TEXT_USER, {
+      ...ocrOptionsBase,
+      models: [...ocrOptionsBase.models],
+      systemPrompt: OCR_FREE_TEXT_SYSTEM,
+    }),
+  ]);
+
+  const ocrElapsed = ((Date.now() - ocrStart) / 1000).toFixed(1);
+
+  // Pass 1 is REQUIRED — throw on failure (maps to failed job + 'ai_error:' prefix)
+  if (textFieldsRes.status !== 'fulfilled') {
+    const errMsg = textFieldsRes.reason instanceof Error
+      ? textFieldsRes.reason.message
+      : String(textFieldsRes.reason);
+    console.error(`[auction-sheet] OCR Pass 1 (text fields) failed: ${errMsg}`);
+    throw new Error('ai_error: Ошибка при обработке изображения. Попробуйте позже.');
+  }
+
+  const textFieldsContent = textFieldsRes.value.content;
+  console.log(`[auction-sheet] Pass 1 OCR complete: model=${textFieldsRes.value.usedModel}, chars=${textFieldsContent.length}`);
+
+  if (textFieldsContent.length < 30) {
+    throw new Error('parse_error: Не удалось распознать аукционный лист. Попробуйте другое фото.');
+  }
+
+  // Pass 2 is soft-fail
+  let damagesContent: string;
+  if (damagesRes.status === 'fulfilled') {
+    damagesContent = damagesRes.value.content;
+    console.log(`[auction-sheet] Pass 2 OCR complete: model=${damagesRes.value.usedModel}, chars=${damagesContent.length}`);
+  } else {
+    const errMsg = damagesRes.reason instanceof Error ? damagesRes.reason.message : String(damagesRes.reason);
+    console.warn(`[auction-sheet] Pass 2 OCR (damages) failed (soft): ${errMsg.slice(0, 120)}`);
+    damagesContent = '';
+  }
+
+  // Pass 3 is soft-fail
+  let freeTextContent: string;
+  if (freeTextRes.status === 'fulfilled') {
+    freeTextContent = freeTextRes.value.content;
+    console.log(`[auction-sheet] Pass 3 OCR complete: model=${freeTextRes.value.usedModel}, chars=${freeTextContent.length}`);
+  } else {
+    const errMsg = freeTextRes.reason instanceof Error ? freeTextRes.reason.message : String(freeTextRes.reason);
+    console.warn(`[auction-sheet] Pass 3 OCR (free text) failed (soft): ${errMsg.slice(0, 120)}`);
+    freeTextContent = '';
+  }
+
+  console.log(`[auction-sheet] OCR total elapsed: ${ocrElapsed}s`);
+
+  // Compose combined OCR text for Step 2
+  const textFieldsSection = `=== TEXT FIELDS ===\n${textFieldsContent}`;
+  const damagesSection = damagesContent
+    ? `=== DAMAGES ===\n${damagesContent}`
+    : `=== DAMAGES UNAVAILABLE ===`;
+  const freeTextSection = freeTextContent
+    ? `=== FREE TEXT ===\n${freeTextContent}`
+    : `=== FREE TEXT UNAVAILABLE ===`;
+
+  const rawText = `${textFieldsSection}\n\n${damagesSection}\n\n${freeTextSection}`;
+
+  const ocrTokens =
+    (textFieldsRes.status === 'fulfilled' ? textFieldsRes.value.usage.totalTokens : 0) +
+    (damagesRes.status === 'fulfilled' ? damagesRes.value.usage.totalTokens : 0) +
+    (freeTextRes.status === 'fulfilled' ? freeTextRes.value.usage.totalTokens : 0);
+  const ocrModelUsed = textFieldsRes.value.usedModel;
+
+  // Step 2: Parse — structure raw text into JSON via text model.
+  const parseUserPrompt = `Parse the following three-pass OCR output from a Japanese car auction sheet into the JSON schema specified in your system instructions.\n\n${rawText}`;
+
+  let parseContent: string;
+  let parseModel: string;
+  let parseTokens: number;
+
+  try {
+    // RULE: DeepSeek is primary for Step 2 — DashScope text models
+    // (qwen3.5-flash/plus) timeout from VDS. Do NOT swap back without
+    // verifying DashScope text API availability first.
+    const dsResult = await callDeepSeek(parseUserPrompt, {
+      maxTokens: 4096,
+      temperature: 0.1,
+      systemPrompt: PARSE_SYSTEM_PROMPT,
+    });
+    parseContent = dsResult.content;
+    parseModel = 'deepseek-chat';
+    parseTokens = dsResult.usage.totalTokens;
+    console.log(`[auction-sheet] Step 2 parse complete: model=${parseModel}, tokens=${parseTokens}`);
+  } catch (step2Err) {
+    const errMsg = step2Err instanceof Error ? step2Err.message : String(step2Err);
+    console.warn(`[auction-sheet] Step 2 DeepSeek failed: ${errMsg.slice(0, 120)}, trying qwen3.5-flash fallback...`);
+
+    const qwenResult = await callQwenText(parseUserPrompt, {
+      model: 'qwen3.5-flash',
+      maxTokens: 4096,
+      temperature: 0.1,
+      systemPrompt: PARSE_SYSTEM_PROMPT,
+    });
+    parseContent = qwenResult.content;
+    parseModel = 'qwen3.5-flash';
+    parseTokens = qwenResult.usage.totalTokens;
+    console.log(`[auction-sheet] Step 2 parse complete (fallback): model=${parseModel}, tokens=${parseTokens}`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = parseJsonFromContent(parseContent);
+  } catch {
+    console.error('[auction-sheet] JSON parse failed after Step 2. Content length:', parseContent.length);
+    throw new Error('parse_error: Не удалось распознать аукционный лист. Попробуйте другое фото.');
+  }
+
+  // Record usage only after the full pipeline succeeds.
+  recordUsage(ip, telegramId);
+  const remaining = checkRateLimit(ip, telegramId).remaining;
+
+  return {
+    data: parsed,
+    meta: {
+      model: `${ocrModelUsed} ×3 → ${parseModel}`,
+      tokens: ocrTokens + parseTokens,
+      remaining,
+      sheetType: sheetClassification.type,
+      classifierModel: sheetClassification.model,
+      classifierElapsed: sheetClassification.elapsed,
+    },
+  };
+}
+
 // ─── ROUTE ────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
   const telegramId = await getTelegramIdFromCookie();
 
-  // Rate limit
+  // Rate limit (per-user quota — 3/lifetime anon, 10/day Telegram).
   const limit = checkRateLimit(ip, telegramId);
   if (!limit.allowed) {
     return NextResponse.json({
@@ -326,7 +519,6 @@ export async function POST(request: Request) {
 
   const file = formData.get('image') as File | null;
 
-  // Validation
   if (!file) {
     return NextResponse.json(
       { error: 'no_file', message: 'Загрузите фото аукционного листа' },
@@ -348,194 +540,78 @@ export async function POST(request: Request) {
     );
   }
 
-  // Compress before base64 — reduces DashScope response time from 60+s to ~15s
-  const bytes = await file.arrayBuffer();
-  const compressed = await sharp(Buffer.from(bytes))
-    .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 85 })
-    .sharpen({ sigma: 0.5 })
-    .toBuffer();
-  const base64 = compressed.toString('base64');
-  const dataUrl = `data:image/jpeg;base64,${base64}`;
-
-  // ── Pass 0: classify sheet type (advisory, non-blocking) ──
-  // RULE: sheet type is used by meta for observability only in this
-  // prompt. Model routing per sheet type is added in the next prompt.
-  const sheetClassification = await classifySheet(dataUrl);
-
-  // RULE: Two-pass pipeline. Step 1 = OCR (vision). Step 2 = Parse (text).
-  // Do NOT merge back into single pass. See knowledge/decisions.md pending ADR.
+  // @rule Sharp compression MUST run BEFORE enqueue, inside the POST handler.
+  //       A corrupt or unreadable upload has to fail synchronously with 400,
+  //       not asynchronously via a wasted queue slot.
+  let compressedBuffer: Buffer;
   try {
-    // ── Step 1: OCR — three parallel narrow passes ──
-    // Pass 1 = text fields (REQUIRED), Pass 2 = damages (soft-fail),
-    // Pass 3 = free text (soft-fail).
-    const ocrStart = Date.now();
-    const ocrOptionsBase = {
-      models: ['qwen-vl-ocr', 'qwen3-vl-flash'] as const,
-      maxTokens: 8192,
-      temperature: 0.1,
-    };
-
-    const [textFieldsRes, damagesRes, freeTextRes] = await Promise.allSettled([
-      analyzeImageWithFallback(dataUrl, OCR_TEXT_FIELDS_USER, {
-        ...ocrOptionsBase,
-        models: [...ocrOptionsBase.models],
-        systemPrompt: OCR_TEXT_FIELDS_SYSTEM,
-      }),
-      analyzeImageWithFallback(dataUrl, OCR_DAMAGES_USER, {
-        ...ocrOptionsBase,
-        // RULE: Pass 2 uses qwen3-vl-flash primary (visual reasoning),
-        // qwen-vl-ocr as fallback. qwen-vl-ocr alone returns "no codes"
-        // for every sheet — it cannot visually parse damage diagrams.
-        // Do NOT switch back to ocrOptionsBase.models here.
-        models: ['qwen3-vl-flash', 'qwen-vl-ocr'] as const,
-        systemPrompt: OCR_DAMAGES_SYSTEM,
-      }),
-      analyzeImageWithFallback(dataUrl, OCR_FREE_TEXT_USER, {
-        ...ocrOptionsBase,
-        models: [...ocrOptionsBase.models],
-        systemPrompt: OCR_FREE_TEXT_SYSTEM,
-      }),
-    ]);
-
-    const ocrElapsed = ((Date.now() - ocrStart) / 1000).toFixed(1);
-
-    // Pass 1 is REQUIRED
-    if (textFieldsRes.status !== 'fulfilled') {
-      const errMsg = textFieldsRes.reason instanceof Error
-        ? textFieldsRes.reason.message
-        : String(textFieldsRes.reason);
-      console.error(`[auction-sheet] OCR Pass 1 (text fields) failed: ${errMsg}`);
-      return NextResponse.json(
-        { error: 'ai_error', message: 'Ошибка при обработке изображения. Попробуйте позже.' },
-        { status: 502 },
-      );
-    }
-
-    const textFieldsContent = textFieldsRes.value.content;
-    console.log(`[auction-sheet] Pass 1 OCR complete: model=${textFieldsRes.value.usedModel}, chars=${textFieldsContent.length}`);
-
-    // Sanity check on Pass 1
-    if (textFieldsContent.length < 30) {
-      return NextResponse.json(
-        { error: 'parse_error', message: 'Не удалось распознать аукционный лист. Попробуйте другое фото.' },
-        { status: 502 },
-      );
-    }
-
-    // Pass 2 is soft-fail
-    let damagesContent: string;
-    if (damagesRes.status === 'fulfilled') {
-      damagesContent = damagesRes.value.content;
-      console.log(`[auction-sheet] Pass 2 OCR complete: model=${damagesRes.value.usedModel}, chars=${damagesContent.length}`);
-    } else {
-      const errMsg = damagesRes.reason instanceof Error ? damagesRes.reason.message : String(damagesRes.reason);
-      console.warn(`[auction-sheet] Pass 2 OCR (damages) failed (soft): ${errMsg.slice(0, 120)}`);
-      damagesContent = '';
-    }
-
-    // Pass 3 is soft-fail
-    let freeTextContent: string;
-    if (freeTextRes.status === 'fulfilled') {
-      freeTextContent = freeTextRes.value.content;
-      console.log(`[auction-sheet] Pass 3 OCR complete: model=${freeTextRes.value.usedModel}, chars=${freeTextContent.length}`);
-    } else {
-      const errMsg = freeTextRes.reason instanceof Error ? freeTextRes.reason.message : String(freeTextRes.reason);
-      console.warn(`[auction-sheet] Pass 3 OCR (free text) failed (soft): ${errMsg.slice(0, 120)}`);
-      freeTextContent = '';
-    }
-
-    console.log(`[auction-sheet] OCR total elapsed: ${ocrElapsed}s`);
-
-    // Compose combined OCR text for Step 2
-    const textFieldsSection = `=== TEXT FIELDS ===\n${textFieldsContent}`;
-    const damagesSection = damagesContent
-      ? `=== DAMAGES ===\n${damagesContent}`
-      : `=== DAMAGES UNAVAILABLE ===`;
-    const freeTextSection = freeTextContent
-      ? `=== FREE TEXT ===\n${freeTextContent}`
-      : `=== FREE TEXT UNAVAILABLE ===`;
-
-    const rawText = `${textFieldsSection}\n\n${damagesSection}\n\n${freeTextSection}`;
-
-    // Compute token totals across fulfilled passes only
-    const ocrTokens =
-      (textFieldsRes.status === 'fulfilled' ? textFieldsRes.value.usage.totalTokens : 0) +
-      (damagesRes.status === 'fulfilled' ? damagesRes.value.usage.totalTokens : 0) +
-      (freeTextRes.status === 'fulfilled' ? freeTextRes.value.usage.totalTokens : 0);
-    const ocrModelUsed = textFieldsRes.value.usedModel;
-
-    // ── Step 2: Parse — structure raw text into JSON via text model ──
-    // RULE: Primary = DeepSeek (fast, reliable from VDS), fallback = qwen3.5-flash.
-    // Do NOT use qwen3.5-plus here — its hybrid thinking exceeds 25s timeout.
-    const parseUserPrompt = `Parse the following three-pass OCR output from a Japanese car auction sheet into the JSON schema specified in your system instructions.\n\n${rawText}`;
-
-    let parseContent: string;
-    let parseModel: string;
-    let parseTokens: number;
-
-    try {
-      // RULE: DeepSeek is primary for Step 2 — DashScope text models
-      // (qwen3.5-flash/plus) timeout from VDS. Do NOT swap back without
-      // verifying DashScope text API availability first.
-      const dsResult = await callDeepSeek(parseUserPrompt, {
-        maxTokens: 4096,
-        temperature: 0.1,
-        systemPrompt: PARSE_SYSTEM_PROMPT,
-      });
-      parseContent = dsResult.content;
-      parseModel = 'deepseek-chat';
-      parseTokens = dsResult.usage.totalTokens;
-      console.log(`[auction-sheet] Step 2 parse complete: model=${parseModel}, tokens=${parseTokens}`);
-    } catch (step2Err) {
-      const errMsg = step2Err instanceof Error ? step2Err.message : String(step2Err);
-      console.warn(`[auction-sheet] Step 2 DeepSeek failed: ${errMsg.slice(0, 120)}, trying qwen3.5-flash fallback...`);
-
-      const qwenResult = await callQwenText(parseUserPrompt, {
-        model: 'qwen3.5-flash',
-        maxTokens: 4096,
-        temperature: 0.1,
-        systemPrompt: PARSE_SYSTEM_PROMPT,
-      });
-      parseContent = qwenResult.content;
-      parseModel = 'qwen3.5-flash';
-      parseTokens = qwenResult.usage.totalTokens;
-      console.log(`[auction-sheet] Step 2 parse complete (fallback): model=${parseModel}, tokens=${parseTokens}`);
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = parseJsonFromContent(parseContent);
-    } catch {
-      console.error('[auction-sheet] JSON parse failed after Step 2. Content length:', parseContent.length);
-      return NextResponse.json(
-        { error: 'parse_error', message: 'Не удалось распознать аукционный лист. Попробуйте другое фото.' },
-        { status: 502 },
-      );
-    }
-
-    // Record usage only after both steps succeed
-    recordUsage(ip, telegramId);
-
-    const remaining = checkRateLimit(ip, telegramId).remaining;
-
-    return NextResponse.json({
-      success: true,
-      data: parsed,
-      meta: {
-        model: `${ocrModelUsed} ×3 → ${parseModel}`,
-        tokens: ocrTokens + parseTokens,
-        remaining,
-        sheetType: sheetClassification.type,
-        classifierModel: sheetClassification.model,
-        classifierElapsed: sheetClassification.elapsed,
-      },
-    });
+    const bytes = await file.arrayBuffer();
+    compressedBuffer = await sharp(Buffer.from(bytes))
+      .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .sharpen({ sigma: 0.5 })
+      .toBuffer();
   } catch (err) {
-    console.error('[auction-sheet] AI error:', err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[auction-sheet] Sharp compression failed: ${msg.slice(0, 120)}`);
     return NextResponse.json(
-      { error: 'ai_error', message: 'Ошибка при обработке изображения. Попробуйте позже.' },
-      { status: 502 },
+      { error: 'invalid_image', message: 'Не удалось прочитать файл. Проверьте, что это валидное изображение.' },
+      { status: 400 },
     );
   }
+
+  // @rule POST returns 202 Accepted (NOT 200). The pipeline runs asynchronously
+  //       in the queue worker; clients MUST poll GET /api/tools/auction-sheet/job/[jobId]
+  //       to retrieve the final result or error.
+  // @rule QueueFullError MUST map to HTTP 503 Service Unavailable + Retry-After: 300
+  //       (NOT 429). 429 is reserved for per-user rate-limit exhaustion; 503
+  //       signals transient server-capacity exhaustion that affects every user.
+  let jobId: string;
+  try {
+    jobId = auctionSheetQueue.enqueue(() => runPipeline(compressedBuffer, ip, telegramId));
+  } catch (err) {
+    if (err instanceof QueueFullError) {
+      console.warn(`[auction-sheet] Queue full — rejecting request from ip=${ip}`);
+      return NextResponse.json(
+        {
+          error: 'queue_full',
+          message: 'Сервис временно перегружен. Попробуйте через 5 минут.',
+        },
+        {
+          status: 503,
+          headers: {
+            'Retry-After': '300',
+            'Cache-Control': 'no-store',
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+        },
+      );
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[auction-sheet] Enqueue failed unexpectedly: ${msg}`);
+    return NextResponse.json(
+      { error: 'enqueue_failed', message: 'Не удалось поставить задачу в очередь. Попробуйте позже.' },
+      { status: 500 },
+    );
+  }
+
+  const snapshot = auctionSheetQueue.getStatus(jobId);
+  const statusUrl = `/api/tools/auction-sheet/job/${jobId}`;
+
+  return NextResponse.json(
+    {
+      jobId,
+      statusUrl,
+      position: snapshot?.position ?? 0,
+      etaSec: snapshot?.etaSec ?? 0,
+    },
+    {
+      status: 202,
+      headers: {
+        Location: statusUrl,
+        'Cache-Control': 'no-store',
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+    },
+  );
 }
