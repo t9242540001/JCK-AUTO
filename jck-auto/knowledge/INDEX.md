@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-18
-  @version:     1.19
+  @version:     1.20
   @lines:       48
 -->
 
@@ -36,7 +36,7 @@
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
-| [tools.md](tools.md) | /tools/* API endpoints: auction-sheet pipeline (Pass 0 classifier + 3 parallel OCR + DeepSeek Step 2 180s/2 retries), Sharp compression, nginx per-endpoint 200s/15MB, rate limiting, diagnostics | 2026-04-18 |
+| [tools.md](tools.md) | /tools/* API endpoints: auction-sheet pipeline (Pass 0 classifier + 3 parallel OCR + DeepSeek Step 2 180s/2 retries), Sharp compression, nginx per-endpoint 200s/15MB, rate limiting, diagnostics + job status endpoint | 2026-04-18 |
 | [bugs.md](bugs.md) | Open bugs tracker — С-1 (partial fix), С-2–С-5, Б-1–Б-8. С-6 closed. Includes Allion instability (С-5), middleware-manifest (Б-7) | 2026-04-17 |
 
 ## Quick Links
