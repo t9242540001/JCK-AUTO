@@ -179,6 +179,17 @@ JSON SCHEMA — output ONLY this object, nothing else:
   "mileageWarning": false,
   "color": "color in Russian or null",
   "ownership": "ownership type in Russian (личное использование, корпоративное...) or null",
+  "vin": "chassis number as printed (e.g. 'ZGE25-6006238', 'ZRT260-3010123'); keep dashes, case, digits exactly; null if the VIN cell is absent from the sheet OR characters cannot be read at all",
+  "vinConfidence": "'high' when VIN is clearly printed and fully extracted, 'medium' for partial/slightly-blurred reads, 'unreadable' when the 車台番号 cell exists on the sheet but characters are smudged/covered/cropped beyond reliable extraction, null when there is no VIN cell on the sheet at all",
+  "modelCode": "Japanese model classification code from 型式 (e.g. 'DBA-ZGE25G', 'DBA-ZRT260'), preserve exactly as printed, or null",
+  "registrationNumber": "registration plate from 登録番号 as printed (e.g. '札幌 533 ソ 300', '京都 502 ナ 3210'), preserve Japanese characters and whitespace exactly, or null",
+  "inspectionValidUntil": "shaken validity in ISO-8601 month precision 'YYYY-MM' after Japanese-calendar conversion (e.g. 'H30年3月' → '2018-03', 'R6年4月' → '2024-04'); null if not present on sheet",
+  "recycleFee": "recycle fee in yen from リサイクル預託金 as a JSON integer (e.g. 10460, 11970), NOT a string; strip '円' and commas; null if not present",
+  "seats": "seating capacity from 乗車定員 as a JSON integer (e.g. 5, 7), NOT a string; strip '人'; null if not present",
+  "colorCode": "manufacturer color code from カラーNo. (e.g. '1F7', 'Z10', '070'), preserve case; null if not present",
+  "dimensions": { "length": "JSON integer in cm or null", "width": "JSON integer in cm or null", "height": "JSON integer in cm or null" },
+  "salesPoints": ["array of sales-point strings translated to Russian from [セールスポイント] block; one point per array element; [] if no block"],
+  "bodyType": "body type decoded from ドア形状 to Russian: '3D' → '3-дверный', '4SD' → '4-дверный седан', '5W' → '5-дверный универсал', '5D' → '5-дверный хэтчбек', '2D' → '2-дверный купе'; for unknown codes (e.g. '4HB', '2HT') pass the original code through unchanged; null if not present",
   "bodyDamages": [{"location": "body part in Russian", "code": "defect code", "description": "defect description in Russian", "severity": "minor|moderate|major"}],
   "equipment": ["each decoded option in Russian (e.g. 'климат-контроль', 'навигация', 'ABS')"],
   "expertComments": "inspector notes translated to Russian or null",
@@ -195,7 +206,13 @@ STRICT RULES:
 4. If mileage seems too high for vehicle age — set mileageWarning: true and add warning
 5. confidence: "high" if >80% fields recognized, "medium" if 50-80%, "low" if <50%
 6. Convert Japanese calendar years to Western calendar using the table above
-7. Output ONLY valid JSON — no markdown fences, no explanation, no preamble`;
+7. Output ONLY valid JSON — no markdown fences, no explanation, no preamble
+8. For \`vin\` and \`vinConfidence\`: the allowed combinations are exactly three — \`(vin=null, vinConfidence=null)\` when the sheet has no VIN cell, \`(vin=null, vinConfidence='unreadable')\` when the cell exists but is illegible, or \`(vin=<value>, vinConfidence='high'|'medium')\` when successfully read. Never invent a VIN from training knowledge.
+9. For \`dimensions\`: each of \`length\`, \`width\`, \`height\` MUST be a JSON integer (numeric, no quotes), or null. Do NOT mix units — always centimeters. If the 諸元 section shows 459 / 169 / 160, output {"length": 459, "width": 169, "height": 160}.
+10. For \`salesPoints\`: read from the \`[セールスポイント]\` section of the FREE TEXT pass. Translate each point to Russian. One point per array element — do NOT merge. Output [] if the section is missing or the pass is unavailable.
+11. For \`recycleFee\`, \`seats\`, and every field of \`dimensions\`: output as JSON integers (numeric, no quotes). Strings like "10460" or "10,460 円" are invalid — emit the integer 10460.
+12. For \`bodyType\`: apply the lookup table in the schema description. If the code on the sheet is not in the table, emit the original code string as-is instead of guessing a Russian translation.
+13. For \`inspectionValidUntil\`: convert Japanese-calendar month to ISO-8601 month-precision using the JAPANESE_CALENDAR_CONVERSION table already in this prompt. H30年3月 → '2018-03', R6年4月 → '2024-04'. If the sheet shows only a Western-calendar date like '04年02月' with no era letter, you cannot disambiguate — emit null.`;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 

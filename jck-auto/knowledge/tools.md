@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: API tools documentation — auction-sheet async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
   @updated:     2026-04-18
-  @version:     1.7
-  @lines:       ~290
+  @version:     1.8
+  @lines:       ~320
 -->
 
 # Tools API — /tools/*
@@ -246,6 +246,38 @@ endpoint (`dashscope.aliyuncs.com`).
   См. ADR `[2026-04-18] DeepSeek timeout 60s → 180s, retries 3 → 2`.
 
 **Стоимость:** ~$0.004–0.006 за запрос (3 OCR passes + 1 text parse).
+
+**Schema — 10 новых полей (2026-04-18):** Step 2 JSON-схема расширена
+десятью полями, которые OCR-проходы уже извлекали, но которым не было
+места в контракте парсера (и они сваливались в `unrecognized` или
+терялись):
+
+- `vin` + `vinConfidence` — номер шасси из 車台番号 с трёхсостоянием
+  достоверности (`high` / `medium` / `unreadable` / `null`), чтобы UI
+  мог честно различать «на листе нет ячейки VIN» и «ячейка есть, но
+  фото нечитаемое»
+- `modelCode` — код модели из 型式 (например, `DBA-ZGE25G`)
+- `registrationNumber` — регистрационный номер из 登録番号 (с иероглифами)
+- `inspectionValidUntil` — `YYYY-MM` дата окончания 車検 после конверсии
+  из японского календаря
+- `recycleFee` — утилизационный сбор из リサイクル預託金 в йенах (JSON integer)
+- `seats` — число посадочных мест из 乗車定員 (JSON integer)
+- `colorCode` — код цвета из カラーNo. (`1F7`, `Z10`, `070`)
+- `dimensions` — габариты в см из 諸元 (`length`/`width`/`height`, integers)
+- `salesPoints` — массив строк из `[セールスポイント]`-блока Pass 3,
+  переведённых на русский
+- `bodyType` — декодирование `ドア形状` на русский (3D → 3-дверный,
+  4SD → 4-дверный седан, 5W → 5-дверный универсал и т.д.); неизвестные
+  коды — пропускаются as-is
+
+Параллельно в `OCR_TEXT_FIELDS_SYSTEM` (Pass 1) добавлен `ドア形状` в
+enum «Include (if visible)», чтобы Pass 1 гарантированно поднимал этот
+лейбл. Pipeline orchestration / error handling / rate limits / queue — НЕ
+затронуты. Старые клиенты игнорируют неизвестные JSON-поля; UI для
+новых полей ождидается в prompts 02–07 серии.
+
+См. ADR `[2026-04-18] Extend parse schema for auction-sheet with 10 new
+fields`.
 
 **Логика переключения в `analyzeImageWithFallback` (vision):**
 - 4xx (кроме 429) — фатальные, fallback не запускается
