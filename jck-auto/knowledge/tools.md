@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/tools.md
   @project:     JCK AUTO
-  @description: API tools documentation — auction-sheet (Pass 0 classifier + multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status endpoint
+  @description: API tools documentation — auction-sheet (Pass 0 classifier + multi-pass OCR + DeepSeek parse), DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
   @updated:     2026-04-18
-  @version:     1.5
-  @lines:       ~220
+  @version:     1.6
+  @lines:       ~250
 -->
 
 # Tools API — /tools/*
@@ -30,6 +30,36 @@
   Returns `400` for malformed `jobId`, `404` for unknown/expired `jobId`.
   Cache-Control: no-store. Intended polling interval: ~2 seconds.
   See ADR `[2026-04-18] Introduce server-side in-memory queue for auction-sheet`.
+- **GET** `/api/tools/auction-sheet/stats` — admin-only aggregated queue metrics.
+  File: `src/app/api/tools/auction-sheet/stats/route.ts`. Returns `200` with
+  `QueueStatsSnapshot` JSON (peak size, throughput, rejection count, avg wait/
+  processing times). Returns `401` without valid `tg_auth` cookie. Returns
+  `403` if cookie's `telegramId` is not listed in `ADMIN_TELEGRAM_IDS` env
+  var (CSV). Fail-closed: empty/missing env → always 403.
+
+### Получение tg_auth cookie для admin-диагностики
+
+Для вызова admin-эндпоинтов (например, `/api/tools/auction-sheet/stats`)
+из curl нужен валидный JWT-cookie `tg_auth`:
+
+1. Открыть https://jckauto.ru/tools/auction-sheet в обычном браузере.
+2. Нажать кнопку «Войти через Telegram» (появляется при превышении
+   анонимного лимита расшифровок, или можно вызвать форсированно
+   через любой другой инструмент сайта).
+3. После успешной авторизации — открыть DevTools → Application →
+   Cookies → `https://jckauto.ru` → найти cookie `tg_auth` → скопировать
+   значение.
+4. Использовать в curl:
+   ```bash
+   curl -b "tg_auth=<скопированное_значение>" \
+     https://jckauto.ru/api/tools/auction-sheet/stats
+   ```
+
+Cookie живёт 30 дней. При истечении — повторить шаги 1–3.
+
+Необходимо, чтобы ваш `telegram_id` был в списке `ADMIN_TELEGRAM_IDS`
+в `.env.local` на сервере (CSV через запятую). После правки env —
+`pm2 restart jckauto`.
 
 ### Назначение
 
