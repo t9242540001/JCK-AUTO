@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-18
-  @version:     1.26
+  @version:     1.27
   @lines:       48
 -->
 
@@ -37,7 +37,7 @@
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
 | [tools.md](tools.md) | /tools/* API endpoints: auction-sheet async-only contract (POST 202 + job polling), pipeline (Pass 0 classifier + 3 parallel OCR + DeepSeek Step 2 180s/2 retries), Sharp compression, nginx per-endpoint 200s/15MB, rate limiting, diagnostics + job status endpoint + stats endpoint, parse schema extended (10 new fields including VIN), client-side types/helpers modularization in progress | 2026-04-18 |
-| [bugs.md](bugs.md) | Open bugs tracker — С-1 closed, С-5 user-impact closed (moved to Verify), С-2–С-4 open, Б-1–Б-8 open. Middleware-manifest restart loop (Б-7), Capture workflow verification (Б-8) pending | 2026-04-18 |
+| [bugs.md](bugs.md) | Open bugs tracker — С-1 closed, С-5 user-impact closed (moved to Verify), С-2–С-4, С-6 open, Б-1–Б-8 open. Cross-tab session leak (С-6, fix deferred after prompt 07), Middleware-manifest restart loop (Б-7), Capture workflow verification (Б-8) pending | 2026-04-18 |
 
 ## Quick Links
 

@@ -3,13 +3,13 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-18
-  @version:     1.3
-  @lines:       ~165
+  @version:     1.4
+  @lines:       ~230
 -->
 
 # Bugs — open issues tracker
 
-> Updated: 2026-04-16
+> Updated: 2026-04-18
 > Source of truth for open bugs. After fix → ADR in decisions.md, entry removed from this file.
 > Hypotheses listed only when diagnosis requires choosing between alternatives.
 > Related: roadmap.md (high-level status), telegram-bot.md (bot architecture), tools.md.
@@ -59,6 +59,90 @@
   applications may not reach managers' group
 - **Fix:** replace hardcoded https://api.telegram.org with process.env.TELEGRAM_API_BASE_URL
 - **Reference:** telegram-bot.md → "Исходящий трафик"
+
+### С-6 — cross-tab session leak in auction-sheet client
+- **Page:** /tools/auction-sheet
+- **Symptom:** When two browser tabs on https://jckauto.ru are open to
+  /tools/auction-sheet, starting an analysis in tab A causes tab B to
+  automatically pick up the same job and display the identical result on
+  refresh (or on initial mount if opened after tab A started). The user
+  may not realise their analysis result is visible to a sibling tab.
+- **Reproduction:**
+  1. Open /tools/auction-sheet in tab A. Log in (or stay anonymous).
+  2. Upload a sheet in tab A. The client spinner starts.
+  3. Open /tools/auction-sheet in tab B (same browser, same origin,
+     any time before the 15-minute TTL expires).
+  4. Tab B auto-starts polling the same job and renders the same result
+     when it completes.
+- **Root cause:** `AuctionSheetClient.tsx` persists active jobId to
+  `localStorage['jckauto.auction_sheet.active_job']` for session-restore
+  after screen-off / tab-switch (ADR [2026-04-18] Async-only contract
+  for POST /api/tools/auction-sheet). On mount, the client reads this
+  key unconditionally and starts polling if a value is present. There is
+  no per-tab ownership — localStorage is shared across all tabs of the
+  same origin by browser design. The server job-status endpoint
+  (`/api/tools/auction-sheet/job/[jobId]`) validates only jobId format,
+  not caller identity, so whoever asks gets the data.
+- **Impact:**
+  - Security (same-user cross-tab): a user's analysis result is visible
+    in any sibling tab of the same browser for up to 15 minutes
+    (server-side completed-jobs TTL), regardless of the sibling tab's
+    Telegram auth state.
+  - Security (scope limit): this variant-B fix addresses the same-user
+    cross-tab case only. The server endpoint will still serve any
+    jobId to any caller with the UUID — a separately tracked concern
+    if jobIds are ever leaked (they are not currently exposed outside
+    the client's own DOM / XHR).
+  - UX: a user who accidentally opens the site in two tabs cannot start
+    a fresh analysis in the second tab until the first completes or
+    TTL expires — the second tab will always grab the existing job.
+  - Economy: quota is consumed once per job (correct). Sibling tabs
+    see the result without being charged — no extra quota leak, but
+    also no isolation.
+- **Hypothesis:** single hypothesis — session-restore logic with shared
+  localStorage and no tab ownership. Confirmed by code read
+  (`AuctionSheetClient.tsx` — `ACTIVE_JOB_STORAGE_KEY` constant and the
+  on-mount effect that reads it without guards).
+- **Fix plan (deferred, variant B — tab-id ownership):**
+  1. On first mount in a given tab, generate `tabId = crypto.randomUUID()`,
+     persist to `sessionStorage['jckauto.auction_sheet.tab_id']`
+     (sessionStorage is per-tab by browser design).
+  2. Change the shared localStorage entry structure from `"<jobId>"`
+     (string) to `{jobId: string, ownerTabId: string}` (JSON).
+  3. On mount: read localStorage + sessionStorage. Start polling only if
+     `localStorage.ownerTabId === sessionStorage.tabId`. Otherwise
+     (including when sessionStorage has no tabId — i.e. fresh tab),
+     ignore the entry and behave as a fresh tab.
+  3a. Orphan handling: if localStorage has an entry but no tab in the
+     browser claims ownership (owner tab closed without cleanup before
+     job completion), the UX should offer an explicit "Resume previous
+     analysis?" action rather than auto-polling. Implementation detail
+     for the fix prompt — may be as simple as showing a banner on the
+     upload screen when an orphan is detected.
+  4. On submit: write both `jobId` and this tab's `ownerTabId` to
+     localStorage.
+  5. On done / failed / explicit reset: clear both storage entries (as
+     today).
+  Alternatives considered and rejected:
+  - sessionStorage only (variant A) — loses session-restore if the user
+    accidentally closes the tab and reopens. Worse on mobile.
+  - BroadcastChannel coordination (variant C) — more robust, but
+    significantly more complex. Reserve for future if variant B proves
+    insufficient.
+- **When:** fix scheduled for AFTER commit landing the final cleanup of
+  `AuctionSheetClient.tsx` (prompt 07 of the auction-sheet refactor
+  series 02–07 tracked in `decisions.md § Active iterations`). Will
+  likely be prompt 08 of the same series, or a new standalone series.
+  Rationale: touching session-restore logic mid-refactor mixes concerns
+  and inflates regression risk.
+- **References:**
+  - `src/app/tools/auction-sheet/AuctionSheetClient.tsx` —
+    `ACTIVE_JOB_STORAGE_KEY` constant (near line ~108) and the mount
+    effect that reads it.
+  - `decisions.md` ADR [2026-04-18] Async-only contract for POST
+    /api/tools/auction-sheet (defines session-restore as a feature).
+  - `decisions.md § Active iterations` — [WIP 2026-04-18] Split
+    AuctionSheetClient (context for why the fix is deferred).
 
 ### Б-2 — auction sheet handler in bot does not respond on photo
 - **File:** src/bot/handlers/* (see tg-integration-plan.md Step 7)
