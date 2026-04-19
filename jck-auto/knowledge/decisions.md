@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.12
+  @version:     1.13
   @lines:       ~1270
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -1267,3 +1267,62 @@ the queue. The other OCR prompts (`OCR_DAMAGES_SYSTEM`,
   структурирование в JSON" subsection listing the 10 fields.
 - `jck-auto/knowledge/INDEX.md` — `tools.md` and `decisions.md` row
   descriptions and dates updated.
+
+## [2026-04-18] Fix file input value reset in UploadZone (pick-clear-pick-same-file bug)
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Users on production could not re-select the same file after clicking
+"Убрать" — the upload zone silently ignored the pick. Browser refresh
+worked around it. Bug was latent in the inline upload-zone code
+(pre-prompt-03) and was preserved 1:1 during the extract refactor (per
+prompt 03's "do not fix quirks mid-refactor" rule). Vasily found it
+during the post-deploy smoke test on 2026-04-18.
+
+Root cause: HTML `<input type="file">` does not fire a `change` event
+when the selected file is the same as the previously captured one — the
+element's internal `files` array is unchanged. When React state is
+reset via `onClear`, the state says "no file", but the DOM input still
+remembers the file. Reselecting the same filename is a no-op from the
+browser's perspective.
+
+**Decision:**
+Reset `<input type="file">` value in two places inside `UploadZone.tsx`:
+(1) at the end of `onChange`, after the captured file is handed to
+`onFileSelect`; (2) at the start of the X-button `onClick`, before
+calling `onClear`. Also annotate the `<input>` with a `@rule` comment
+block explaining why both resets exist, to prevent future "cleanup"
+passes from removing either one.
+
+**Alternatives considered:**
+- Reset value ONLY inside `onChange`: rejected — leaves a gap if the
+  user never invokes `onChange` between picks (unusual but possible).
+  The two-site reset is complete and costs two lines.
+- Reset value ONLY inside X-button: rejected — covers the most visible
+  symptom but leaves subtle cases (double-clicked dialog, programmatic
+  close of file chooser) uncovered.
+- Use `key={fileId}` on the `<input>` to force React to remount it on
+  clear: rejected — works but ties DOM lifecycle to React reconciler
+  timing, harder to reason about than a direct `.value = ""` reset.
+- Listen to `click` on the input and pre-reset: rejected — doesn't help
+  when the user picks via drag, plus adds another handler to maintain.
+
+**Consequences:**
+- (+) Pick → clear → pick-same-file now works without a page reload.
+- (+) `@rule` anchor documents the reason, preventing regressions in
+  prompts 04–07 (cleanup) or future refactors.
+- (+) Behaviour for different-file picks and drag-and-drop is unchanged
+  (drop path does not go through `input.value`).
+- (−) Two extra lines of code in a small component. Acceptable overhead
+  for a visible UX bug.
+- Safety: `inputRef.current` is always non-null at the reset sites. The
+  `<input>` is always present in the DOM, only visually hidden via
+  `className="hidden"` — it is never conditionally rendered. Confirmed
+  by reading the current `UploadZone.tsx`.
+
+**Files changed:**
+- `jck-auto/src/app/tools/auction-sheet/UploadZone.tsx` (three edits:
+  `@rule` anchor + two value resets)
