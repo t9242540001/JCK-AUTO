@@ -2,9 +2,37 @@ import { NextResponse } from "next/server";
 import { checkRateLimit, recordUsage } from "@/lib/rateLimiter";
 import { CONTACTS } from "@/lib/constants";
 
+// @rule All three Telegram env vars (TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID,
+//       TELEGRAM_API_BASE_URL) are REQUIRED. Missing any → log + 503 with fallback phone.
+//       Do NOT reintroduce a default for TELEGRAM_API_BASE_URL: the VDS provider
+//       blocks direct api.telegram.org, so falling back to it silently breaks lead
+//       delivery. Requests MUST go through the Cloudflare Worker set via env.
+// @rule Any string that may contain a Telegram API response body (res.text() result,
+//       caught error messages, etc.) MUST pass through sanitizeTelegramLog() before
+//       being logged. Tokens in logs are a security incident.
+
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GROUP_CHAT_ID = process.env.TELEGRAM_GROUP_CHAT_ID;
-const TG_API_BASE = process.env.TELEGRAM_API_BASE_URL || "https://api.telegram.org";
+const TG_API_BASE = process.env.TELEGRAM_API_BASE_URL;
+
+/**
+ * Mask Telegram bot tokens in arbitrary strings before logging.
+ * Telegram bot tokens have the format `<numeric_bot_id>:<35+ char token>`,
+ * and appear in error bodies when the API echoes back request URLs like
+ * `/bot<TOKEN>/sendMessage`. This helper handles both the `/bot<TOKEN>/`
+ * path form and bare token occurrences.
+ * @rule NEVER log response bodies from Telegram API without passing them
+ *       through this helper. Tokens in logs are a security incident even
+ *       if logs are currently VDS-local — a future Sentry/centralized-log
+ *       integration would leak them retroactively.
+ */
+function sanitizeTelegramLog(s: string): string {
+  // Match /bot<digits>:<token_chars>/ (full path form) AND bare <digits>:<token_chars>
+  // Token chars include A-Z, a-z, 0-9, underscore, hyphen. At least 20 chars after
+  // the colon — real Telegram tokens are 35+ chars, this lower bound just avoids
+  // over-matching random `NUM:WORD` patterns in error messages.
+  return s.replace(/\d{6,}:[A-Za-z0-9_-]{20,}/g, "***");
+}
 
 export async function POST(request: Request) {
   try {
@@ -43,10 +71,15 @@ export async function POST(request: Request) {
     const safeMessage = message ? String(message).slice(0, 1000) + (String(message).length > 1000 ? " [truncated]" : "") : undefined;
     const safeSubject = subject ? String(subject).slice(0, 200)  : undefined;
 
-    if (!BOT_TOKEN || !GROUP_CHAT_ID) {
-      console.error("TELEGRAM_BOT_TOKEN or TELEGRAM_GROUP_CHAT_ID not configured");
+    if (!BOT_TOKEN || !GROUP_CHAT_ID || !TG_API_BASE) {
+      const missing = [
+        !BOT_TOKEN && "TELEGRAM_BOT_TOKEN",
+        !GROUP_CHAT_ID && "TELEGRAM_GROUP_CHAT_ID",
+        !TG_API_BASE && "TELEGRAM_API_BASE_URL",
+      ].filter(Boolean).join(", ");
+      console.error(`[lead] Missing required env: ${missing}`);
       return NextResponse.json(
-        { error: "Сервис временно недоступен" },
+        { error: `Сервис временно недоступен. Позвоните нам напрямую: ${CONTACTS.phone}` },
         { status: 503 },
       );
     }
@@ -76,10 +109,11 @@ export async function POST(request: Request) {
     });
 
     if (!res.ok) {
-      const err = await res.text();
-      console.error(`[lead] Telegram API error (${TG_API_BASE.replace(/\/\/.*@/, "//***@")}):`, err);
+      const rawBody = await res.text().catch(() => "<no body>");
+      const sanitized = sanitizeTelegramLog(rawBody).slice(0, 200);
+      console.error(`[lead] Telegram API error: status=${res.status} body=${sanitized}`);
       return NextResponse.json(
-        { error: "Не удалось отправить заявку" },
+        { error: `Не удалось отправить заявку. Позвоните нам напрямую: ${CONTACTS.phone}` },
         { status: 502 },
       );
     }

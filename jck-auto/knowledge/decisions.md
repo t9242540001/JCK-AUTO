@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-19
-  @version:     1.23
-  @lines:       ~1903
+  @version:     1.24
+  @lines:       ~2008
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -1901,3 +1901,108 @@ vanishingly unlikely with 8 random base-36 characters).
 - `knowledge/INDEX.md` (dates updated)
 
 **Discovered via:** Bug C-6 in `knowledge/bugs.md`, fixed 2026-04-19.
+
+## [2026-04-19] Harden /api/lead contract: fail-loud env, sanitized logs, fallback phone
+
+**Status:** Accepted
+
+**Confidence:** High — all three changes are narrow and the failure
+modes they protect against are well-understood (VDS provider blocks
+api.telegram.org; Telegram error bodies may echo tokens; users without
+a fallback channel on 502 become lost leads).
+
+**Context:**
+Bug C-4 in `knowledge/bugs.md` claimed that `/api/lead` bypassed the
+Cloudflare Worker by hitting `api.telegram.org` directly. Inspection
+on 2026-04-19 showed the claim was stale: the code already reads
+`TELEGRAM_API_BASE_URL` from env (with a fallback to api.telegram.org)
+and the env is set correctly on the production VDS. The fix had been
+applied earlier — likely during the 2026-04-10 Worker migration for
+the bot — without a corresponding bugs.md cleanup.
+
+In the process of closing C-4, three latent weaknesses were found in
+the same file:
+1. The `|| "https://api.telegram.org"` fallback masks missing env
+   as silent degradation: the next time someone loses this env (VDS
+   migration, `.env.local.save` restore that predates the env being
+   added, Worker change that loses the reference) all leads would
+   silently fail against a provider-blocked URL.
+2. `console.error(..., err)` in the `!res.ok` branch logs the raw
+   Telegram response body, which may echo back request URLs of the
+   form `/bot<TOKEN>/sendMessage`. The prior `TG_API_BASE.replace(/\/\/.*@/, "//***@")`
+   regex was a vestigial basic-auth sanitizer and did not apply.
+3. The 502 user-facing message ("Не удалось отправить заявку") offered
+   no fallback channel, unlike the 429 path which included CONTACTS.phone.
+
+**Decision:**
+Close C-4 as stale AND harden the endpoint in the same prompt. Three
+coupled changes in `route.ts`:
+1. Remove the `|| "https://api.telegram.org"` fallback. Extend the
+   existing `BOT_TOKEN`/`GROUP_CHAT_ID` missing-env check to also
+   require `TELEGRAM_API_BASE_URL`. Missing env → 503 with
+   grep-friendly log (`[lead] Missing required env: <names>`) and
+   user response containing `CONTACTS.phone`.
+2. Add a local `sanitizeTelegramLog(s)` helper that masks the full
+   Telegram token pattern `<digits>:<token>` to `***`. Apply it to
+   response bodies BEFORE truncation (so tokens past the 200-char
+   slice cannot survive), then log status + sanitized body only.
+3. Add `CONTACTS.phone` to the 502 user-facing message.
+
+Token regex rationale: `\d{6,}:[A-Za-z0-9_-]{20,}` — Telegram bot IDs
+are 8–10 digits, tokens are 35+ chars with underscores and hyphens.
+The 6-digit and 20-char lower bounds avoid over-matching random
+`NUM:WORD` patterns in unrelated error messages.
+
+**Why fail-loud over defensive default:**
+`TELEGRAM_API_BASE_URL` is a critical endpoint whose default
+(api.telegram.org) is known to be blocked on this specific VDS.
+A defensive default here is semantic dishonesty: it pretends to
+provide resilience while guaranteeing silent failure. Fail-loud
+surfaces config errors in minutes (operator grep shows clear
+message); defensive default surfaces them in days or weeks (someone
+eventually notices "leads are down"). The same file already
+fail-loud's on BOT_TOKEN and GROUP_CHAT_ID — extending the pattern
+is consistency, not escalation.
+
+**Alternatives considered:**
+- Keep the fallback, add a health check endpoint — rejected: adds a
+  separate surface to maintain, doesn't prevent the silent-failure
+  window. Health checks help detect problems but don't prevent the
+  wrong behavior at request time.
+- Move sanitization to a shared `lib/sanitize.ts` — rejected as
+  premature. There is currently exactly one caller; a shared module
+  is justified when a second caller appears (bot error logs are a
+  candidate, tracked implicitly here).
+- Keep tokens in logs because VDS logs are local-only — rejected.
+  Any future centralized logger (Sentry, Logtail, Datadog) would
+  retroactively leak the token history. Prevention today is cheap;
+  retrospective redaction is not.
+
+**Consequences:**
+- (+) C-4 closed, bugs.md cleaner.
+- (+) Missing `TELEGRAM_API_BASE_URL` becomes immediately visible in
+  logs at the first request, not after someone notices lead drop.
+- (+) Telegram tokens cannot leak via the `/api/lead` error path,
+  even if response bodies grow to include them in the future.
+- (+) Users who hit a 502 know to call the phone — a saved lead
+  instead of a lost one.
+- (−) Any future operator who forgets to set `TELEGRAM_API_BASE_URL`
+  on a new environment (dev laptop, staging) will see 503 instead
+  of a silent bypass. This is deliberately the point, but worth
+  documenting so operators are not surprised.
+- (−) Operational risk to note separately: `.env.local.save` exists
+  in the project root alongside `.env.local`. If anyone restores
+  from this backup and the backup predates the `TELEGRAM_API_BASE_URL`
+  addition, post-fix behavior will be 503 on all leads until the
+  env is re-added. Pre-fix behavior would have been silent failure —
+  fail-loud is strictly better here. Not addressed in this prompt;
+  cleaning up stray `.env.local.save` is a separate operational task.
+
+**Files:**
+- `src/app/api/lead/route.ts`
+- `knowledge/bugs.md` (C-4 entry removed)
+- `knowledge/INDEX.md` (dates updated)
+
+**Discovered via:** Bug C-4 triage on 2026-04-19 — inspection of code
+showed the bug was already fixed, but logs/UX still had room to
+harden. Closed as cleanup-plus-hardening.
