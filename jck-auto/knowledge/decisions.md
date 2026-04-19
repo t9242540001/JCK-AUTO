@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-19
-  @version:     1.22
-  @lines:       ~1803
+  @version:     1.23
+  @lines:       ~1903
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -1801,3 +1801,103 @@ sufficient for foreseeable series.
 Series 02–05 on 2026-04-19 (CalculatorFAQ per-tool heading),
 branch `claude/faq-heading-per-tool`, commits 9433c90, 49e7566,
 09cbbd0, 64e4c54.
+
+## [2026-04-19] Cross-tab session ownership in auction-sheet client
+
+**Status:** Accepted
+
+**Confidence:** High — all three components directly tested during fix
+(sessionStorage per-tab behaviour, localStorage cross-tab visibility,
+UUID generation fallback for older mobile Safari).
+
+**Context:**
+ADR `[2026-04-18] Async-only contract for POST /api/tools/auction-sheet`
+introduced session restore: the client persists the active jobId to
+`localStorage['jckauto.auction_sheet.active_job']` and resumes polling
+on remount. This was designed for single-tab resilience (screen-off,
+tab-switch, browser minimize, F5 reload) — sessionStorage would have
+been insufficient because it dies on some mobile "tab eviction" paths.
+
+Side-effect: localStorage is shared across all tabs of the same origin.
+Bug C-6 reported that opening `/tools/auction-sheet` in a second tab
+caused that tab to auto-pick-up the first tab's job and render the
+private result (VIN, lot number, damage codes) without the user's
+awareness.
+
+**Decision:**
+Introduce per-tab ownership via `sessionStorage['jckauto.auction_sheet.tab_id']`
+(a random UUID, generated on first mount of each tab). The localStorage
+record changes shape from a plain string `"<jobId>"` to a JSON object
+`{jobId, ownerTabId}`. On mount, session restore runs only if
+`localStorage.ownerTabId === sessionStorage.tabId`. Otherwise the tab
+behaves as a fresh tab and shows a clean upload screen.
+
+**Orphan handling — silent cleanup, no resume banner:**
+An "orphan" is a localStorage record with no matching sessionStorage
+tabId in any open tab (the owning tab was closed before the job
+completed). The original fix plan in `bugs.md` suggested showing a
+"Resume previous analysis?" banner. This was rejected during review
+for three reasons:
+- **UX noise:** a banner that appears unexpectedly for a case the
+  user often does not remember creates confusion rather than relief.
+  Reloading a single photo takes ~5 seconds.
+- **Privacy:** auction sheet results contain private data (VIN, lot
+  number, body damages). Surfacing a "you have an unfinished
+  analysis" prompt in a browser potentially shared with others
+  (borrowed phone, shared computer) is a direct privacy minus.
+- **State complexity:** the client component already has 7 states;
+  adding an `orphan_resume` state + render branch + "resume" /
+  "dismiss" handlers expands surface area for regressions in
+  exchange for a narrow edge case.
+
+The silent-cleanup path does not actually `removeItem` on the sibling
+tab — only the owning tab clears its own record (via done/failed/reset).
+This is important because the owning tab may still be actively polling.
+A second tab returning `null` and showing a clean upload does not
+disturb the owner.
+
+Only malformed records (JSON parse failure, missing required fields,
+or legacy plain-string format from pre-fix deploys) are actively
+removed — garbage cannot belong to anyone.
+
+**Why not BroadcastChannel (variant C) now:**
+BroadcastChannel coordination between tabs is more robust (tabs could
+explicitly negotiate ownership transfer, handle closed-owner case more
+gracefully). Rejected for now as premature complexity. The
+sessionStorage + localStorage pattern used here is the standard
+solution in production tab-aware libraries (e.g. oidc-client-ts).
+If variant B proves insufficient (concrete user reports, not
+hypothetical concerns), BroadcastChannel is the next escalation.
+
+**UUID fallback:**
+`crypto.randomUUID()` requires HTTPS + modern browser (Chrome 92+,
+Firefox 95+, Safari 15.4+). Coverage for the JCK AUTO audience is
+~99%, but a fallback using `Date.now().toString(36)` +
+`Math.random().toString(36)` is included to prevent runtime crash on
+outdated mobile Safari. Tab id uniqueness requirements are modest
+(collision only matters within the same browser within 15 minutes —
+vanishingly unlikely with 8 random base-36 characters).
+
+**Consequences:**
+- (+) Closes C-6. A user's analysis is not visible in sibling tabs.
+- (+) Session restore in the same tab (including F5 reload, screen-off)
+  continues to work — sessionStorage outlives page reloads within the
+  same tab lifecycle.
+- (+) Backward compatibility: old plain-string records from
+  pre-deploy browsers are treated as orphan-garbage and silently
+  cleaned, no migration required.
+- (−) An orphaned job (owner tab closed before completion) cannot
+  be resumed. User reloads photo — ~5 second cost. Deemed acceptable
+  per UX + privacy rationale above.
+- (−) Server endpoint `/api/tools/auction-sheet/job/[jobId]` still
+  serves any jobId to any caller with the UUID — a separate
+  hardening concern if jobIds ever leak (they currently are not
+  exposed outside the client's own DOM / XHR). Tracked implicitly
+  by the scope note in the closed C-6 entry.
+
+**Files:**
+- `src/app/tools/auction-sheet/AuctionSheetClient.tsx`
+- `knowledge/bugs.md` (C-6 entry removed)
+- `knowledge/INDEX.md` (dates updated)
+
+**Discovered via:** Bug C-6 in `knowledge/bugs.md`, fixed 2026-04-19.
