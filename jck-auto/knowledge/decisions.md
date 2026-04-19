@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.16
+  @version:     1.17
   @lines:       ~1270
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -33,7 +33,7 @@
 - Prompt 04 — extract `ProcessingViews` component. ✅ done (this commit)
 - Prompt 05 — extend 429 response body (`remaining`, `isLifetimeLimit`). Backend-only, prepares surface for Prompt 06 rate_limit sub-routing. ✅ done (this commit)
 - Prompt 06 — extend `ApiError` type with `remaining` and `isLifetimeLimit` optional fields. Single file, preparation for Prompt 07. ✅ done (this commit)
-- Prompt 07 — extract `ErrorView` component AND fix bug С-7. Routes `rate_limit` into three sub-cases (cooldown / anon-lifetime / auth-daily) using the new 429 body fields. Also fixes `handleAnalyze` 429 branch to set `isLimitReached` / `usedCount` only on lifetime-exhausted, not cooldown or daily-exhausted.
+- Prompt 07 — extract `ErrorView` component AND fix bug С-7. Routes `rate_limit` into three sub-cases (cooldown / anon-lifetime / auth-daily) using the new 429 body fields. Also fixes `handleAnalyze` 429 branch to set `isLimitReached` / `usedCount` only on lifetime-exhausted, not cooldown or daily-exhausted. ✅ done (this commit)
 - Prompt 08 — extract `ResultView` component, add UI for 11 new fields from Prompt 01, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block, final cleanup of unused lucide-react imports (`Upload`, `X`, `Loader2`) in orchestrator.
 
 **Decision (expected at closure):** to be promoted to Accepted ADR after prompt 07 lands, documenting the final module boundaries.
@@ -1433,3 +1433,75 @@ auth-daily).
 - `jck-auto/src/app/tools/auction-sheet/auctionSheetTypes.ts` (two
   optional fields added with JSDoc)
 - `jck-auto/knowledge/INDEX.md` (dates)
+
+## [2026-04-18] Fix C-7 (rate_limit UI) and extract ErrorView
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Bug С-7 was reported 2026-04-18: after an authenticated user hits the
+2-minute cooldown, the UI re-displays the Telegram auth block instead
+of a cooldown message. Diagnosis revealed the error branch for
+`rate_limit` was a single catch-all rendering `TelegramAuthBlock`
+unconditionally, plus `handleAnalyze` 429 handler poisoned the
+orchestrator state with `setIsLimitReached(true)` + `setUsedCount(3)`
+even in cooldown scenarios. Further: an authenticated user exhausting
+the daily 10-request quota was also (incorrectly) shown the auth block
+— a case Vasily did not report but the diagnosis exposed as a sibling
+issue. All three are fixed in this prompt.
+
+**Decision:**
+Extract ErrorView into its own component file with sub-case routing by
+(`error.error`, `error.remaining`, `error.isLifetimeLimit`) triple.
+Four sub-cases:
+1. `queue_full` — unchanged (2 buttons).
+2. `rate_limit` cooldown (`remaining > 0`) — live MM:SS countdown +
+   retry button disabled until timer reaches 0.
+3. `rate_limit` anonymous-lifetime exhausted (`remaining === 0 &&
+   isLifetimeLimit === true`) — `TelegramAuthBlock` (unchanged UX).
+4. `rate_limit` authenticated-daily exhausted (`remaining === 0 &&
+   isLifetimeLimit === false`) — single "Написать менеджеру" CTA, no
+   retry (useless until next day).
+
+Plus the default branch (unchanged) for any other error code. Fix
+`handleAnalyze` 429 handler to gate `setIsLimitReached(true)` +
+`setUsedCount(3)` behind `if (body.isLifetimeLimit)` — cooldown and
+daily-exhausted no longer poison global state. CooldownTimer is an
+inner sub-component of ErrorView's file (not exported, implementation
+detail).
+
+**Alternatives considered:**
+- Keep error branch inline, just add sub-case conditionals: rejected —
+  the inline block is already ~40 lines and would grow to ~80 with the
+  new cases, pushing orchestrator further over the 200-line guideline
+  instead of toward it.
+- Split CooldownTimer into a separate file: rejected — it's a 20-line
+  implementation detail of ErrorView's cooldown case with no reuse
+  potential, and adds a new importable surface for no benefit.
+- Expose `setCooldownReady` through a callback instead of owning state
+  in ErrorView: rejected — the readiness state is purely local to
+  ErrorView's cooldown render, orchestrator doesn't care.
+- Put the `if (body.isLifetimeLimit)` gate inside ErrorView instead of
+  `handleAnalyze`: rejected — by the time ErrorView renders,
+  `isLimitReached` and `usedCount` are already poisoned in the
+  orchestrator. The fix has to happen at the source (the state setter).
+
+**Consequences:**
+- (+) Cooldown users see a concrete timer instead of confusing auth
+  prompt.
+- (+) Authenticated users with exhausted daily quota see the right CTA
+  (manager contact).
+- (+) Orchestrator state (`isLimitReached`, `usedCount`) no longer
+  desynchronises across sub-cases.
+- (+) Bug С-7 closed without ever opening a bugs.md entry (same
+  pattern as the input-reset fix in Prompt 03.5 ADR).
+- (−) ErrorView is ~180 lines. Under the 200 limit but close. If
+  another sub-case appears in the future, split before growing.
+
+**Files changed:**
+- `jck-auto/src/app/tools/auction-sheet/ErrorView.tsx` (new)
+- `jck-auto/src/app/tools/auction-sheet/AuctionSheetClient.tsx`
+  (import + 429 handler fix + inline block replacement)
+- `jck-auto/knowledge/tools.md`, `jck-auto/knowledge/INDEX.md`
