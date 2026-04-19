@@ -1,7 +1,7 @@
 /**
  * @file page.tsx
  * @description Страница калькулятора таможенных пошлин — SEO, FAQ, CTA
- * @lastModified 2026-04-02
+ * @lastModified 2026-04-19
  */
 
 import type { Metadata } from "next";
@@ -123,7 +123,7 @@ export default function CustomsPage() {
         </section>
       </div>
 
-      <CalculatorFAQ items={faqItems} />
+      <CalculatorFAQ items={faqItems} heading="Растаможка. Частые вопросы" />
       <CalculatorCTA />
     </>
   );
