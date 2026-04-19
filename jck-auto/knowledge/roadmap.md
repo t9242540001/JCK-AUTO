@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
-  @description: Done / In progress / Planned features — merged from all sources
-  @updated:     2026-04-18
-  @version:     1.5
-  @lines:       74
+  @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
+  @updated:     2026-04-19
+  @version:     1.6
+  @lines:       115
 -->
 
 # Roadmap
@@ -68,7 +68,46 @@
 
 - [ ] Set up monitoring/alerting for PM2 processes
 - [ ] Allion-specific auction sheet stabilization (see bugs.md С-5 — DeepSeek JSON parse fail diagnostics)
-- [ ] AuctionSheetClient cross-tab session leak fix (see bugs.md С-6) — two tabs on same origin share `localStorage['jckauto.auction_sheet.active_job']`, causing session hijacking. Variant B fix planned: tab-id ownership via sessionStorage + ownerTabId JSON. Deferred after prompt 07 (see bugs.md for full diagnosis + plan).
 - [ ] Middleware-manifest regression investigation — PM2 720+ restart loop (see bugs.md Б-7)
 - [ ] Capture-deploy-log workflow registration verification (see bugs.md Б-8)
 - [ ] OCR label-swap mitigation in auction-sheet Pass 1 — qwen-vl-ocr occasionally misassigns adjacent label/value pairs on auction sheets (example observed 2026-04-18: 最大積載量 label paired with 寒冷地仕様 value that belongs to a different field). Result: seats / bodyType / salesPoints often arrive empty on test sheets. Two candidate fixes: (a) post-process in Step 2 DeepSeek parser with reasoning prompt that catches mismatches, or (b) replace Pass 1 model with qwen3-vl-flash (already used in Pass 2 with good results). Requires diagnostic comparison before choosing.
+
+## Strategic initiatives
+
+> Larger-scope initiatives that wait for the current bug list to clear. Each entry is an idea that **requires deep research and design before implementation** — not a ready-to-prompt task. Numbered for reference only, not priority-ordered.
+
+### 1. Admin dashboard with analytics + mini CRM
+
+Comprehensive admin dashboard covering the site's observable state:
+- **Site traffic** — visitors, sessions, source breakdown (direct, search, social, referral, messenger).
+- **Conversion actions** — leads submitted via `/api/lead`, auction-sheet decodes completed, encar analyses, calculator usages, PDF downloads, catalog card views.
+- **Traffic sources** — UTM attribution, referrer breakdown, channel-level conversion funnel.
+- **Bot statistics** — existing `botStats.ts` surfaced in a UI (currently `/stats` command only).
+- **Service usage** — per-tool breakdown of `/tools/*` usage with rate-limiter state.
+- **Subscription data** — channels, messaging platforms, newsletters (once introduced).
+- **Mini CRM** — requests history, customer data, manager notes, pipeline state.
+
+**Status:** Idea. Requires a dedicated discovery phase before the first prompt — data model, auth model, privacy compliance (152-ФЗ), storage strategy (current file-based `storage/` vs database migration), UI surface (separate admin route vs feature-flagged sections).
+
+### 2. Page-by-page site audit
+
+Full-site audit, one page at a time, against these criteria:
+- **Mobile adaptation** — layout breakage, touch targets, readable font sizes.
+- **Usability** — navigation clarity, information scent, primary-action visibility.
+- **UI/content simplification** — remove overloaded sections, cut redundant copy, tighten visual hierarchy.
+- **SEO** — metadata uniqueness, canonical URLs, structured data, internal linking, image alts.
+- **Bugs** — visual regressions, broken interactions, console errors.
+- **Conversion uplift** — CTA placement, form friction, trust signals near conversion points.
+- **Company reputation** — testimonials, warranty claims, social proof consistency.
+
+**Status:** Idea. Requires a page inventory first (`src/app/**/page.tsx` + dynamic routes from catalog/news/blog/noscut), then a per-page audit checklist, then prioritisation by traffic × conversion-impact. Likely a multi-prompt series, one page per prompt.
+
+### 3. Growth analytics on services and sections
+
+Analytics research to identify **which services and sections can further increase traffic or conversion**. Examples of the kind of questions this should answer:
+- Which `/tools/*` page has the highest entry rate vs conversion rate — where is the funnel leaking?
+- Are there underused sections (noscut, news, blog) that deserve more navigation prominence?
+- Are there search intents that the site does not currently address but could (e.g., "растаможка BYD", "Hyundai из Кореи цена" — specific queries where a dedicated landing page would capture traffic)?
+- Where does the catalog lose users — listing vs detail vs lead form?
+
+**Status:** Idea. Requires (a) analytics integration first — the current site has no systematic analytics (Yandex.Metrika, GA, or equivalent). Depends on initiative #1 for data surface. Can also run partially on server-side access logs + bot stats.
