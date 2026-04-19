@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-19
-  @version:     1.10
-  @lines:       119
+  @version:     1.11
+  @lines:       120
 -->
 
 # Critical Rules
@@ -91,6 +91,7 @@
 | Any prompt modifying .ts/.tsx must include `npm run build` as acceptance criterion | Every prompt | Build errors (tsc/turbopack) are invisible until deploy → production crash |
 | Prompts removing wrapper blocks must explicitly verify BOTH the opening AND closing brace are deleted | Every prompt | Stray closing brace at module scope → Turbopack parse error → site down |
 | Git root (`app/`) ≠ project dir (`app/jck-auto/`) — legacy structure. Root `CLAUDE.md` redirects Claude Code to `cd jck-auto`. Until flattening is done, this redirect is the safeguard | `app/CLAUDE.md` + every prompt | Without root CLAUDE.md, Claude Code creates files in `app/` instead of `app/jck-auto/`. Flattening (moving jck-auto/ contents to git root) is the real fix — blocked by deploy.yml, cron, PM2, MCP, nginx path updates |
+| Claude Code MUST report out-of-scope bug findings during prompt execution, NOT silently extend the scope — even when the additional fix is technically correct. Report in the AC report as "Found related issue in <file>, NOT fixed in this prompt — suggest follow-up prompt". The human reviewer decides whether to approve the extension. | Every prompt execution | Silent scope extension erodes reviewer control over changes. Over time the reviewer loses the ability to catch unintended side effects, because "Claude Code fixed it right" becomes the implicit expectation. Precedent set 2026-04-19 (`b4dc01d`) — that commit was correct in content but wrong in process. |
 
 ## Prompt Series & Deploy Safety
 
