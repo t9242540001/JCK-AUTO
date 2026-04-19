@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.15
+  @version:     1.16
   @lines:       ~1270
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -32,8 +32,9 @@
 - Prompt 03 — extract `UploadZone` component. ✅ done (this commit)
 - Prompt 04 — extract `ProcessingViews` component. ✅ done (this commit)
 - Prompt 05 — extend 429 response body (`remaining`, `isLifetimeLimit`). Backend-only, prepares surface for Prompt 06 rate_limit sub-routing. ✅ done (this commit)
-- Prompt 06 — extract `ErrorView` component AND fix bug С-7 (rate_limit branch distinguishes cooldown / lifetime-exhausted / daily-exhausted sub-cases using the new 429 body fields).
-- Prompt 07 — extract `ResultView` component, add UI for 11 new fields from Prompt 01, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block, final cleanup of unused lucide-react imports (`Upload`, `X`, `Loader2`) in orchestrator.
+- Prompt 06 — extend `ApiError` type with `remaining` and `isLifetimeLimit` optional fields. Single file, preparation for Prompt 07. ✅ done (this commit)
+- Prompt 07 — extract `ErrorView` component AND fix bug С-7. Routes `rate_limit` into three sub-cases (cooldown / anon-lifetime / auth-daily) using the new 429 body fields. Also fixes `handleAnalyze` 429 branch to set `isLimitReached` / `usedCount` only on lifetime-exhausted, not cooldown or daily-exhausted.
+- Prompt 08 — extract `ResultView` component, add UI for 11 new fields from Prompt 01, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block, final cleanup of unused lucide-react imports (`Upload`, `X`, `Loader2`) in orchestrator.
 
 **Decision (expected at closure):** to be promoted to Accepted ADR after prompt 07 lands, documenting the final module boundaries.
 
@@ -1380,4 +1381,55 @@ the new fields.
 - `jck-auto/src/app/api/tools/auction-sheet/route.ts` (three added
   fields in one JSON body block)
 - `jck-auto/knowledge/tools.md` (endpoint bullet extended)
+- `jck-auto/knowledge/INDEX.md` (dates)
+
+## [2026-04-18] Extend ApiError client type with rate_limit sub-fields
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+The 429 response body was extended in Prompt 05 with `remaining: number`
+and `isLifetimeLimit: boolean`. The client type `ApiError` in
+`auctionSheetTypes.ts` has not yet caught up — `setError(body as ApiError)`
+silently accepts the extra runtime fields, but type-safe access to them
+in future components (Prompt 07 ErrorView) would require `as any` or
+local type widening. To avoid scattered type hacks we extend the shared
+client type once.
+
+**Decision:**
+Add two optional fields to `ApiError`: `remaining?: number` and
+`isLifetimeLimit?: boolean`. Group them with the existing
+`resetIn?: number` (all three are rate_limit-specific). Attach JSDoc
+that states the fields are meaningful only when `error === "rate_limit"`
+and spells out the three-case semantics (cooldown / anon-lifetime /
+auth-daily).
+
+**Alternatives considered:**
+- Introduce a discriminated subtype `RateLimitError extends ApiError`
+  with required fields: rejected — overengineering for two optional
+  fields; forces a new `ApiError | RateLimitError` union across
+  consumers with little safety gain.
+- Parse `message` at the client: rejected in Prompt 05 already (brittle,
+  locale-coupled).
+- Leave the type untouched and use `as any` in Prompt 07: rejected —
+  `as any` erodes type-safety project-wide, and we'd add this hack
+  every time a new consumer of the rate_limit sub-cases appears.
+
+**Consequences:**
+- (+) Prompt 07 ErrorView can read `error.remaining` and
+  `error.isLifetimeLimit` with full type-safety.
+- (+) Future consumers (e.g. an error-analytics hook, a bot-client
+  reader) inherit the structured type for free.
+- (+) Backward-compatible: fields are optional, existing error objects
+  (queue_full, network, submit_error, pipeline_failed, job_not_found)
+  remain valid without the new fields.
+- (−) Developers must remember the JSDoc constraint — the fields are
+  only defined for `error === "rate_limit"`. Mitigation: explicit JSDoc
+  on each field.
+
+**Files changed:**
+- `jck-auto/src/app/tools/auction-sheet/auctionSheetTypes.ts` (two
+  optional fields added with JSDoc)
 - `jck-auto/knowledge/INDEX.md` (dates)

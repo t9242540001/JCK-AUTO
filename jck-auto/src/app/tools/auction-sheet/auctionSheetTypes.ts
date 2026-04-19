@@ -84,7 +84,22 @@ export interface ApiResponse {
 export interface ApiError {
   error: string;
   message: string;
+  /** Seconds until the rate-limit window resets. Present when `error === "rate_limit"`. */
   resetIn?: number;
+  /**
+   * Remaining requests before the next cooldown or quota sweep.
+   * Present only when `error === "rate_limit"`. Semantics:
+   *   - `> 0` — the user hit a 2-minute cooldown; they still have quota left.
+   *   - `0` + `isLifetimeLimit === true` — anonymous user exhausted the 3-request lifetime quota.
+   *   - `0` + `isLifetimeLimit === false` — authenticated user exhausted the daily 10-request quota.
+   */
+  remaining?: number;
+  /**
+   * True when the anonymous 3-request lifetime quota is exhausted.
+   * Present only when `error === "rate_limit"`. For any other error code, undefined.
+   * When `remaining > 0` (cooldown case), this is explicitly `false`.
+   */
+  isLifetimeLimit?: boolean;
 }
 
 export interface AcceptedResponse {
