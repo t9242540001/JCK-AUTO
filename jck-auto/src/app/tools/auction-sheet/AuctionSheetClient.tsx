@@ -25,13 +25,29 @@ import type {
 // @rule Polling uses AbortController + setTimeout (NOT setInterval). Every
 //       unmount / state change / cleanup must abort pending fetch AND
 //       clear pending timeout — otherwise requests leak.
+// @rule localStorage[ACTIVE_JOB_STORAGE_KEY] value is JSON {jobId, ownerTabId},
+//       NOT a plain string. Ownership is checked on mount via sessionStorage[TAB_ID_STORAGE_KEY].
+//       Do not strip ownerTabId or revert to plain-string format.
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_CONSECUTIVE_POLL_FAILURES = 5;
 const ACTIVE_JOB_STORAGE_KEY = "jckauto.auction_sheet.active_job";
+const TAB_ID_STORAGE_KEY = "jckauto.auction_sheet.tab_id";
 const PROCESSING_STAGE_DURATIONS_MS = [5000, 15000, Infinity];
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────
+
+function generateTabId(): string {
+  // crypto.randomUUID requires secure context + modern browser
+  // (Chrome 92+, Firefox 95+, Safari 15.4+). Fallback covers older
+  // mobile Safari on outdated iOS versions to prevent runtime crash.
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────
 
@@ -149,13 +165,54 @@ export default function AuctionSheetClient() {
     };
   }, []);
 
-  // Session restore on mount — resume polling if jobId is in localStorage
+  // Session restore on mount — resume polling only if THIS tab owns the stored job.
+  // @rule localStorage is shared across all tabs of the same origin; sessionStorage
+  //       is per-tab. Ownership is established by matching localStorage.ownerTabId
+  //       against sessionStorage[TAB_ID_STORAGE_KEY]. Fixes bug C-6.
+  // @rule Orphan handling is silent cleanup, NOT a "resume?" banner. This is a
+  //       deliberate decision — see ADR [2026-04-19] Cross-tab session ownership
+  //       in auction-sheet client. Do not add a resume banner without revising
+  //       the ADR first.
   useEffect(() => {
-    const stored = localStorage.getItem(ACTIVE_JOB_STORAGE_KEY);
-    if (stored) {
-      setActiveJobId(stored);
-      void pollJob(stored, 0);
+    const raw = localStorage.getItem(ACTIVE_JOB_STORAGE_KEY);
+    if (!raw) return;
+
+    // Ensure this tab has an id (needed for both owner check AND future submits
+    // within this tab — a refreshed tab mid-polling keeps its id via sessionStorage).
+    let tabId = sessionStorage.getItem(TAB_ID_STORAGE_KEY);
+    if (!tabId) {
+      tabId = generateTabId();
+      sessionStorage.setItem(TAB_ID_STORAGE_KEY, tabId);
     }
+
+    let parsed: { jobId?: unknown; ownerTabId?: unknown } | null = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Legacy plain-string format OR malformed JSON — treat as orphan.
+      localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
+      return;
+    }
+
+    if (
+      !parsed ||
+      typeof parsed.jobId !== "string" ||
+      typeof parsed.ownerTabId !== "string"
+    ) {
+      localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
+      return;
+    }
+
+    if (parsed.ownerTabId !== tabId) {
+      // Another tab owns this job (or the owner tab was closed).
+      // Silent cleanup — the sibling tab renders a fresh upload screen.
+      // We do NOT remove the localStorage entry here, because the owning
+      // tab may still be active and polling. It will clean up on done/failed/reset.
+      return;
+    }
+
+    setActiveJobId(parsed.jobId);
+    void pollJob(parsed.jobId, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -256,7 +313,18 @@ export default function AuctionSheetClient() {
       // 202 Accepted — expect {jobId, statusUrl, position, etaSec}
       const accepted = (await res.json()) as AcceptedResponse;
 
-      localStorage.setItem(ACTIVE_JOB_STORAGE_KEY, accepted.jobId);
+      // Ensure this tab has an id, then write ownership record.
+      // @rule ALWAYS write both jobId and ownerTabId together — a record missing
+      //       ownerTabId is treated as orphan garbage on next mount.
+      let tabId = sessionStorage.getItem(TAB_ID_STORAGE_KEY);
+      if (!tabId) {
+        tabId = generateTabId();
+        sessionStorage.setItem(TAB_ID_STORAGE_KEY, tabId);
+      }
+      localStorage.setItem(
+        ACTIVE_JOB_STORAGE_KEY,
+        JSON.stringify({ jobId: accepted.jobId, ownerTabId: tabId }),
+      );
       setActiveJobId(accepted.jobId);
       setJobPosition(accepted.position);
       setJobEtaSec(accepted.etaSec);
