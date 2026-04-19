@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.14
+  @version:     1.15
   @lines:       ~1270
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -31,9 +31,9 @@
 - Prompt 02.5 (out-of-band) — track С-6 cross-tab session leak ✅ done (commit 5781c0d)
 - Prompt 03 — extract `UploadZone` component. ✅ done (this commit)
 - Prompt 04 — extract `ProcessingViews` component. ✅ done (this commit)
-- Prompt 05 — extract `ErrorView` component.
-- Prompt 06 — extract `ResultView` component, add UI for 11 new fields, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block.
-- Prompt 07 — final cleanup: switch AuctionSheetClient to imports, remove inline duplicates, re-verify under 200 lines.
+- Prompt 05 — extend 429 response body (`remaining`, `isLifetimeLimit`). Backend-only, prepares surface for Prompt 06 rate_limit sub-routing. ✅ done (this commit)
+- Prompt 06 — extract `ErrorView` component AND fix bug С-7 (rate_limit branch distinguishes cooldown / lifetime-exhausted / daily-exhausted sub-cases using the new 429 body fields).
+- Prompt 07 — extract `ResultView` component, add UI for 11 new fields from Prompt 01, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block, final cleanup of unused lucide-react imports (`Upload`, `X`, `Loader2`) in orchestrator.
 
 **Decision (expected at closure):** to be promoted to Accepted ADR after prompt 07 lands, documenting the final module boundaries.
 
@@ -1326,3 +1326,58 @@ passes from removing either one.
 **Files changed:**
 - `jck-auto/src/app/tools/auction-sheet/UploadZone.tsx` (three edits:
   `@rule` anchor + two value resets)
+
+## [2026-04-18] Expose `remaining` and `isLifetimeLimit` in 429 response body for auction-sheet
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+The 429 rate_limit body currently distinguishes three sub-cases (cooldown,
+anon-exhausted, auth-exhausted) only in the Russian-language `message`
+field. The client catch-all error branch for `rate_limit` renders
+`TelegramAuthBlock` in all three cases, causing bug С-7 where cooldown
+and authenticated-daily-exhausted users are incorrectly prompted to
+re-authenticate. `rateLimiter.ts` already exposes both `remaining` and
+`isLifetimeLimit` on `RateLimitResult` — we propagate them to HTTP.
+
+**Decision:**
+Add two fields to the 429 JSON body: `remaining: number` (copied from
+`limit.remaining`) and `isLifetimeLimit: boolean` (coerced from
+`limit.isLifetimeLimit ?? false` so the field is always a boolean, never
+undefined). `resetIn`, `message`, `alternatives`, `error` fields
+preserved unchanged. Additive non-breaking change — old clients ignore
+the new fields.
+
+**Alternatives considered:**
+- Parse `message` on the client to detect sub-case: rejected — brittle,
+  any Russian text tweak breaks the client.
+- Use separate error codes (`rate_limit_cooldown`, `rate_limit_lifetime`,
+  `rate_limit_daily`): rejected — more intrusive contract change, three
+  new error codes to document, harder to roll back.
+- Return the three distinct modes as an enum string field
+  (`mode: "cooldown" | "lifetime" | "daily"`): rejected — derivable from
+  the two boolean/number facts already exposed; adding a redundant enum
+  creates a second source of truth.
+
+**Scope:**
+- auction-sheet endpoint ONLY. `/api/tools/encar` uses the same rate
+  limiter but its error UX is not in scope for this series. Encar client
+  will continue using the catch-all path until a separate update
+  addresses it.
+
+**Consequences:**
+- (+) Client in Prompt 06 (ErrorView extract) can correctly route
+  cooldown vs exhaustion vs daily-exhausted without text parsing.
+- (+) Bug С-7 becomes fixable by the client without further API changes.
+- (+) Backward-compatible: old clients that don't reference the new
+  fields continue working unchanged.
+- (−) Slightly more verbose 429 body (two extra fields, negligible
+  payload impact).
+
+**Files changed:**
+- `jck-auto/src/app/api/tools/auction-sheet/route.ts` (three added
+  fields in one JSON body block)
+- `jck-auto/knowledge/tools.md` (endpoint bullet extended)
+- `jck-auto/knowledge/INDEX.md` (dates)

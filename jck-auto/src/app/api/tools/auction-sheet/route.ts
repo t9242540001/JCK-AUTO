@@ -515,6 +515,8 @@ export async function POST(request: Request) {
         : telegramId
           ? 'Дневной лимит запросов исчерпан (10 в день). Завтра лимит обновится.'
           : 'Лимит бесплатных расшифровок исчерпан. Войдите через Telegram для 10 запросов в день.',
+      remaining: limit.remaining,
+      isLifetimeLimit: limit.isLifetimeLimit ?? false,
       resetIn: limit.resetIn,
       alternatives: {
         telegram: 'https://t.me/jckauto_help_bot',

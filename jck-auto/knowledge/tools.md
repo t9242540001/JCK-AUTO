@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: API tools documentation — auction-sheet async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
   @updated:     2026-04-18
-  @version:     1.11
+  @version:     1.12
   @lines:       ~335
 -->
 
@@ -24,7 +24,12 @@
   `Location: /api/tools/auction-sheet/job/{jobId}`, `Cache-Control: no-store`.
   Does NOT block on the AI pipeline — clients MUST poll `statusUrl`. Error
   statuses returned synchronously by POST:
-  - `429` — per-user rate limit exhausted (`error: rate_limit`)
+  - `429` — per-user rate limit exhausted (`error: rate_limit`). Body also
+    includes `remaining: number` (requests left before cooldown/quota sweep)
+    and `isLifetimeLimit: boolean` (true when the anonymous 3-request
+    lifetime quota is exhausted, false otherwise). Clients use these to
+    distinguish cooldown from quota-exhausted cases without parsing message
+    text.
   - `400` — malformed upload (`no_file` / `file_too_large` / `invalid_type` /
     `invalid_request` / `invalid_image`)
   - `503` + `Retry-After: 300` — queue is full (`error: queue_full`)
