@@ -59,6 +59,10 @@ export default function UploadZone({
         dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
       }`}
     >
+      {/* @rule HTML file inputs do not fire `change` when the same filename is */}
+      {/*       re-picked. We reset value in BOTH places: after capture inside */}
+      {/*       onChange, and before onClear in the X-button handler. Removing */}
+      {/*       either reset breaks the pick → clear → pick-same-file flow. */}
       <input
         ref={inputRef}
         type="file"
@@ -67,6 +71,7 @@ export default function UploadZone({
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) onFileSelect(f);
+          e.target.value = "";
         }}
       />
 
@@ -93,6 +98,7 @@ export default function UploadZone({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (inputRef.current) inputRef.current.value = "";
                 onClear();
               }}
               className="mt-2 flex items-center gap-1 text-sm text-red-500 hover:text-red-700"
