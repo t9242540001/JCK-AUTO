@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-19
-  @version:     1.21
-  @lines:       ~1689
+  @version:     1.22
+  @lines:       ~1803
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -1687,3 +1687,117 @@ production on the unfixed pages.
 
 **Supersedes WIP:** "Per-tool FAQ heading (series 02–05)"
 (recorded 2026-04-19, now cut from `§ Active iterations`).
+
+## [2026-04-19] Prompt-series strategy under auto-merge + ignoreBuildErrors
+
+**Status:** Accepted
+
+**Confidence:** High — both underlying mechanisms directly observed
+in session 2026-04-19 (auto-merge behaviour confirmed by reading
+`.github/workflows/auto-merge.yml`; silent blank render confirmed
+by deployed pages `/tools/customs`, `/tools/encar`,
+`/tools/auction-sheet` showing `<h2></h2>` between Prompt 02 and
+Prompt 05 commits).
+
+**Context:**
+The project has two independent mechanisms that compose into a
+trap for multi-prompt series that change a shared component's API:
+
+1. `.github/workflows/auto-merge.yml` triggers on every push to
+   `claude/**` and immediately merges to main — no staging, no
+   label gate, no required PR. Every push is a deploy.
+2. `next.config.ts` sets `typescript: { ignoreBuildErrors: true }`,
+   so missing required props pass `npm run build` and render as
+   `undefined` at runtime (blank DOM for JSX expressions).
+
+Series 02–05 on 2026-04-19 made `CalculatorFAQ.heading` a required
+prop across 4 consumer pages. The plan was "single branch for the
+whole series, one merge at the end". That plan was defeated by
+mechanism #1: each prompt's push to `claude/faq-heading-per-tool`
+auto-merged to main independently. Between Prompt 02 (component
+change + 1 consumer fixed) and Prompt 05 (last consumer fixed),
+three pages rendered a blank `<h2>` in production for ~40 minutes.
+SEO damage was negligible (Google did not recrawl within that
+window), but the mechanism is real and the cost could have been
+much worse (e.g. a required auth prop, a required data-fetch prop).
+
+**Decision:**
+For any prompt series that changes a shared component's API or
+otherwise creates intermediate broken states, one of the following
+three strategies MUST be chosen BEFORE writing Prompt 02 of the
+series, documented in the series ADR or WIP entry, and enforced in
+every prompt's REGRESSION SHIELD block:
+
+- **Strategy A — Graceful contract evolution (default).** Design
+  the intermediate states to be behaviourally equivalent to the
+  current production behaviour. For required-prop changes: make
+  the prop optional first with a default that matches today's
+  behaviour, update all consumers to pass explicit values, THEN
+  tighten to required in the final prompt. Each intermediate
+  push auto-merges safely because nothing is actually broken.
+  This is the preferred default when the contract change is
+  self-contained.
+
+- **Strategy B — Non-`claude/**` branch prefix.** Use a branch
+  prefix that `auto-merge.yml` does not match (e.g. `feature/**`,
+  `series/**`). Merge to main manually after the full series
+  lands. This requires explicit instruction to Claude Code in
+  every prompt of the series to use the non-default prefix.
+  Requires no code change today (auto-merge.yml already filters
+  by `claude/**` only).
+
+- **Strategy C — Hold locally until final prompt.** All prompts
+  in the series commit locally but DO NOT push. Only the final
+  prompt pushes all commits at once. Requires Vasily to manage
+  his local state carefully and defeats the normal push-per-
+  prompt workflow. Use only when Strategies A and B are
+  infeasible.
+
+The DEFAULT choice is Strategy A. Strategies B and C require an
+explicit justification in the series ADR. Strategy B is
+operationally cheapest if A is infeasible.
+
+**Why not fix the root cause now:**
+Changing `auto-merge.yml` to gate on labels or PR-ready state
+would break the normal single-prompt workflow (the vast majority
+of Claude Code work) and require Vasily to add PR ceremony to
+every prompt. Changing `next.config.ts` to
+`ignoreBuildErrors: false` would expose 6 pre-existing bot
+baseline TypeScript errors and break deploy until those are
+fixed — a separate prompt series. Both fixes are on the backlog
+but neither is blocking; the strategy-based mitigation is
+sufficient for foreseeable series.
+
+**Alternatives considered:**
+- Add a CI check that runs `npx tsc --noEmit` and fails the deploy
+  on errors — rejected for now, because the 6 baseline bot errors
+  would require a prerequisite cleanup series before this check
+  could be enabled. Logged as roadmap item.
+- Require every shared-component API change to go through a
+  codemod that updates all consumers in one atomic commit —
+  rejected as premature optimisation; Strategy A covers this
+  case with less ceremony.
+
+**Consequences:**
+- (+) Future prompt-series are planned for auto-merge
+  compatibility from the start — no repeat of the blank-h2
+  window.
+- (+) Strategy A is genuinely the right default — it produces
+  cleaner git history (each commit is deployable) and better
+  code reviewability.
+- (−) Slightly more planning overhead before the series starts
+  (choose Strategy A/B/C, document it). Justified by the cost
+  of the observed failure.
+- (−) Strategy B and C require discipline about branch names /
+  local state that is new to the workflow.
+
+**Files:**
+- No code files changed — this is a methodology record.
+- `knowledge/rules.md` gained two atomic rules
+  (auto-merge behaviour + `ignoreBuildErrors` trap) pointing to
+  this ADR for the strategy context.
+
+**Discovered via:**
+Series 02–05 on 2026-04-19 (CalculatorFAQ per-tool heading),
+branch `claude/faq-heading-per-tool`, commits 9433c90, 49e7566,
+09cbbd0, 64e4c54.

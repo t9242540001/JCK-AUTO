@@ -2,9 +2,9 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-10
-  @version:     1.8
-  @lines:       90
+  @updated:     2026-04-19
+  @version:     1.9
+  @lines:       111
 -->
 
 # Critical Rules
@@ -91,6 +91,13 @@
 | Any prompt modifying .ts/.tsx must include `npm run build` as acceptance criterion | Every prompt | Build errors (tsc/turbopack) are invisible until deploy → production crash |
 | Prompts removing wrapper blocks must explicitly verify BOTH the opening AND closing brace are deleted | Every prompt | Stray closing brace at module scope → Turbopack parse error → site down |
 | Git root (`app/`) ≠ project dir (`app/jck-auto/`) — legacy structure. Root `CLAUDE.md` redirects Claude Code to `cd jck-auto`. Until flattening is done, this redirect is the safeguard | `app/CLAUDE.md` + every prompt | Without root CLAUDE.md, Claude Code creates files in `app/` instead of `app/jck-auto/`. Flattening (moving jck-auto/ contents to git root) is the real fix — blocked by deploy.yml, cron, PM2, MCP, nginx path updates |
+
+## Prompt Series & Deploy Safety
+
+| Rule | Location | Consequence |
+|------|----------|-------------|
+| Auto-merge triggers on every push to `claude/**` — there is no batching, no staging, no label filter | `.github/workflows/auto-merge.yml` | Strategies like "single branch for a multi-prompt series with intermediate broken state" do NOT protect production. Each prompt's push lands in main immediately. On 2026-04-19, series 02–05 shipped blank h2 headings to production on 3 pages for ~40 minutes between Prompt 02 and Prompt 05. Plan prompt series with this in mind — see decisions.md `[2026-04-19] Prompt-series strategy under auto-merge + ignoreBuildErrors` |
+| `typescript: { ignoreBuildErrors: true }` + required prop + missing consumer = silent blank render at runtime | `next.config.ts` | TypeScript errors do NOT block `npm run build`, so a missing required prop at a consumer call site passes CI but causes the component to receive `undefined` at runtime, rendering JSX expressions as empty strings / blank DOM nodes. Standard build-green check does not catch this regression class. Mitigation options are documented in decisions.md (same ADR as above) |
 
 ## Noscut Business Rules
 
