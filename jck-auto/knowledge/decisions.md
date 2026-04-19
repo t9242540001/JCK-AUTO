@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.13
+  @version:     1.14
   @lines:       ~1270
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -30,7 +30,7 @@
 - Prompt 02 — extract types to `auctionSheetTypes.ts`, pure helpers to `auctionSheetHelpers.ts`. No imports yet. ✅ done (commit 13e2be8)
 - Prompt 02.5 (out-of-band) — track С-6 cross-tab session leak ✅ done (commit 5781c0d)
 - Prompt 03 — extract `UploadZone` component. ✅ done (this commit)
-- Prompt 04 — extract `ProcessingViews` component.
+- Prompt 04 — extract `ProcessingViews` component. ✅ done (this commit)
 - Prompt 05 — extract `ErrorView` component.
 - Prompt 06 — extract `ResultView` component, add UI for 11 new fields, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block.
 - Prompt 07 — final cleanup: switch AuctionSheetClient to imports, remove inline duplicates, re-verify under 200 lines.

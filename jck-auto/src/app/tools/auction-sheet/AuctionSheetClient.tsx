@@ -6,6 +6,7 @@ import { Upload, Loader2, X, Download, RefreshCw, Send, AlertTriangle } from "lu
 import { CONTACTS } from "@/lib/constants";
 import TelegramAuthBlock from "@/components/TelegramAuthBlock";
 import UploadZone from "./UploadZone";
+import ProcessingViews from "./ProcessingViews";
 
 // @rule This component is async-first. POST /api/tools/auction-sheet returns
 //       202 Accepted with jobId; the client polls GET /job/[jobId] every 2s.
@@ -111,11 +112,6 @@ const POLL_INTERVAL_MS = 2000;
 const MAX_CONSECUTIVE_POLL_FAILURES = 5;
 const ACTIVE_JOB_STORAGE_KEY = "jckauto.auction_sheet.active_job";
 const PROCESSING_STAGE_DURATIONS_MS = [5000, 15000, Infinity];
-const PROCESSING_STAGE_LABELS = [
-  "Распознаём лист…",
-  "Распознаём текст…",
-  "Расшифровываем данные…",
-];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
@@ -420,40 +416,25 @@ export default function AuctionSheetClient() {
         </>
       )}
 
-      {/* Submitting — POST in flight */}
       {state === "submitting" && (
-        <div className="rounded-2xl border border-border bg-surface p-8 text-center">
-          {preview && <img src={preview} alt="Анализируемый лист" className="mx-auto mb-6 h-24 rounded-xl object-contain opacity-60" />}
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 font-medium text-text">Отправляем файл на сервер…</p>
-        </div>
+        <ProcessingViews state="submitting" preview={preview} />
       )}
 
-      {/* Queued */}
       {state === "queued" && (
-        <div className="rounded-2xl border border-border bg-surface p-8 text-center">
-          {preview && <img src={preview} alt="В очереди" className="mx-auto mb-6 h-24 rounded-xl object-contain opacity-60" />}
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 font-medium text-text">В очереди на обработку</p>
-          <p className="mt-1 text-sm text-text-muted">
-            Позиция в очереди: {jobPosition}. Ожидание около {Math.ceil(jobEtaSec)} сек.
-          </p>
-          <p className="mt-2 text-xs text-text-muted">
-            Не закрывайте страницу. Мы продолжим обработку, даже если вы свернёте браузер.
-          </p>
-        </div>
+        <ProcessingViews
+          state="queued"
+          preview={preview}
+          jobPosition={jobPosition}
+          jobEtaSec={jobEtaSec}
+        />
       )}
 
-      {/* Processing */}
       {state === "processing" && (
-        <div className="rounded-2xl border border-border bg-surface p-8 text-center">
-          {preview && <img src={preview} alt="Обработка" className="mx-auto mb-6 h-24 rounded-xl object-contain opacity-60" />}
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 font-medium text-text">{PROCESSING_STAGE_LABELS[processingStage]}</p>
-          <p className="mt-1 text-sm text-text-muted">
-            Обычно занимает 20–60 секунд. Рукописные листы — до 2 минут.
-          </p>
-        </div>
+        <ProcessingViews
+          state="processing"
+          preview={preview}
+          processingStage={processingStage}
+        />
       )}
 
       {/* Result */}

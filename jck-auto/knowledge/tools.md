@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: API tools documentation — auction-sheet async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
   @updated:     2026-04-18
-  @version:     1.10
+  @version:     1.11
   @lines:       ~335
 -->
 
@@ -293,6 +293,10 @@ recycleFee, seats, colorCode, dimensions, salesPoints, bodyType). Полный
 extracted 2026-04-18 (prompt 03) — drag & drop region, file input, and
 preview are now isolated from the orchestrator. Upload-zone behaviour is
 fully controlled: parent owns file/preview/dragOver state.
+`ProcessingViews.tsx` extracted 2026-04-18 (prompt 04) — three
+transitional states (submitting / queued / processing) unified into one
+discriminated-union component sharing container + preview + loader
+structure.
 
 **Логика переключения в `analyzeImageWithFallback` (vision):**
 - 4xx (кроме 429) — фатальные, fallback не запускается
