@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-19
-  @version:     1.5
-  @lines:       ~174
+  @version:     1.6
+  @lines:       ~167
 -->
 
 # Bugs — open issues tracker
@@ -52,13 +52,6 @@
 - **Cause:** clickable elements rendered as <div> or <a> without href, missing cursor: pointer
 - **Action:** audit site-wide, ensure either <button> or Tailwind `cursor-pointer` class.
   Add to shared-mechanics.md design system: every clickable element must show pointer cursor.
-
-### С-4 — site applications via /api/lead bypass Cloudflare Worker
-- **File:** src/app/api/lead/route.ts
-- **Symptom:** requests go directly to api.telegram.org, blocked by VDS provider —
-  applications may not reach managers' group
-- **Fix:** replace hardcoded https://api.telegram.org with process.env.TELEGRAM_API_BASE_URL
-- **Reference:** telegram-bot.md → "Исходящий трафик"
 
 ### Б-2 — auction sheet handler in bot does not respond on photo
 - **File:** src/bot/handlers/* (see tg-integration-plan.md Step 7)
