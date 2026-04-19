@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources
   @updated:     2026-04-18
-  @version:     1.4
-  @lines:       69
+  @version:     1.5
+  @lines:       74
 -->
 
 # Roadmap
@@ -40,6 +40,7 @@
 - [x] Auction-sheet multi-pass OCR architecture (three parallel passes + DeepSeek Step 2)
 - [x] Deploy pipeline stabilization (PAT_AUTO_MERGE, push-trigger-only, two-slot atomic build, article cron decoupled)
 - [x] Async queue for auction-sheet — server-side in-memory queue (concurrency=1, max 10, TTL 15min), POST /api/tools/auction-sheet returns 202 + jobId, client polls GET /api/tools/auction-sheet/job/[jobId] every 2s с localStorage session restore. См. ADR [2026-04-18] "Async-only contract..." и [2026-04-18] "Introduce server-side in-memory queue...".
+- [x] Auction-sheet client modularization (series 02–08, 2026-04-18) — AuctionSheetClient.tsx split into 6 modules: auctionSheetTypes.ts (shared types), auctionSheetHelpers.ts (pure formatters), UploadZone.tsx (drag/drop + preview), ProcessingViews.tsx (submitting/queued/processing states), ErrorView.tsx (4 error sub-cases + CooldownTimer, closes bug С-7), ResultView.tsx (9 sections incl. new "Идентификация" + "Плюсы по заметкам аукциона" + collapsible "Дополнительный текст с листа"). 11 new parse-schema fields from Prompt 01 (VIN, modelCode, registrationNumber, inspectionValidUntil, recycleFee, seats, colorCode, dimensions, salesPoints, bodyType) now surface in the UI. Orchestrator 655 → 368 lines. See decisions.md ADR [2026-04-18] "AuctionSheetClient split complete".
 
 ## In Progress
 
@@ -55,7 +56,8 @@
 - [ ] Add images to first 12 blog articles
 - [ ] Register in Yandex.Webmaster and Google Search Console
 - [ ] "Leave request" button on car detail page → /api/lead → managers group
-- [ ] Refactor `src/app/tools/auction-sheet/AuctionSheetClient.tsx` — после P-0.2e файл ~655 строк, много локальной логики (polling state machine, session restore, 3-stage UI). Разбить на хуки (`useAuctionSheetJob`, `useProcessingStage`) и подкомпоненты (SubmittingView / QueuedView / ProcessingView / ResultView / ErrorView) для удобства тестирования.
+- [ ] `/tools/auction-sheet` page texts honesty fix — hero subtitle, metadata.description, openGraph.description, webAppJsonLd.description all promise "15 seconds" but the real pipeline takes 20–60 seconds (up to 2 minutes for handwritten sheets). FAQ item #3 says "3 расшифровки в день бесплатно" — incorrect, the anonymous limit is 3 LIFETIME requests (verified in rateLimiter.ts @rule ANONYMOUS); authenticated users get 10/day. FAQ item #5 references the old "Не распознано" block, renamed to "Дополнительный текст с листа" in prompt 08. Single-file fix on src/app/tools/auction-sheet/page.tsx.
+- [ ] AuctionSheetClient polling hook extraction — orchestrator is 368 lines post-series, target <200 lines requires extracting pollJob + session restore useEffect into a custom hook (useAuctionSheetJob). Deferred — accepted as out-of-scope in ADR [2026-04-18] "AuctionSheetClient split complete".
 
 ## Planned — Bot
 
@@ -66,6 +68,7 @@
 
 - [ ] Set up monitoring/alerting for PM2 processes
 - [ ] Allion-specific auction sheet stabilization (see bugs.md С-5 — DeepSeek JSON parse fail diagnostics)
-- [ ] AuctionSheetClient frontend resilience for 502 responses (see bugs.md С-6)
+- [ ] AuctionSheetClient cross-tab session leak fix (see bugs.md С-6) — two tabs on same origin share `localStorage['jckauto.auction_sheet.active_job']`, causing session hijacking. Variant B fix planned: tab-id ownership via sessionStorage + ownerTabId JSON. Deferred after prompt 07 (see bugs.md for full diagnosis + plan).
 - [ ] Middleware-manifest regression investigation — PM2 720+ restart loop (see bugs.md Б-7)
 - [ ] Capture-deploy-log workflow registration verification (see bugs.md Б-8)
+- [ ] OCR label-swap mitigation in auction-sheet Pass 1 — qwen-vl-ocr occasionally misassigns adjacent label/value pairs on auction sheets (example observed 2026-04-18: 最大積載量 label paired with 寒冷地仕様 value that belongs to a different field). Result: seats / bodyType / salesPoints often arrive empty on test sheets. Two candidate fixes: (a) post-process in Step 2 DeepSeek parser with reasoning prompt that catches mismatches, or (b) replace Pass 1 model with qwen3-vl-flash (already used in Pass 2 with good results). Requires diagnostic comparison before choosing.
