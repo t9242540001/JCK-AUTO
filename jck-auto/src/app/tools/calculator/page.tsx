@@ -137,7 +137,7 @@ export default async function CalculatorPage() {
         </section>
       )}
 
-      <CalculatorFAQ items={faqItems} />
+      <CalculatorFAQ items={faqItems} heading="Расчёт. Частые вопросы" />
       <CalculatorCTA />
       <SocialSubscribe contacts={CONTACTS} />
     </>
