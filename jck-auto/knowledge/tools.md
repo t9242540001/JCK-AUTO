@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: API tools documentation — auction-sheet async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
   @updated:     2026-04-18
-  @version:     1.13
-  @lines:       ~335
+  @version:     1.14
+  @lines:       ~340
 -->
 
 # Tools API — /tools/*
@@ -309,7 +309,13 @@ fully controlled: parent owns file/preview/dragOver state.
 `ProcessingViews.tsx` extracted 2026-04-18 (prompt 04) — three
 transitional states (submitting / queued / processing) unified into one
 discriminated-union component sharing container + preview + loader
-structure.
+structure. `ErrorView.tsx` extracted 2026-04-18 (prompt 07) — four
+error sub-cases with live cooldown timer (bug С-7 fix). `ResultView.tsx`
+extracted 2026-04-18 (prompt 08) — nine sections including new
+"Идентификация" (VIN/model code/plate/inspection) and "Плюсы по
+заметкам аукциона" (salesPoints); "Не распознано" block replaced by
+collapsible "Дополнительный текст с листа". Refactor series 02–08
+complete; see ADR `[2026-04-18] AuctionSheetClient split complete`.
 
 **Логика переключения в `analyzeImageWithFallback` (vision):**
 - 4xx (кроме 429) — фатальные, fallback не запускается

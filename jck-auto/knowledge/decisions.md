@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-18
-  @version:     1.17
-  @lines:       ~1270
+  @version:     1.18
+  @lines:       ~1320
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -20,23 +20,7 @@
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
 
-### [WIP 2026-04-18] Split AuctionSheetClient into types + helpers + view modules
-
-**Status:** WIP (in progress, prompts 02–07)
-
-**Context:** AuctionSheetClient.tsx is 655 lines and owns: inline types, inline helpers, upload zone, processing views, error view, result view, orchestrator. The universal file-size guideline is 200 lines. Splitting in one prompt would touch 7+ files and violate the one-file-per-prompt rule.
-
-**Plan:**
-- Prompt 02 — extract types to `auctionSheetTypes.ts`, pure helpers to `auctionSheetHelpers.ts`. No imports yet. ✅ done (commit 13e2be8)
-- Prompt 02.5 (out-of-band) — track С-6 cross-tab session leak ✅ done (commit 5781c0d)
-- Prompt 03 — extract `UploadZone` component. ✅ done (this commit)
-- Prompt 04 — extract `ProcessingViews` component. ✅ done (this commit)
-- Prompt 05 — extend 429 response body (`remaining`, `isLifetimeLimit`). Backend-only, prepares surface for Prompt 06 rate_limit sub-routing. ✅ done (this commit)
-- Prompt 06 — extend `ApiError` type with `remaining` and `isLifetimeLimit` optional fields. Single file, preparation for Prompt 07. ✅ done (this commit)
-- Prompt 07 — extract `ErrorView` component AND fix bug С-7. Routes `rate_limit` into three sub-cases (cooldown / anon-lifetime / auth-daily) using the new 429 body fields. Also fixes `handleAnalyze` 429 branch to set `isLimitReached` / `usedCount` only on lifetime-exhausted, not cooldown or daily-exhausted. ✅ done (this commit)
-- Prompt 08 — extract `ResultView` component, add UI for 11 new fields from Prompt 01, replace "Не распознано" with a collapsible "Дополнительный текст с листа" block, final cleanup of unused lucide-react imports (`Upload`, `X`, `Loader2`) in orchestrator.
-
-**Decision (expected at closure):** to be promoted to Accepted ADR after prompt 07 lands, documenting the final module boundaries.
+_No active iterations. This section stays for future multi-prompt work._
 
 ## [2026-04-18] Async-only contract for POST /api/tools/auction-sheet (jobId + polling)
 
@@ -1505,3 +1489,70 @@ detail).
 - `jck-auto/src/app/tools/auction-sheet/AuctionSheetClient.tsx`
   (import + 429 handler fix + inline block replacement)
 - `jck-auto/knowledge/tools.md`, `jck-auto/knowledge/INDEX.md`
+
+## [2026-04-18] AuctionSheetClient split complete — modular view components
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Prompt 02 began splitting the 655-line `AuctionSheetClient.tsx` into
+modular components. Through prompts 02–08 (+ interleaved bug fixes
+02.5, 03.5 and API changes 05, 06), the orchestrator has been reduced
+and its inline types/helpers migrated to shared modules. This ADR
+closes the series, promoting the WIP entry to Accepted.
+
+**Decision:**
+Final module boundaries:
+- `auctionSheetTypes.ts` — all TypeScript types (`AuctionResult`,
+  `ApiError`, `JobStatusResponse`, etc.) and helper types
+  (`VinConfidence`, `CarDimensions`, `FormattedVin`).
+- `auctionSheetHelpers.ts` — pure formatting functions (`formatSize`,
+  `gradeColor`, `severityColor`, `confidenceBadge`, `formatVin`,
+  `formatDimensions`, `formatRecycleFee`).
+- `UploadZone.tsx` — drag/drop + file input + preview.
+- `ProcessingViews.tsx` — three transitional states
+  (submitting/queued/processing) with stage rotation.
+- `ErrorView.tsx` — error rendering with four sub-cases (queue_full,
+  rate_limit cooldown/lifetime/daily, default) including live cooldown
+  timer.
+- `ResultView.tsx` — nine sections of decoded auction sheet data
+  including Identification and Sales Points. Contains an inner
+  `ResultFooter` sub-component (not exported) to keep the main render
+  tree readable.
+- `AuctionSheetClient.tsx` — orchestrator with state, handlers,
+  effects, polling lifecycle, and a thin render tree delegating to view
+  modules.
+
+**Observed outcomes:**
+- Line counts: orchestrator 591 → 368 (target <300 for this series was
+  not reached; the remaining volume is the polling machine +
+  handleAnalyze + handleDownloadPdf + three `useEffect`s, which cannot
+  be compressed without a polling custom hook — deferred). Each view
+  module stays under the 200-line guideline except `ResultView.tsx`,
+  which at ~268 lines hosts 9 visual sections + inner `ResultFooter`
+  split per the prompt's fallback clause.
+- Bug С-7 (rate_limit UX desync) fully closed in Prompt 07.
+- 11 new API fields (VIN, model code, registration plate, inspection
+  date, recycle fee, seats, color code, dimensions, sales points, body
+  type) from Prompt 01 schema extension now surface in the UI via
+  Prompt 08.
+- "Не распознано" replaced by collapsible "Дополнительный текст с
+  листа" — cleaner default view with scope transparency via counter.
+
+**Deferred:**
+- С-6 cross-tab session leak (tracked in `bugs.md`, awaits dedicated
+  fix prompt).
+- Polling custom hook (would trim orchestrator toward <200 lines but
+  adds abstraction not justified by current needs).
+- Bot handler migration to shared pipeline (tracked in `bugs.md` as
+  Б-2/Б-3).
+
+**Files changed (this commit):**
+- `jck-auto/src/app/tools/auction-sheet/ResultView.tsx` (new)
+- `jck-auto/src/app/tools/auction-sheet/AuctionSheetClient.tsx`
+  (massive cleanup: inline types → import, inline helpers removed,
+  unused imports removed, inline result JSX replaced with `<ResultView>`)
+- `jck-auto/knowledge/tools.md`, `jck-auto/knowledge/INDEX.md`,
+  `jck-auto/knowledge/decisions.md`
