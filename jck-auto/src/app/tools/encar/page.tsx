@@ -1,7 +1,7 @@
 /**
  * @file page.tsx
  * @description Страница анализатора Encar — SEO, FAQ, CTA
- * @lastModified 2026-04-03
+ * @lastModified 2026-04-19
  */
 
 import type { Metadata } from "next";
@@ -124,7 +124,7 @@ export default function EncarPage() {
         </section>
       </div>
 
-      <CalculatorFAQ items={faqItems} />
+      <CalculatorFAQ items={faqItems} heading="Encar. Частые вопросы" />
       <CalculatorCTA />
     </>
   );
