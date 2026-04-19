@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-18
-  @version:     1.18
-  @lines:       ~1320
+  @updated:     2026-04-19
+  @version:     1.19
+  @lines:       ~1360
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -1556,3 +1556,68 @@ Final module boundaries:
   unused imports removed, inline result JSX replaced with `<ResultView>`)
 - `jck-auto/knowledge/tools.md`, `jck-auto/knowledge/INDEX.md`,
   `jck-auto/knowledge/decisions.md`
+
+## [2026-04-19] Sync /tools/auction-sheet UI texts with real system behaviour
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+The `/tools/auction-sheet` landing page carried three kinds of user-facing
+copy that contradicted the actual system behaviour:
+1. Four places (`metadata.description`, `openGraph.description`,
+   `webAppJsonLd.description`, hero subtitle) promised "за 15 секунд".
+   The real pipeline (Pass 0 classifier + 3 parallel OCR passes +
+   DeepSeek Step 2 parse) takes 20–60 seconds on printed sheets and
+   up to ~120 seconds on handwritten ones. Users interpreting "15s"
+   as a real SLA perceived the tool as broken while waiting.
+2. FAQ item #3 said "3 расшифровки в день бесплатно". The rate
+   limiter (`src/lib/rateLimiter.ts`, `MAX_ANONYMOUS_REQUESTS = 3`,
+   `ipMap` never cleared) applies a **lifetime** quota for
+   anonymous users — the 3-request limit never resets. Authenticated
+   users (via `@jckauto_help_bot` Telegram Login) receive 10/day with
+   a 2-minute cooldown between requests.
+3. FAQ item #5 referenced a "Не распознано" block. Prompt 08 of the
+   AuctionSheetClient refactor series renamed that block to the
+   collapsible "Дополнительный текст с листа" (native
+   `<details>/<summary>` in `ResultView.tsx`).
+
+Knowledge base (`knowledge/tools.md` Rate Limiting section) was
+already correct; only the user-facing page copy was stale.
+
+**Decision:**
+Synchronize all three classes of copy with the source of truth in
+code:
+- Hero/metadata/JSON-LD descriptions now say "обычно за 20–60 секунд"
+  instead of "за 15 секунд".
+- FAQ item #3 now explicitly states the two-mode rate limit: 3
+  lifetime for anonymous users, 10/day + 2-minute cooldown for
+  Telegram-authenticated users.
+- FAQ item #5 now references the current "Дополнительный текст с
+  листа" collapsible block name.
+- File header `@lastModified` bumped to 2026-04-19.
+- `metadata.description` kept under the 155-character SEO truncation
+  threshold (new length: 143 chars).
+
+**Alternatives considered:**
+- Add a "typical latency" field to the JSON-LD and compute the hero
+  subtitle from it: rejected — one-shot static page, abstraction not
+  justified.
+- Leave FAQ #3 alone and add a footnote: rejected — the text is
+  factually wrong, not just incomplete; a footnote would not remove
+  the misleading primary claim.
+
+**Consequences:**
+- (+) User-facing timing expectations align with actual pipeline
+  behaviour; fewer "stuck" perceptions during the 20–60s wait.
+- (+) Anonymous users no longer read "3 в день" and expect a fresh
+  quota tomorrow — the lifetime semantics are stated up-front.
+- (+) FAQ no longer references a UI element that doesn't exist.
+- (−) None — pure text update, no runtime behaviour change.
+
+**Files changed (this commit):**
+- `jck-auto/src/app/tools/auction-sheet/page.tsx` (6 text edits + 1
+  header date bump)
+- `jck-auto/knowledge/decisions.md` (this ADR + header bump)
+- `jck-auto/knowledge/INDEX.md` (dates)
