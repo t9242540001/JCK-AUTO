@@ -146,7 +146,7 @@ export default function AuctionSheetPage() {
         </section>
       </div>
 
-      <CalculatorFAQ items={faqItems} />
+      <CalculatorFAQ items={faqItems} heading="Аукционные листы. Частые вопросы" />
       <CalculatorCTA />
     </>
   );
