@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-19
-  @version:     1.9
-  @lines:       111
+  @version:     1.10
+  @lines:       119
 -->
 
 # Critical Rules
@@ -98,6 +98,12 @@
 |------|----------|-------------|
 | Auto-merge triggers on every push to `claude/**` — there is no batching, no staging, no label filter | `.github/workflows/auto-merge.yml` | Strategies like "single branch for a multi-prompt series with intermediate broken state" do NOT protect production. Each prompt's push lands in main immediately. On 2026-04-19, series 02–05 shipped blank h2 headings to production on 3 pages for ~40 minutes between Prompt 02 and Prompt 05. Plan prompt series with this in mind — see decisions.md `[2026-04-19] Prompt-series strategy under auto-merge + ignoreBuildErrors` |
 | `typescript: { ignoreBuildErrors: true }` + required prop + missing consumer = silent blank render at runtime | `next.config.ts` | TypeScript errors do NOT block `npm run build`, so a missing required prop at a consumer call site passes CI but causes the component to receive `undefined` at runtime, rendering JSX expressions as empty strings / blank DOM nodes. Standard build-green check does not catch this regression class. Mitigation options are documented in decisions.md (same ADR as above) |
+
+## UI Component Rules
+
+| Rule | Location | Consequence |
+|------|----------|-------------|
+| `<LeadFormTrigger triggerVariant>` MUST match the surrounding background: `"primary"` or `"outline"` on light/neutral bg; `"on-primary"` (white fill + primary text) on `bg-primary` (or any coloured) section. Never use `"outline"` on `bg-primary` — text-primary on bg-primary is invisible. When adding a new variant, extend the `switch` in `LeadFormTrigger.tsx` AND the `triggerVariant` union type; the `_exhaustive: never` check will break the build if a case is missed | `src/components/LeadFormTrigger.tsx`, all consumers in `/tools/*`, `/catalog/*`, `/news/*` | Invisible CTA button — users see only the secondary "Позвонить" link, lead flow collapses silently. C-3 shipped in production for weeks before being noticed |
 
 ## Noscut Business Rules
 

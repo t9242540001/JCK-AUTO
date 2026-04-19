@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-19
-  @version:     1.24
-  @lines:       ~2008
+  @version:     1.25
+  @lines:       ~2105
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -2006,3 +2006,122 @@ is consistency, not escalation.
 **Discovered via:** Bug C-4 triage on 2026-04-19 — inspection of code
 showed the bug was already fixed, but logs/UX still had room to
 harden. Closed as cleanup-plus-hardening.
+
+## [2026-04-19] Add on-primary CTA variant to LeadFormTrigger + fix hierarchy on /tools/* pages
+
+**Context:**
+Bug C-3 was filed as "wrong CTA on all services pages — «Позвонить»
+button instead of standard `<LeadFormTrigger>`, not centered, action
+unclear". Triage on 2026-04-19 showed the actual shape of the bug is
+different: both CTAs (the lead form trigger AND the phone link) are
+present and correctly centered. The regression is visual/hierarchy:
+
+`<LeadFormTrigger triggerVariant="outline">` renders
+`border-primary text-primary` on a transparent background. The
+consumer component `CalculatorCTA` (and `tools/page.tsx` CTA card)
+wraps it in a `<section className="bg-primary ...">` / `<div class="bg-primary ...">`
+block. Result: primary-coloured button text on a primary-coloured
+background ⇒ the form trigger is visually invisible. Users only
+see the secondary `<a href="tel:">Позвонить</a>` link (white text
+on primary bg, readable), so they perceive "Позвонить" as the
+single CTA — matching the original bug report — even though the
+lead form trigger is technically rendered.
+
+Affected pages (4): `/tools/calculator`, `/tools/customs`,
+`/tools/encar`, `/tools/auction-sheet` — each imports
+`CalculatorCTA` from `src/app/tools/calculator/CalculatorCTA.tsx`
+(despite the file path, this component is shared across all four
+/tools/* pages — the name is a historical accident). Plus the
+`/tools` index page which has its own inline copy of the same
+anti-pattern.
+
+**Root cause:**
+`LeadFormTrigger` only shipped two variants — `"primary"` (fill)
+and `"outline"` (border on transparent). Neither works on a
+coloured background: `"primary"` is bg-on-bg, `"outline"` is
+text-on-bg. There was no variant designed for the
+"button-on-coloured-section" case, and the call site mistakenly
+picked `"outline"` because that is the only non-fill option and
+visually appeared correct in the local component preview (which
+renders on white).
+
+**Decision:**
+Add a third variant `"on-primary"` to `LeadFormTrigger`: white
+fill + primary text + `hover:bg-white/90`. Standard Material
+Design "on-X" naming convention — `on-primary` means "intended to
+render on top of a primary-coloured surface". Use it at every
+`<LeadFormTrigger>` call site that sits inside `bg-primary` (or
+any coloured section).
+
+Implementation details:
+1. Extend the `triggerVariant` union from `"primary" | "outline"`
+   to `"primary" | "outline" | "on-primary"`.
+2. Replace the ternary `btnCls` definition with an explicit
+   `switch` statement. Each case returns a full Tailwind class
+   string. The `default` branch assigns `triggerVariant` to a
+   `const _exhaustive: never` — if a future variant is added to
+   the union without a corresponding case, `tsc --noEmit` fails
+   with "Type 'X' is not assignable to type 'never'". This
+   catches the omission at build time even though Next.js config
+   has `typescript: { ignoreBuildErrors: true }` — because our
+   CI recipe runs `tsc --noEmit` explicitly before `npm run build`.
+3. At each /tools CTA call site, pass `triggerVariant="on-primary"`.
+4. Align visual weight: the adjacent `<a>Позвонить</a>` link had
+   `px-8 py-3`, the `LeadFormTrigger` button internally uses
+   `px-6 py-3`. Change the `<a>` to `px-6 py-3` for visual parity.
+
+**Applied to:**
+- `src/app/tools/calculator/CalculatorCTA.tsx` — shared across all
+  4 /tools/* pages.
+- `src/app/tools/page.tsx` — /tools index CTA card (same anti-pattern).
+
+**Rules added:**
+- `knowledge/rules.md` → new `## UI Component Rules` section with
+  the variant-to-background matching rule and the extension
+  procedure for new variants (switch + exhaustiveness check).
+
+**Alternatives considered:**
+1. Wrap the existing `"outline"` variant with border-white +
+   text-white when parent is `bg-primary`. Rejected: requires the
+   child component to know about parent background, violating
+   component boundaries. Either we add a new variant or we pass
+   a `bgColor` prop — adding a variant is the narrower change.
+2. Drop `LeadFormTrigger` altogether on /tools/* and inline a
+   `<button>` at each call site with correct colours. Rejected:
+   loses modal-open behaviour, subject-prop plumbing, keyboard-esc
+   handler. The component's job is good; only its variant
+   palette was incomplete.
+3. Remove the phone `<a>Позвонить</a>` link and keep only the
+   form trigger, matching the original bug filer's intent of "no
+   phone CTA". Rejected: `tel:` links have measurable conversion
+   on mobile — removing them hurts leads. The hierarchy fix is
+   enough; both CTAs can coexist once the form trigger is visible.
+
+**Consequences:**
+- (+) C-3 closed. Form trigger is visible on all 5 affected pages
+  (4 tool pages + /tools index).
+- (+) Future coloured-section CTAs can reuse `"on-primary"` —
+  one more composable primitive in the kit.
+- (+) The `_exhaustive: never` pattern prevents the next "added
+  variant but forgot to wire one call site" class of bug at
+  compile time, even under `ignoreBuildErrors: true`.
+- (−) Consumers using `"outline"` on a dark/coloured section
+  elsewhere in the app (none currently, but possible in future
+  noscut/news pages) will still silently mis-render. The rule
+  in rules.md is the only guard — no runtime check. Mitigation:
+  the new rules.md entry explicitly flags this; reviewers should
+  catch it.
+
+**Files:**
+- `src/components/LeadFormTrigger.tsx`
+- `src/app/tools/calculator/CalculatorCTA.tsx`
+- `src/app/tools/page.tsx`
+- `knowledge/rules.md` (new UI Component Rules section)
+- `knowledge/bugs.md` (C-3 entry removed)
+- `knowledge/INDEX.md` (dates + bugs.md summary updated)
+
+**Discovered via:** Bug C-3 triage on 2026-04-19 — confirmed on
+each of /tools/calculator, /tools/customs, /tools/encar,
+/tools/auction-sheet, and /tools in DevTools: outline variant
+rendered `color: oklch(...)` on matching bg, DOM correct but
+visually absent.

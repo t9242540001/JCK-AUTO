@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-19
-  @version:     1.6
-  @lines:       ~167
+  @version:     1.7
+  @lines:       ~160
 -->
 
 # Bugs — open issues tracker
@@ -38,12 +38,6 @@
   /api/tools/auction-sheet) + per-endpoint nginx 200s timeout + 15MB body —
   slow cascades no longer cause "Ошибка сети", because the client polls
   a job status endpoint instead of holding an HTTP request open. С-1 closed.
-
-### С-3 — wrong CTA on all services pages
-- **Pages:** /services/* (all)
-- **Symptom:** "Позвонить" button instead of standard <LeadFormTrigger>. Not centered, action unclear.
-- **File:** shared services page template or CTA component (verify before fix)
-- **Action:** locate shared CTA component → replace with <LeadFormTrigger> → verify centering
 
 ## Important (noticeable but workarounds exist)
 

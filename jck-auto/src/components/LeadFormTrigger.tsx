@@ -15,7 +15,7 @@ interface LeadFormTriggerProps {
   subject?: string;
   ctaLabel?: string;
   triggerLabel?: string;
-  triggerVariant?: "primary" | "outline";
+  triggerVariant?: "primary" | "outline" | "on-primary";
   modalTitle?: string;
   className?: string;
 }
@@ -37,10 +37,29 @@ export default function LeadFormTrigger({
     return () => window.removeEventListener("keydown", handler);
   }, [isOpen]);
 
-  const btnCls =
-    triggerVariant === "primary"
-      ? "cursor-pointer w-full rounded-xl bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-primary/90"
-      : "cursor-pointer w-full rounded-xl border border-primary px-6 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white";
+  // @rule triggerVariant MUST match the surrounding background:
+  //   - "primary"    → button has bg-primary fill. Use on light/neutral backgrounds.
+  //   - "outline"    → primary border + primary text on transparent. Use on light backgrounds ONLY.
+  //                    Never use on bg-primary sections — text-primary on bg-primary is invisible.
+  //   - "on-primary" → white fill + primary text. Use on bg-primary (or any coloured) section.
+  // @rule When adding a new variant, extend the switch below AND the triggerVariant union type.
+  //       The exhaustiveness check (_exhaustive: never) will break the build if a case is missed.
+  let btnCls: string;
+  switch (triggerVariant) {
+    case "primary":
+      btnCls = "cursor-pointer w-full rounded-xl bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-primary/90";
+      break;
+    case "outline":
+      btnCls = "cursor-pointer w-full rounded-xl border border-primary px-6 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white";
+      break;
+    case "on-primary":
+      btnCls = "cursor-pointer w-full rounded-xl bg-white px-6 py-3 font-medium text-primary transition-colors hover:bg-white/90";
+      break;
+    default: {
+      const _exhaustive: never = triggerVariant;
+      throw new Error(`Unhandled triggerVariant: ${_exhaustive}`);
+    }
+  }
 
   const title = modalTitle || subject;
 

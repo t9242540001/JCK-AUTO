@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-19
-  @version:     1.43
+  @version:     1.44
   @lines:       48
 -->
 
@@ -21,8 +21,8 @@
 | [catalog.md](catalog.md) | Google Drive conventions, 5-step sync chain, screenshot priority | 2026-04-08 |
 | [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-10 |
 | [roadmap.md](roadmap.md) | Done / In progress / Planned features, series complete, post-series tails added | 2026-04-18 |
-| [decisions.md](decisions.md) | Architectural Decision Records (ADR log) — latest: Harden /api/lead contract: fail-loud env, sanitized logs, fallback phone, Cross-tab session ownership in auction-sheet client, Prompt-series strategy under auto-merge + ignoreBuildErrors, Per-tool FAQ heading across /tools/* pages, Sync /tools/auction-sheet UI texts with real system behaviour, AuctionSheetClient split complete, ErrorView + С-7 fix, Extend ApiError type for rate_limit sub-fields, Expose remaining + isLifetimeLimit in 429, File input reset fix (UploadZone), Extend parse schema for auction-sheet (10 fields), Async-only contract for POST /api/tools/auction-sheet (jobId + polling), Introduce server-side in-memory queue for auction-sheet (concurrency=1, TTL=15min), Raise dashscope.ts RATE_LIMIT_PER_MINUTE 6 → 60, DeepSeek timeout 60s→180s / retries 3→2 / nginx 200s+15MB for auction-sheet, Pass 0 sheet-type classifier, multi-pass OCR, Pass 2 qwen3-vl-flash, DeepSeek primary Step 2, finish_reason=length, capture workflow registration | 2026-04-19 |
-| [rules.md](rules.md) | All critical rules with locations and consequences | 2026-04-19 |
+| [decisions.md](decisions.md) | Architectural Decision Records (ADR log) — latest: Add on-primary CTA variant to LeadFormTrigger + fix hierarchy on /tools/* pages, Harden /api/lead contract: fail-loud env, sanitized logs, fallback phone, Cross-tab session ownership in auction-sheet client, Prompt-series strategy under auto-merge + ignoreBuildErrors, Per-tool FAQ heading across /tools/* pages, Sync /tools/auction-sheet UI texts with real system behaviour, AuctionSheetClient split complete, ErrorView + С-7 fix, Extend ApiError type for rate_limit sub-fields, Expose remaining + isLifetimeLimit in 429, File input reset fix (UploadZone), Extend parse schema for auction-sheet (10 fields), Async-only contract for POST /api/tools/auction-sheet (jobId + polling), Introduce server-side in-memory queue for auction-sheet (concurrency=1, TTL=15min), Raise dashscope.ts RATE_LIMIT_PER_MINUTE 6 → 60, DeepSeek timeout 60s→180s / retries 3→2 / nginx 200s+15MB for auction-sheet, Pass 0 sheet-type classifier, multi-pass OCR, Pass 2 qwen3-vl-flash, DeepSeek primary Step 2, finish_reason=length, capture workflow registration | 2026-04-19 |
+| [rules.md](rules.md) | All critical rules with locations and consequences + new UI Component Rules (LeadFormTrigger variant-to-background matching) | 2026-04-19 |
 | [stack.md](stack.md) | Tech stack: Next.js 16.1.6 (Turbopack), Node 20, AI services (DashScope/DeepSeek/Claude), in-memory queue for auction-sheet, storage, key configs | 2026-04-18 |
 | [exchange-rates.md](exchange-rates.md) | VTB scraper + CBR fallback, markups, /api/exchange-rates endpoint, UI labels, CORS rules | 2026-04-08 |
 | [customs-reference.md](customs-reference.md) | ETS brackets, recycling fee conditions, legal entity logic, normative sources | 2026-04-08 |
@@ -37,7 +37,7 @@
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
 | [tools.md](tools.md) | /tools/* API endpoints: auction-sheet async-only contract (POST 202 + job polling), pipeline (Pass 0 classifier + 3 parallel OCR + DeepSeek Step 2 180s/2 retries), Sharp compression, nginx per-endpoint 200s/15MB, rate limiting, diagnostics + job status endpoint + stats endpoint, parse schema extended (10 new fields including VIN), client-side types/helpers modularization in progress, UploadZone extracted, ProcessingViews extracted + 429 body extended, ErrorView extracted (С-7 closed), ResultView extracted with new fields UI, series complete | 2026-04-18 |
-| [bugs.md](bugs.md) | Open bugs tracker — С-1 closed, С-5 user-impact closed (moved to Verify), С-6 closed (cross-tab session leak fixed), С-4 closed (/api/lead hardened), С-2, С-3 open, Б-1–Б-8 open. Middleware-manifest restart loop (Б-7), Capture workflow verification (Б-8) pending | 2026-04-19 |
+| [bugs.md](bugs.md) | Open bugs tracker — С-1 closed, С-5 user-impact closed (moved to Verify), С-6 closed (cross-tab session leak fixed), С-4 closed (/api/lead hardened), С-3 closed (on-primary CTA variant), С-2 open, Б-1–Б-8 open. Middleware-manifest restart loop (Б-7), Capture workflow verification (Б-8) pending | 2026-04-19 |
 
 ## Quick Links
 

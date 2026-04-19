@@ -26,13 +26,13 @@ export function CalculatorCTA() {
               triggerLabel="Оставить заявку"
               ctaLabel="Отправить заявку"
               modalTitle="Точный расчёт под вашу модель"
-              triggerVariant="outline"
+              triggerVariant="on-primary"
             />
           </div>
           <a
             href="tel:+79147321950"
             className="inline-flex items-center rounded-xl border-2 border-white
-                       px-8 py-3 font-semibold text-white transition-opacity
+                       px-6 py-3 font-semibold text-white transition-opacity
                        hover:opacity-90"
           >
             Позвонить

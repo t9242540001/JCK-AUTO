@@ -159,7 +159,7 @@ export default function ToolsPage() {
                 triggerLabel="Оставить заявку"
                 ctaLabel="Отправить заявку"
                 modalTitle="Хотите привезти авто?"
-                triggerVariant="outline"
+                triggerVariant="on-primary"
               />
             </div>
           </div>
