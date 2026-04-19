@@ -7,6 +7,7 @@ import { CONTACTS } from "@/lib/constants";
 import TelegramAuthBlock from "@/components/TelegramAuthBlock";
 import UploadZone from "./UploadZone";
 import ProcessingViews from "./ProcessingViews";
+import ErrorView from "./ErrorView";
 
 // @rule This component is async-first. POST /api/tools/auction-sheet returns
 //       202 Accepted with jobId; the client polls GET /job/[jobId] every 2s.
@@ -65,6 +66,8 @@ interface ApiError {
   error: string;
   message: string;
   resetIn?: number;
+  remaining?: number;
+  isLifetimeLimit?: boolean;
 }
 
 interface AcceptedResponse {
@@ -336,10 +339,16 @@ export default function AuctionSheetClient() {
       }
 
       if (res.status === 429) {
-        const body = await res.json();
-        setIsLimitReached(true);
-        setUsedCount(3);
-        setError(body as ApiError);
+        const body = (await res.json()) as ApiError;
+        // Only mark the user as "limit reached" when the anonymous lifetime quota is exhausted.
+        // Cooldown (remaining > 0) and authenticated-daily-exhausted cases must NOT set isLimitReached
+        // — otherwise the preview-block counter and TelegramAuthBlock state desynchronise.
+        // This is the orchestrator half of bug С-7 fix; the UI half lives in ErrorView.
+        if (body.isLifetimeLimit) {
+          setIsLimitReached(true);
+          setUsedCount(3);
+        }
+        setError(body);
         setState("error");
         return;
       }
@@ -562,45 +571,20 @@ export default function AuctionSheetClient() {
 
       {/* Error */}
       {state === "error" && error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
-          <p className="font-medium text-red-800">{error.message}</p>
-          {error.error === "queue_full" ? (
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <button
-                onClick={() => { setError(null); setState("preview"); }}
-                className="rounded-xl bg-secondary px-6 py-3 font-medium text-white"
-              >
-                Попробовать через несколько минут
-              </button>
-              <a
-                href={CONTACTS.telegram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary"
-              >
-                Написать менеджеру — он поможет вам подобрать машину
-              </a>
-            </div>
-          ) : error.error === "rate_limit" ? (
-            <TelegramAuthBlock
-              usedCount={usedCount}
-              maxCount={3}
-              isLimitReached={true}
-              source="auction"
-              onAuthSuccess={() => {
-                setIsLimitReached(false);
-                setError(null);
-                setState('idle');
-                clearFile();
-              }}
-            />
-          ) : (
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <button onClick={() => { setState("preview"); setError(null); }} className="rounded-xl bg-secondary px-6 py-3 font-medium text-white">Попробовать ещё</button>
-              <a href={CONTACTS.telegram} target="_blank" rel="noopener noreferrer" className="rounded-xl border-2 border-primary px-6 py-3 font-medium text-primary">Написать менеджеру</a>
-            </div>
-          )}
-        </div>
+        <ErrorView
+          error={error}
+          usedCount={usedCount}
+          onRetry={() => {
+            setError(null);
+            setState("preview");
+          }}
+          onAuthSuccess={() => {
+            setIsLimitReached(false);
+            setError(null);
+            setState("idle");
+            clearFile();
+          }}
+        />
       )}
     </div>
   );

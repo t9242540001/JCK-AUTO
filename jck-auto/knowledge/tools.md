@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: API tools documentation — auction-sheet async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
   @updated:     2026-04-18
-  @version:     1.12
+  @version:     1.13
   @lines:       ~335
 -->
 
@@ -29,7 +29,15 @@
     and `isLifetimeLimit: boolean` (true when the anonymous 3-request
     lifetime quota is exhausted, false otherwise). Clients use these to
     distinguish cooldown from quota-exhausted cases without parsing message
-    text.
+    text. Client UI differentiates three `rate_limit` sub-cases using the
+    429 body fields: `remaining > 0` shows a live MM:SS countdown with a
+    retry button that activates when the timer hits zero;
+    `remaining === 0 && isLifetimeLimit === true` (anonymous lifetime
+    exhausted) shows `TelegramAuthBlock` for auth-upgrade;
+    `remaining === 0 && isLifetimeLimit === false` (authenticated daily
+    exhausted) shows a manager contact button — retry is pointless until
+    the 24-hour window rolls. See `ErrorView.tsx` and ADR
+    `[2026-04-18] Fix C-7 (rate_limit UI) and extract ErrorView`.
   - `400` — malformed upload (`no_file` / `file_too_large` / `invalid_type` /
     `invalid_request` / `invalid_image`)
   - `503` + `Retry-After: 300` — queue is full (`error: queue_full`)
