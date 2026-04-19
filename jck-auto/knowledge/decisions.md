@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-19
-  @version:     1.19
-  @lines:       ~1360
+  @version:     1.20
+  @lines:       ~1395
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -20,7 +20,26 @@
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
 
-_No active iterations. This section stays for future multi-prompt work._
+### WIP [2026-04-19] Per-tool FAQ heading (series 02–05)
+
+- **Status:** WIP (series in progress, branch `claude/faq-heading-per-tool`)
+- **Confidence:** High — direction agreed, text finalized, execution split across 4 prompts to respect one-prompt-one-file
+- **Context:** `CalculatorFAQ` hardcoded h2 "Частые вопросы о расчёте" across 4 tool pages (calculator, customs, encar, auction-sheet) — incorrect SEO keyword for 3 of 4 pages
+- **Decision:** Promote `heading` to a required prop; each page passes a per-tool heading with the page's core keyword first:
+  - calculator → "Расчёт. Частые вопросы"
+  - customs → "Растаможка. Частые вопросы"
+  - encar → "Encar. Частые вопросы"
+  - auction-sheet → "Аукционные листы. Частые вопросы"
+- **Why required, not optional with default:** `next.config.ts` has `typescript: { ignoreBuildErrors: true }`, so a missing optional prop would silently render as `undefined` in production. Required + single-branch serialization of the series is the only safe path.
+- **Series plan:**
+  - [x] Prompt 02 — CalculatorFAQ.tsx + calculator/page.tsx
+  - [ ] Prompt 03 — customs/page.tsx
+  - [ ] Prompt 04 — encar/page.tsx
+  - [ ] Prompt 05 — auction-sheet/page.tsx
+  - [ ] After Prompt 05 — merge `claude/faq-heading-per-tool` to main
+- **Files:** src/app/tools/calculator/CalculatorFAQ.tsx, src/app/tools/*/page.tsx
+
+This entry is upgraded to Accepted in Prompt 05 when the series completes.
 
 ## [2026-04-18] Async-only contract for POST /api/tools/auction-sheet (jobId + polling)
 

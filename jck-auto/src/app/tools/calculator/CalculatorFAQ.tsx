@@ -1,3 +1,16 @@
+/**
+ * @file CalculatorFAQ.tsx
+ * @description Shared FAQ accordion used by /tools/* pages. Heading
+ *              is per-tool to keep h2 aligned with the page's core
+ *              keyword (SEO) and user expectations.
+ * @lastModified 2026-04-19
+ * @rule The `heading` prop is REQUIRED (not optional). Every consumer
+ *       must pass a per-tool heading — calculator: "Расчёт. Частые
+ *       вопросы", customs: "Растаможка. Частые вопросы", encar:
+ *       "Encar. Частые вопросы", auction-sheet: "Аукционные листы.
+ *       Частые вопросы". Making it optional with a default would
+ *       silently regress the non-calculator pages.
+ */
 "use client";
 
 import { useState } from "react";
@@ -35,7 +48,7 @@ function FAQAccordionItem({ item }: { item: FAQItem }) {
   );
 }
 
-export function CalculatorFAQ({ items }: { items: FAQItem[] }) {
+export function CalculatorFAQ({ items, heading }: { items: FAQItem[]; heading: string }) {
   return (
     <section className="bg-surface py-16">
       <div className="mx-auto max-w-3xl px-4">
@@ -45,7 +58,7 @@ export function CalculatorFAQ({ items }: { items: FAQItem[] }) {
           viewport={{ once: true }}
           className="mb-8 text-center text-2xl font-bold text-text sm:text-3xl"
         >
-          Частые вопросы о расчёте
+          {heading}
         </motion.h2>
 
         <motion.div
