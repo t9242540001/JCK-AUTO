@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-19
-  @version:     1.20
-  @lines:       ~1395
+  @version:     1.21
+  @lines:       ~1689
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,27 +19,6 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
-
-### WIP [2026-04-19] Per-tool FAQ heading (series 02–05)
-
-- **Status:** WIP (series in progress, branch `claude/faq-heading-per-tool`)
-- **Confidence:** High — direction agreed, text finalized, execution split across 4 prompts to respect one-prompt-one-file
-- **Context:** `CalculatorFAQ` hardcoded h2 "Частые вопросы о расчёте" across 4 tool pages (calculator, customs, encar, auction-sheet) — incorrect SEO keyword for 3 of 4 pages
-- **Decision:** Promote `heading` to a required prop; each page passes a per-tool heading with the page's core keyword first:
-  - calculator → "Расчёт. Частые вопросы"
-  - customs → "Растаможка. Частые вопросы"
-  - encar → "Encar. Частые вопросы"
-  - auction-sheet → "Аукционные листы. Частые вопросы"
-- **Why required, not optional with default:** `next.config.ts` has `typescript: { ignoreBuildErrors: true }`, so a missing optional prop would silently render as `undefined` in production. Required + single-branch serialization of the series is the only safe path.
-- **Series plan:**
-  - [x] Prompt 02 — CalculatorFAQ.tsx + calculator/page.tsx
-  - [ ] Prompt 03 — customs/page.tsx
-  - [ ] Prompt 04 — encar/page.tsx
-  - [ ] Prompt 05 — auction-sheet/page.tsx
-  - [ ] After Prompt 05 — merge `claude/faq-heading-per-tool` to main
-- **Files:** src/app/tools/calculator/CalculatorFAQ.tsx, src/app/tools/*/page.tsx
-
-This entry is upgraded to Accepted in Prompt 05 when the series completes.
 
 ## [2026-04-18] Async-only contract for POST /api/tools/auction-sheet (jobId + polling)
 
@@ -1640,3 +1619,71 @@ code:
   header date bump)
 - `jck-auto/knowledge/decisions.md` (this ADR + header bump)
 - `jck-auto/knowledge/INDEX.md` (dates)
+
+## [2026-04-19] Per-tool FAQ heading across /tools/* pages
+
+**Status:** Accepted
+
+**Confidence:** High — series 02–05 complete, all 4 consumers
+updated, `tsc --noEmit` clean of missing-prop errors, `npm run
+build` green on the series branch.
+
+**Context:**
+`CalculatorFAQ` hardcoded h2 "Частые вопросы о расчёте" across 4
+tool pages (calculator, customs, encar, auction-sheet). The heading
+was semantically correct only for calculator. On the other 3 pages
+it hurt SEO (h2 should carry the page's core keyword) and user
+orientation (F-pattern scanning expects the topic noun first).
+
+**Decision:**
+Promoted `heading` to a required prop of `CalculatorFAQ`. Each
+consumer page passes a per-tool heading with the page's core
+keyword first:
+- calculator → "Расчёт. Частые вопросы"
+- customs → "Растаможка. Частые вопросы"
+- encar → "Encar. Частые вопросы"
+- auction-sheet → "Аукционные листы. Частые вопросы"
+
+**Why required, not optional with default:**
+`next.config.ts` has `typescript: { ignoreBuildErrors: true }`, so
+a missing optional prop would silently render as `undefined` at
+runtime. Required prop + single-branch serialization of the 4
+prompts (`claude/faq-heading-per-tool`) was the only safe path —
+any intermediate merge to main would have shipped a blank h2 to
+production on the unfixed pages.
+
+**Alternatives considered:**
+- Optional prop with a generic default ("Частые вопросы") —
+  rejected: silently keeps the regression on customs/encar/
+  auction-sheet under the build-errors-ignored loophole.
+- Prompt sequence with auto-merge after each prompt (default
+  project flow) — rejected: same reason; would have shipped blank
+  headings between prompts.
+
+**Consequences:**
+- (+) Each tool page has an SEO-aligned h2 with its core keyword
+  first; improves topic relevance and F-pattern scanning.
+- (+) Future `/tools/*` pages cannot forget the heading —
+  TypeScript enforces the required prop, and the `@rule` note in
+  the component docblock serves as a second tripwire for code
+  review and AI edits.
+- (−) One extra prop on each consumer call site (~40 characters).
+  Trivial cost.
+
+**Series execution:**
+- Prompt 02 — `CalculatorFAQ.tsx` required prop + `calculator/
+  page.tsx` consumer (2026-04-19, commit 9433c90)
+- Prompt 03 — `customs/page.tsx` (2026-04-19, commit 49e7566)
+- Prompt 04 — `encar/page.tsx` (2026-04-19, commit 09cbbd0)
+- Prompt 05 — `auction-sheet/page.tsx` + ADR promotion (this
+  commit)
+
+**Files:**
+- `jck-auto/src/app/tools/calculator/CalculatorFAQ.tsx`
+- `jck-auto/src/app/tools/calculator/page.tsx`
+- `jck-auto/src/app/tools/customs/page.tsx`
+- `jck-auto/src/app/tools/encar/page.tsx`
+- `jck-auto/src/app/tools/auction-sheet/page.tsx`
+
+**Supersedes WIP:** "Per-tool FAQ heading (series 02–05)"
+(recorded 2026-04-19, now cut from `§ Active iterations`).
