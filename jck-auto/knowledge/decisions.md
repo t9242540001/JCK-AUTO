@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-21
-  @version:     1.28
-  @lines:       ~2385
+  @version:     1.29
+  @lines:       ~2420
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -2235,6 +2235,27 @@ toggled off.
 **Discovered via:** Bot reply delay verification on 2026-04-20 per
 bugs.md Б-1 action item ("live test — send /start to @jckauto_help_bot,
 confirm <1s response").
+
+## [2026-04-21] Remove internal auction codes from bot report
+
+**Status:** Accepted
+
+**Context:**
+The Telegram bot auction-sheet formatter (`src/bot/handlers/auctionSheet.ts`) rendered damage entries in the form `• {location} — {code}, {description}` where `{code}` was the internal Japanese auction notation (W1, A1, G, S, U2, etc.). These codes are meaningful to auction professionals but appear as noise to end users in the bot output. The website's ResultView surfaces the same data via a severity badge (Russian label), so there was a cross-surface inconsistency: site users see a human-readable severity, bot users see an opaque code.
+
+**Decision:**
+- In the bot formatter, replace `{code}` with a Russian severity label derived from the `severity` field already present in the parsed JSON schema (`minor` / `moderate` / `major`).
+- New rendering: `• {location} — {description} ({label})` where `label ∈ { незначительный, средний, серьёзный }`; when severity is missing/unknown, render without any suffix.
+- Introduce a small `severityLabel()` helper in the same file — bot-local, not exported.
+- Keep the SYSTEM_PROMPT auction-code list byte-identical: the model needs them to recognise codes on the sheet and classify severity correctly. Only the *rendered output* changes.
+- Do not touch `src/app/tools/auction-sheet/ResultView.tsx` or any website-side formatter — the bot formatter was already bot-specific, so this is a single-surface change.
+
+**Consequences:**
++ Bot users get human-readable defect severity instead of internal auction codes — reduces confusion for non-professional end users.
++ Cross-surface vocabulary alignment: bot now uses the same three labels (`незначительный` / `средний` / `серьёзный`) as the website's severity badge.
++ SYSTEM_PROMPT is preserved, so classification quality is unchanged.
+− If a future prompt surfaces the codes elsewhere (e.g. a PDF export), this ADR must be revisited for consistency.
+− Closes the roadmap bullet `Bot: remove internal auction codes` under **Planned — Bot**.
 
 ## [2026-04-21] Rename Encar bot inline button for clarity
 
