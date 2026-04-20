@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-20
-  @version:     1.8
-  @lines:       ~150
+  @version:     1.9
+  @lines:       ~152
 -->
 
 # Bugs — open issues tracker
@@ -49,15 +49,13 @@
 
 ### Б-2 — auction sheet handler in bot does not respond on photo
 - **File:** src/bot/handlers/* (see tg-integration-plan.md Step 7)
-- **Status:** code exists, but no response on photo in production
-- **Blocked by:** Б-1 (test only after webhook fix to separate delay vs. real failure)
-- **Action:** after Б-1 — live test, `pm2 logs jckauto-bot --lines 50 --nostream`, diagnose → fix
+- **Status:** possibly already closed by Б-1 Smart Placement fix (2026-04-20). The original "no response" symptom may have been the 20-second outbound delay that made users give up before the reply arrived. Needs live re-verification.
+- **Action:** send a photo of an auction sheet to @jckauto_help_bot. If response arrives within ~2 minutes (pipeline time for auction-sheet analysis) → close Б-2. If no response → `pm2 logs jckauto-bot --lines 50 --nostream` during the test, diagnose → fix.
 
 ### Б-3 — Encar handler in bot does not respond on link
 - **File:** src/bot/handlers/* (see tg-integration-plan.md Step 12)
-- **Status:** code exists, but no response on encar.com link
-- **Blocked by:** Б-1
-- **Action:** same diagnostic protocol as Б-2
+- **Status:** possibly already closed by Б-1 Smart Placement fix (2026-04-20). Same reasoning as Б-2. Needs live re-verification.
+- **Action:** send an encar.com link (e.g. `https://fem.encar.com/cars/detail/<id>`) to @jckauto_help_bot. If response arrives within ~30 seconds → close Б-3. If no response → `pm2 logs jckauto-bot --lines 50 --nostream` during the test, diagnose → fix.
 
 ### Б-4 — no menu buttons for auction sheet and Encar in bot
 - **File:** src/bot/handlers/start.ts
