@@ -2,8 +2,8 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
-  @updated:     2026-04-20
-  @version:     1.7
+  @updated:     2026-04-21
+  @version:     1.8
   @lines:       124
 -->
 
@@ -41,6 +41,7 @@
 - [x] Deploy pipeline stabilization (PAT_AUTO_MERGE, push-trigger-only, two-slot atomic build, article cron decoupled)
 - [x] Async queue for auction-sheet — server-side in-memory queue (concurrency=1, max 10, TTL 15min), POST /api/tools/auction-sheet returns 202 + jobId, client polls GET /api/tools/auction-sheet/job/[jobId] every 2s с localStorage session restore. См. ADR [2026-04-18] "Async-only contract..." и [2026-04-18] "Introduce server-side in-memory queue...".
 - [x] Auction-sheet client modularization (series 02–08, 2026-04-18) — AuctionSheetClient.tsx split into 6 modules: auctionSheetTypes.ts (shared types), auctionSheetHelpers.ts (pure formatters), UploadZone.tsx (drag/drop + preview), ProcessingViews.tsx (submitting/queued/processing states), ErrorView.tsx (4 error sub-cases + CooldownTimer, closes bug С-7), ResultView.tsx (9 sections incl. new "Идентификация" + "Плюсы по заметкам аукциона" + collapsible "Дополнительный текст с листа"). 11 new parse-schema fields from Prompt 01 (VIN, modelCode, registrationNumber, inspectionValidUntil, recycleFee, seats, colorCode, dimensions, salesPoints, bodyType) now surface in the UI. Orchestrator 655 → 368 lines. See decisions.md ADR [2026-04-18] "AuctionSheetClient split complete".
+- [x] Bot (2026-04-21): rename the Encar-result inline button `Открыть на сайте` → `Подробный отчёт на сайте` for clarity (user feedback, 2026-04-20).
 
 ## In Progress
 
@@ -65,7 +66,6 @@
 - [ ] Auto-post new cars to channel t.me/jckauto_import_koreya
 - [ ] AI consultant (Claude API + knowledge base)
 - [ ] Bot: remove internal auction codes (W1, A1, G, S, etc.) from auction-sheet bot output — they are noise for end users. Source to diagnose: is the formatter shared with website output, or bot-specific? Do NOT alter shared formatting without a UI fix for the website path.
-- [ ] Bot: rename the Encar-result inline button `Открыть на сайте` → `Подробный отчёт на сайте` for clarity (user feedback, 2026-04-20).
 - [ ] Bot: add PDF download for auction-sheet and encar results, matching the website's PDF export. Goal: feature parity between bot and site. Investigate whether existing PDF generator (from `/api/tools/*/pdf` routes) can be reused server-side and streamed to Telegram.
 - [ ] Bot: unify CTA after auction-sheet and encar results — Vasily-approved style is **inline buttons** (site link + "Оставить заявку" lead-form trigger). Auction-sheet currently shows only a plain text link with no form capture; bring it to encar-style inline-buttons pattern.
 - [ ] Bot: clarify queue and rate-limit semantics for auction-sheet and encar in the bot — currently unclear whether the bot enforces the same async queue / 2-minute cooldown contract as the website, or whether it bypasses them. If bypassed, system overload is possible under concurrent bot+site traffic. Audit and, if needed, route bot calls through the same queue + rate-limiter layer used by `/api/tools/*`.
