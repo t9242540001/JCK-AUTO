@@ -2,9 +2,9 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
-  @updated:     2026-04-19
-  @version:     1.6
-  @lines:       115
+  @updated:     2026-04-20
+  @version:     1.7
+  @lines:       124
 -->
 
 # Roadmap
@@ -58,11 +58,18 @@
 - [ ] "Leave request" button on car detail page → /api/lead → managers group
 - [ ] `/tools/auction-sheet` page texts honesty fix — hero subtitle, metadata.description, openGraph.description, webAppJsonLd.description all promise "15 seconds" but the real pipeline takes 20–60 seconds (up to 2 minutes for handwritten sheets). FAQ item #3 says "3 расшифровки в день бесплатно" — incorrect, the anonymous limit is 3 LIFETIME requests (verified in rateLimiter.ts @rule ANONYMOUS); authenticated users get 10/day. FAQ item #5 references the old "Не распознано" block, renamed to "Дополнительный текст с листа" in prompt 08. Single-file fix on src/app/tools/auction-sheet/page.tsx.
 - [ ] AuctionSheetClient polling hook extraction — orchestrator is 368 lines post-series, target <200 lines requires extracting pollJob + session restore useEffect into a custom hook (useAuctionSheetJob). Deferred — accepted as out-of-scope in ADR [2026-04-18] "AuctionSheetClient split complete".
+- [ ] Site: unify CTA style across conversion surfaces. Target pattern is **inline buttons** with site link + LeadFormTrigger ("Оставить заявку"), as used on `/tools/encar` result view. Audit candidates: all `/services`-labelled pages (/tools/*), car detail pages, noscut detail pages, any other result view that currently shows a plain text link or a lone phone button. Consistency gain: users always see the same "get-in-touch" affordance regardless of which tool they use.
 
 ## Planned — Bot
 
 - [ ] Auto-post new cars to channel t.me/jckauto_import_koreya
 - [ ] AI consultant (Claude API + knowledge base)
+- [ ] Bot: remove internal auction codes (W1, A1, G, S, etc.) from auction-sheet bot output — they are noise for end users. Source to diagnose: is the formatter shared with website output, or bot-specific? Do NOT alter shared formatting without a UI fix for the website path.
+- [ ] Bot: rename the Encar-result inline button `Открыть на сайте` → `Подробный отчёт на сайте` for clarity (user feedback, 2026-04-20).
+- [ ] Bot: add PDF download for auction-sheet and encar results, matching the website's PDF export. Goal: feature parity between bot and site. Investigate whether existing PDF generator (from `/api/tools/*/pdf` routes) can be reused server-side and streamed to Telegram.
+- [ ] Bot: unify CTA after auction-sheet and encar results — Vasily-approved style is **inline buttons** (site link + "Оставить заявку" lead-form trigger). Auction-sheet currently shows only a plain text link with no form capture; bring it to encar-style inline-buttons pattern.
+- [ ] Bot: clarify queue and rate-limit semantics for auction-sheet and encar in the bot — currently unclear whether the bot enforces the same async queue / 2-minute cooldown contract as the website, or whether it bypasses them. If bypassed, system overload is possible under concurrent bot+site traffic. Audit and, if needed, route bot calls through the same queue + rate-limiter layer used by `/api/tools/*`.
+- [ ] Bot: `/noscut` command — after the user sends `/noscut` without an argument, the next plain-text message (e.g. `Hyundai`) is not recognized as the query. User must resend with `/noscut Hyundai` explicitly. Fix: set a per-user "awaiting noscut query" state in bot storage after empty `/noscut`, then treat the next plain message as the noscut query.
 
 ## Planned — Infrastructure
 
@@ -71,6 +78,7 @@
 - [ ] Middleware-manifest regression investigation — PM2 720+ restart loop (see bugs.md Б-7)
 - [ ] Capture-deploy-log workflow registration verification (see bugs.md Б-8)
 - [ ] OCR label-swap mitigation in auction-sheet Pass 1 — qwen-vl-ocr occasionally misassigns adjacent label/value pairs on auction sheets (example observed 2026-04-18: 最大積載量 label paired with 寒冷地仕様 value that belongs to a different field). Result: seats / bodyType / salesPoints often arrive empty on test sheets. Two candidate fixes: (a) post-process in Step 2 DeepSeek parser with reasoning prompt that catches mismatches, or (b) replace Pass 1 model with qwen3-vl-flash (already used in Pass 2 with good results). Requires diagnostic comparison before choosing.
+- [ ] Move Cloudflare Worker `tg-proxy` source code from Dashboard-only to the repository. Target files: `worker/tg-proxy.ts` + `wrangler.toml`. Put the Worker on the same git-versioning track as the rest of the codebase, deployable via `wrangler deploy` from GitHub Actions or the VDS. At the same time: (a) clean up the Telegram-branch headers to match the Anthropic-branch pattern (pass only minimum required headers, not `request.headers` wholesale), (b) add console.log at ingress/egress of each routing branch for future latency debugging, (c) document Smart Placement as a required deploy setting in `wrangler.toml` or a separate README. Pre-requisite: Cloudflare API token or `wrangler login` from VDS. See ADR `[2026-04-20] Enable Cloudflare Smart Placement on tg-proxy Worker (close Б-1)` "Consequences" section for rationale.
 
 ## Strategic initiatives
 
