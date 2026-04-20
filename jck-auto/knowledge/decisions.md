@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-19
-  @version:     1.25
-  @lines:       ~2105
+  @updated:     2026-04-20
+  @version:     1.26
+  @lines:       ~2250
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -2125,3 +2125,113 @@ each of /tools/calculator, /tools/customs, /tools/encar,
 /tools/auction-sheet, and /tools in DevTools: outline variant
 rendered `color: oklch(...)` on matching bg, DOM correct but
 visually absent.
+
+## [2026-04-20] Enable Cloudflare Smart Placement on tg-proxy Worker (close Б-1)
+
+**Status:** Accepted
+
+**Confidence:** High — root cause isolated by a deterministic reproduction
+(direct `curl` to Worker `getMe`, 19.8s), fix verified by the same
+reproduction (0.22s after Smart Placement), user-visible latency
+confirmed eliminated.
+
+**Context:**
+The 2026-04-10 ADR `Telegram webhook via Cloudflare Worker` fixed the
+INBOUND side of Б-1: Telegram webhook POSTs now arrive at the bot
+quickly via Cloudflare edge instead of being blocked by the VDS
+provider's Telegram IP range filter. However, verification on
+2026-04-20 revealed a separate symptom — the bot replied 17-20 seconds
+after every `/start`, despite updates arriving instantly (0 pending,
+no webhook errors, no retry loops).
+
+Diagnosis isolated the delay to the OUTBOUND path: every bot call to
+Telegram (`sendMessage`, `sendChatAction`, `answerCallbackQuery`) went
+through the Worker's fallback route (`url.host = "api.telegram.org"`),
+and the Worker's `fetch` to Telegram was taking ~20 seconds. Direct
+`curl` from VDS to the Worker for `/getMe` reproduced the delay cleanly
+(19.785s). Direct `curl` from VDS to `api.telegram.org` timed out at
+2min 14s — confirming the VDS provider STILL blocks the direct path,
+so the Worker is mandatory for both inbound AND outbound.
+
+The Worker's source code was reviewed (copy obtained from Cloudflare
+Dashboard). No retry loops, no expensive operations, no error handling
+with sleep/backoff. The entire 19.8 seconds was spent inside one
+`fetch(new Request(...))` call in the outgoing fallback branch. The
+delay was upstream network latency: the Cloudflare edge where the
+Worker defaulted to running had a degraded network path to the
+Telegram DC.
+
+**Decision:**
+Enable **Cloudflare Smart Placement** on the tg-proxy Worker.
+Smart Placement analyzes Worker subrequest latency and automatically
+relocates the Worker to a region where upstream calls are fast. For a
+transparent-proxy Worker like tg-proxy — whose entire job is to fetch
+an external API — Smart Placement is the standard recommended setting.
+
+Applied 2026-04-20 via Cloudflare Dashboard:
+Workers & Pages → tg-proxy → Settings → Runtime → Placement →
+changed from "Default" to "Smart".
+
+No code change. No redeploy. Effect took ~minutes to propagate after
+Cloudflare's latency analyzer gathered enough data.
+
+**Verification:**
+- Before: `time curl -s -X POST "https://tg-proxy.../bot<TOKEN>/getMe"`
+  → 19.785s (real), valid JSON response.
+- After: same `curl` → **0.227s** (real), valid JSON response.
+  Improvement: ~88x faster.
+- User-facing: `/start` to @jckauto_help_bot now replies in <1s
+  (was 17-20s).
+
+**Why this was not caught earlier:**
+Smart Placement is an off-by-default setting. The Worker was created
+on 2026-04-10 under time pressure (fixing inbound webhook), and the
+default "Default" placement mode was accepted without review. The
+outbound delay was dismissed over several sessions as "bot not yet
+verified post-fix", when in fact the fix was incomplete for the
+outbound direction. Added to `knowledge/rules.md` as a hard rule to
+prevent recurrence if the Worker is ever recreated or the setting is
+toggled off.
+
+**Alternatives considered:**
+- Move Worker to a paid Cloudflare plan with Argo Smart Routing —
+  rejected, Smart Placement is free and solved the problem completely.
+- Bypass Worker for outbound, use direct `api.telegram.org` — rejected,
+  VDS provider blocks the direct path (confirmed 2min 14s timeout on
+  direct curl).
+- Rewrite Worker as a minimal transparent proxy — not needed, the
+  current Worker code is already minimal and correct. Will be moved
+  to the repository in a follow-up prompt for proper versioning, but
+  no functional rewrite is needed.
+
+**Consequences:**
+- (+) Б-1 fully closed: both inbound AND outbound paths now fast.
+  Removes the 17-20s delay that was degrading bot UX.
+- (+) Downstream side-effect: ETELEGRAM `query is too old` errors
+  (seen in earlier logs when callbacks took 30+ seconds to answer)
+  should disappear. `answerCallbackQuery` now completes inside
+  Telegram's 30-second query window.
+- (+) Establishes a clear rule (in rules.md) that proxy-style Workers
+  must use Smart Placement, preventing the same issue on any future
+  Worker.
+- (−) Cloudflare is now slightly more opinionated about Worker
+  location. This is not observable to users but worth noting in
+  case Cloudflare changes Smart Placement behavior.
+- (−) The Worker code still lives only in Cloudflare Dashboard, not
+  in the repository. If the Worker is accidentally deleted or the
+  Cloudflare account changes, the code must be restored from this
+  session's chat history. A follow-up prompt will move the Worker
+  source to `worker/tg-proxy.ts` in the repo with a `wrangler.toml`
+  for deployment via CLI, putting it on the same versioning track
+  as the rest of the codebase.
+
+**Files:**
+- No code files changed — this is a Cloudflare Dashboard configuration
+  change recorded as architectural decision.
+- `knowledge/bugs.md` (Б-1 entry removed).
+- `knowledge/rules.md` (Smart Placement requirement recorded).
+- `knowledge/INDEX.md` (dates updated).
+
+**Discovered via:** Bot reply delay verification on 2026-04-20 per
+bugs.md Б-1 action item ("live test — send /start to @jckauto_help_bot,
+confirm <1s response").
