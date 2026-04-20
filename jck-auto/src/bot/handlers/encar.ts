@@ -10,7 +10,7 @@
  * @rule        recordBotUsage AFTER successful sendMessage only — never in catch branches
  * @rule        Cost calculation failure is non-fatal — show vehicle data without price
  * @rule        No incrementCommand call — 'encar' is not a CommandStat slot
- * @lastModified 2026-04-10
+ * @lastModified 2026-04-21
  */
 
 import TelegramBot from 'node-telegram-bot-api';
@@ -277,7 +277,7 @@ export function registerEncarHandler(bot: TelegramBot): void {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: '🌐 Открыть на сайте', url: siteUrl },
+              { text: '🌐 Подробный отчёт на сайте', url: siteUrl },
             ],
             [
               { text: 'Оставить заявку', callback_data: 'request_start' },

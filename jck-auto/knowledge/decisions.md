@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-20
-  @version:     1.27
-  @lines:       ~2370
+  @updated:     2026-04-21
+  @version:     1.28
+  @lines:       ~2385
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -2235,6 +2235,22 @@ toggled off.
 **Discovered via:** Bot reply delay verification on 2026-04-20 per
 bugs.md Б-1 action item ("live test — send /start to @jckauto_help_bot,
 confirm <1s response").
+
+## [2026-04-21] Rename Encar bot inline button for clarity
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:** "Открыть на сайте" in the Encar-result inline keyboard
+was ambiguous — users interpreted it as a link to the encar.com
+source listing instead of the JCK AUTO site report.
+
+**Decision:** Rename to "Подробный отчёт на сайте" in
+`src/bot/handlers/encar.ts`. Emoji retained.
+
+**Consequences:** Minor UX clarification. No contract/API change.
+No regression surface outside `bot/handlers/encar.ts`.
 
 ## [2026-04-20] Б-2 and Б-3 closed as side-effect of Smart Placement fix
 
