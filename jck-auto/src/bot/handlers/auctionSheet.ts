@@ -10,7 +10,7 @@
  * @rule        recordBotUsage AFTER successful message send only
  * @rule        Buffer must NOT be written to disk — in-memory only
  * @rule        file_size check MUST use value from bot.getFile(), not msg.photo[N].file_size
- * @lastModified 2026-04-10
+ * @lastModified 2026-04-21
  */
 
 import TelegramBot from 'node-telegram-bot-api';
@@ -94,6 +94,19 @@ const USER_PROMPT = 'Расшифруй этот аукционный лист. 
 // ─── FORMATTER ────────────────────────────────────────────────────────────────
 
 /**
+ * Maps the AI-returned severity value to a Russian label for end users.
+ * Returns empty string for missing / unknown values — caller must skip the suffix then.
+ */
+function severityLabel(severity: string | null | undefined): string {
+  switch (severity) {
+    case 'minor':    return 'незначительный';
+    case 'moderate': return 'средний';
+    case 'major':    return 'серьёзный';
+    default:         return '';
+  }
+}
+
+/**
  * Formats parsed auction sheet JSON into a readable Telegram message.
  */
 function formatAuctionResult(data: Record<string, unknown>): string {
@@ -139,12 +152,17 @@ function formatAuctionResult(data: Record<string, unknown>): string {
   lines.push('');
 
   // Body damages
-  const damages = data.bodyDamages as Array<{ location: string; code: string; description: string }> | null | undefined;
+  const damages = data.bodyDamages as Array<{ location: string; code: string; description: string; severity?: string | null }> | null | undefined;
   if (damages && damages.length > 0) {
     lines.push(`🔧 Дефекты (${damages.length}):`);
     const shown = damages.slice(0, 10);
     for (const d of shown) {
-      lines.push(`• ${d.location} — ${d.code}, ${d.description}`);
+      const label = severityLabel(d.severity);
+      if (label) {
+        lines.push(`• ${d.location} — ${d.description} (${label})`);
+      } else {
+        lines.push(`• ${d.location} — ${d.description}`);
+      }
     }
     if (damages.length > 10) {
       lines.push(`  ...и ещё ${damages.length - 10} дефектов`);
