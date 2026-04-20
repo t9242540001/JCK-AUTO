@@ -2,9 +2,9 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-19
-  @version:     1.11
-  @lines:       120
+  @updated:     2026-04-20
+  @version:     1.12
+  @lines:       121
 -->
 
 # Critical Rules
@@ -38,6 +38,7 @@
 | When writing bash for `appleboy/ssh-action` (even with `set -e`), prefer `if cmd; then` over `cmd \|\| fallback` for exit code capture | deploy.yml | The `if cmd; then ... else NPM_EXIT=$?; fi` form is more robust under any errexit-handling layer (appleboy or bash) because it is a single syntactic unit per POSIX. The `\|\|` form works under bash `set -e` but failed under `appleboy script_stop: true` — defensive coding for a script that runs in both contexts |
 | `npm run build` on VDS MUST always use `NEXT_DIST_DIR` env var — only deploy.yml builds, and it uses two-slot mechanism | VDS shell, all workflows, all cron | Without NEXT_DIST_DIR, Next.js writes to `.next/` directly, destroying the symlink → site crash. sync-catalog.yml must NOT build (catalog is force-dynamic). Cron scripts must NOT build. Only deploy.yml builds via `NEXT_DIST_DIR="$NEXT_SLOT" npm run build` |
 | deploy.yml has self-healing: if `.next` is a directory (not symlink), it auto-restores the two-slot setup before building | deploy.yml | Protects against any process that accidentally runs `npm run build` without NEXT_DIST_DIR. Logs `[build] WARNING` when triggered |
+| Cloudflare Worker `tg-proxy` MUST have Placement mode set to **Smart**, not Default | Cloudflare Dashboard → Workers & Pages → tg-proxy → Settings → Runtime → Placement | Default placement puts the Worker on a Cloudflare edge whose upstream path to `api.telegram.org` may be degraded, causing every bot outbound call to wait ~20 seconds. Observed 2026-04-20: direct `curl` to Worker `/getMe` took 19.785s on Default, 0.227s on Smart. Full diagnosis in ADR `[2026-04-20] Enable Cloudflare Smart Placement on tg-proxy Worker`. |
 
 ## Bot Rate Limiting Rules
 

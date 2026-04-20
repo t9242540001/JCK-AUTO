@@ -2,9 +2,9 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-19
-  @version:     1.7
-  @lines:       ~160
+  @updated:     2026-04-20
+  @version:     1.8
+  @lines:       ~150
 -->
 
 # Bugs — open issues tracker
@@ -148,14 +148,3 @@
 - **First reported:** March 2026 (case @danitsov)
 - **Action:** read current request.ts → if no validation, add: reject application without phone
   OR fallback to (name + telegram username)
-
-### Б-1 — bot reply delay (was: 2-5 minute delay)
-- **Cause:** webhook was registered on jckauto.ru directly; VDS provider
-  intermittently blocks Telegram IP ranges.
-- **Applied fix:** 2026-04-10 — re-registered webhook to point at Cloudflare
-  Worker URL (`tg-proxy.t9242540001.workers.dev/webhook/bot{TOKEN}`).
-  See decisions.md ADR `[2026-04-10] Telegram webhook via Cloudflare Worker`.
-- **Verification status:** NOT verified in 2026-04-15/16 session.
-- **Action:** live test — send /start to @jckauto_help_bot, confirm
-  <1s response. If delay still present, run getWebhookInfo and confirm
-  url starts with `tg-proxy.t9242540001.workers.dev/webhook/`.
