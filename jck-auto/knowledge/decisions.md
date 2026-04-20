@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-20
-  @version:     1.26
-  @lines:       ~2250
+  @version:     1.27
+  @lines:       ~2370
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -2235,3 +2235,106 @@ toggled off.
 **Discovered via:** Bot reply delay verification on 2026-04-20 per
 bugs.md Б-1 action item ("live test — send /start to @jckauto_help_bot,
 confirm <1s response").
+
+## [2026-04-20] Б-2 and Б-3 closed as side-effect of Smart Placement fix
+
+**Status:** Accepted
+
+**Confidence:** High — live verification in Telegram on 2026-04-20
+confirmed both handlers deliver complete responses end-to-end.
+
+**Context:**
+Б-2 ("auction sheet handler does not respond on photo") and Б-3
+("Encar handler does not respond on link") were registered during the
+period when the bot exhibited 17-20 second outbound latency. In that
+state, users sending a photo or encar-link to @jckauto_help_bot saw
+no timely response, assumed the handler was broken, and the bugs
+were logged as "code exists, but no response in production".
+
+The handlers were not actually broken. The pipelines ran correctly,
+produced results, and called `bot.sendMessage` / `bot.sendPhoto` —
+but each of those calls spent ~20 seconds in the Worker outbound
+fetch to `api.telegram.org`. With auction-sheet requiring multiple
+sendMessage calls (acknowledge + processing status + result +
+link) and encar requiring even more, the perceived latency stacked
+to "no response arriving before the user gives up".
+
+The 2026-04-20 Smart Placement fix (ADR
+`[2026-04-20] Enable Cloudflare Smart Placement on tg-proxy Worker`)
+cut outbound call latency from 19.8s to 0.22s — an ~88x speedup.
+This had the non-obvious side effect of making Б-2 and Б-3 usable
+without any handler-code change.
+
+**Verification on 2026-04-20:**
+- Б-2 test: photo of an auction sheet sent to @jckauto_help_bot.
+  Bot received, ran OCR passes + DeepSeek parse, returned complete
+  analysis (vehicle identification, 8 defects with auction codes,
+  equipment list, expert comments, overall grade, confidence
+  marker, and link to /tools/auction-sheet for full report).
+  Total time from send to complete response: within expected
+  pipeline timeframe (~1-2 minutes).
+- Б-3 test: `fem.encar.com/cars/detail/<id>` (Genesis GV70 2.5T
+  2023) sent to @jckauto_help_bot. Bot fetched from Encar API,
+  produced Russian translation, calculated turnkey cost (≈5.4M RUB),
+  added seller context, displayed inline buttons "Открыть на сайте"
+  and "Оставить заявку". Total time: ~20 seconds.
+
+Both responses complete and functional.
+
+**Decision:**
+Close Б-2 and Б-3. No handler-code change needed. Root cause of the
+"no response" symptom was the outbound latency that is now eliminated.
+
+**Why not rebuild the bugs around new follow-up observations:**
+Live testing exposed several follow-up observations that are NOT
+part of the Б-2/Б-3 closure:
+- Auction-sheet output contains internal auction codes (W1, A1, G, S)
+  that are noise to end users.
+- Encar CTA buttons and auction-sheet CTA structure differ (inline
+  buttons vs link-with-text); lead-form capture inconsistent.
+- No PDF download in bot for either feature (unlike the website).
+- No visible information in bot /start menu or BotFather description
+  about these features (separately tracked as Б-4).
+- Queue/rate-limit semantics in bot unclear — may not match the
+  website's async queue contract.
+- `/noscut` without argument expects next message to be prefixed
+  with `/noscut ` again, not intuitive.
+These are separate items and will be added to `roadmap.md` in a
+follow-up documentation prompt. They are NOT regressions introduced
+by Smart Placement — they pre-existed, just became visible once the
+outbound path was fast enough for users to actually see the output.
+
+**Pattern worth noting for future diagnosis:**
+When a performance fix lands (latency, concurrency, capacity),
+revisit bugs previously registered as "feature not responding" —
+they may have been masked delay, not broken code. This pattern
+saved ~4 hours of handler diagnosis on Б-2/Б-3. Fix was a
+single Dashboard toggle, not a handler rewrite.
+
+**Alternatives considered:**
+- Keep Б-2 and Б-3 in Verify status indefinitely — rejected.
+  Verification was done, both pass. Keeping "maybe-closed" entries
+  in the tracker pollutes it.
+- Close silently without ADR — rejected. The "side-effect closure"
+  pattern is a valuable diagnostic precedent. Recording it helps
+  future sessions notice when a performance fix may have masked
+  multiple functional bugs.
+
+**Consequences:**
+- (+) Two bugs off the tracker. Bot feature parity with website
+  confirmed for auction-sheet and encar core flow.
+- (+) Establishes a recognised "side-effect closure" pattern in
+  this project's ADR log. Future performance fixes should prompt
+  a re-sweep of stalled bug entries.
+- (−) Seven follow-up observations from live testing are NOT
+  addressed here — they live in roadmap.md after the follow-up
+  prompt. Each is a separate small task.
+
+**Files:**
+- No code changed.
+- `knowledge/bugs.md` (Б-2 and Б-3 removed).
+- `knowledge/INDEX.md` (dates updated).
+
+**Discovered via:** Live verification of Б-2 and Б-3 in Telegram on
+2026-04-20, per the action items updated by Prompt `8e5ed69`
+(cleanup-b1-references).
