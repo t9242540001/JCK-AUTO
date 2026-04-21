@@ -5,12 +5,12 @@
  *              Fetches vehicle data, AI power estimate + translation (parallel, non-blocking),
  *              calculates turnkey cost (non-fatal failure), and formats a summary.
  * @dependencies src/lib/encarClient, src/lib/calculator, src/lib/currencyRates,
- *               src/lib/botRateLimiter
+ *               src/lib/botRateLimiter, src/bot/lib/inlineKeyboards
  * @rule        checkBotLimit BEFORE fetchVehicle — rate check must be first
  * @rule        recordBotUsage AFTER successful sendMessage only — never in catch branches
  * @rule        Cost calculation failure is non-fatal — show vehicle data without price
  * @rule        No incrementCommand call — 'encar' is not a CommandStat slot
- * @lastModified 2026-04-21
+ * @lastModified 2026-04-22
  */
 
 import TelegramBot from 'node-telegram-bot-api';
@@ -26,6 +26,7 @@ import {
 import { calculateTotal, type CarAge, type EngineType } from '../../lib/calculator';
 import { fetchCBRRates } from '../../lib/currencyRates';
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from '../../lib/botRateLimiter';
+import { siteAndRequestButtons } from '../lib/inlineKeyboards';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -274,16 +275,7 @@ export function registerEncarHandler(bot: TelegramBot): void {
 
     try {
       await bot.sendMessage(chatId, text, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '🌐 Подробный отчёт на сайте', url: siteUrl },
-            ],
-            [
-              { text: 'Оставить заявку', callback_data: 'request_start' },
-            ],
-          ],
-        },
+        reply_markup: siteAndRequestButtons(siteUrl),
       });
 
       // 7. Record usage AFTER successful send only
