@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-04-21
-  @version:     1.54
+  @version:     1.55
   @lines:       48
 -->
 

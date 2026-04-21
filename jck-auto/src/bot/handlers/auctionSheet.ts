@@ -7,6 +7,7 @@
  * @dependencies src/lib/auctionSheetService (runAuctionSheetPipeline, PipelineResult),
  *               src/lib/auctionSheetQueue (auctionSheetQueue, QueueFullError),
  *               src/lib/botRateLimiter (checkBotLimit, recordBotUsage, getBotLimitMessage),
+ *               src/bot/lib/inlineKeyboards (siteAndRequestButtons),
  *               sharp 0.34.5 (image compression),
  *               TELEGRAM_BOT_TOKEN, TELEGRAM_API_BASE_URL env vars
  * @rule        File download MUST use TELEGRAM_API_BASE_URL, never api.telegram.org
@@ -24,6 +25,9 @@
  *              file are FORBIDDEN — they bypass the concurrency lock.
  * @rule        Polling interval is 1s (in-process Map lookup — free).
  *              Hard timeout is 180s (pipeline typically 30-90s).
+ * @rule        Result keyboard MUST be attached to the LAST chunk only,
+ *              never to intermediate chunks. Use the shared helper
+ *              siteAndRequestButtons from src/bot/lib/inlineKeyboards.
  * @lastModified 2026-04-21
  */
 
@@ -36,6 +40,7 @@ import {
   type PipelineResult,
 } from '../../lib/auctionSheetService';
 import { auctionSheetQueue, QueueFullError } from '../../lib/auctionSheetQueue';
+import { siteAndRequestButtons } from '../lib/inlineKeyboards';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -355,8 +360,14 @@ export function registerAuctionSheetHandler(bot: TelegramBot): void {
     try {
       const text = formatAuctionResult(data);
       const chunks = splitMessage(text);
-      for (const chunk of chunks) {
-        await bot.sendMessage(chatId, chunk);
+      const keyboard = siteAndRequestButtons('https://jckauto.ru/tools/auction-sheet');
+      for (let i = 0; i < chunks.length; i++) {
+        const isLast = i === chunks.length - 1;
+        await bot.sendMessage(
+          chatId,
+          chunks[i],
+          isLast ? { reply_markup: keyboard } : undefined,
+        );
       }
 
       // 12. Record usage AFTER successful send only.
