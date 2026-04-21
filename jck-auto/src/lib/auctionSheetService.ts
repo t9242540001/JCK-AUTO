@@ -215,3 +215,103 @@ STRICT RULES:
 11. For \`recycleFee\`, \`seats\`, and every field of \`dimensions\`: output as JSON integers (numeric, no quotes). Strings like "10460" or "10,460 円" are invalid — emit the integer 10460.
 12. For \`bodyType\`: apply the lookup table in the schema description. If the code on the sheet is not in the table, emit the original code string as-is instead of guessing a Russian translation.
 13. For \`inspectionValidUntil\`: convert Japanese-calendar month to ISO-8601 month-precision using the JAPANESE_CALENDAR_CONVERSION table already in this prompt. H30年3月 → '2018-03', R6年4月 → '2024-04'. If the sheet shows only a Western-calendar date like '04年02月' with no era letter, you cannot disambiguate — emit null.`;
+
+// ─── TYPES ──────────────────────────────────────────────────────────────────
+
+export type SheetType = 'printed' | 'handwritten' | 'mixed';
+
+/**
+ * Caller channel for runAuctionSheetPipeline.
+ * Controls rate-limit accounting:
+ *  - 'web' → site rateLimiter: recordUsage + checkRateLimit called.
+ *  - 'bot' → site rateLimiter NOT called; bot has its own counter
+ *            in src/lib/botRateLimiter.ts. meta.remaining will be null.
+ */
+export interface RunOpts {
+  channel: 'web' | 'bot';
+  /** Client IP. REQUIRED when channel='web'. Ignored when channel='bot'. */
+  ip?: string;
+  /** Authenticated Telegram ID. Optional on web, effectively required on bot. */
+  telegramId?: string;
+}
+
+export interface PipelineResult {
+  data: unknown;
+  meta: {
+    model: string;
+    tokens: number;
+    /**
+     * Remaining quota from the site rateLimiter.
+     * null when channel='bot' — site limiter is not consulted.
+     */
+    remaining: number | null;
+    sheetType: SheetType;
+    classifierModel: string;
+    classifierElapsed: number;
+  };
+}
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+/**
+ * Parses JSON that may or may not be wrapped in markdown code fences.
+ * Throws SyntaxError on invalid JSON.
+ */
+export function parseJsonFromContent(content: string): unknown {
+  const match = content.match(/```json\s*([\s\S]*?)\s*```/);
+  return JSON.parse(match?.[1] || content);
+}
+
+// ─── PASS 0: CLASSIFIER ─────────────────────────────────────────────────────
+
+/**
+ * Pass 0 — classify the auction sheet by how its data is recorded.
+ * Advisory-only: failure defaults to 'printed' so the current
+ * pipeline continues to work.
+ *
+ * @rule Classifier output is advisory, NOT blocking. On any failure
+ *       (timeout, unexpected output, exception) return type='printed'.
+ *       Existing pipeline MUST continue to work even if classifier
+ *       returns nothing useful.
+ * @rule Classifier uses ONLY qwen3-vl-flash — fast and cheap.
+ *       Do NOT add qwen3.5-plus to the classifier chain; the whole
+ *       point of routing is to avoid paying qwen3.5-plus cost on
+ *       every request.
+ * @rule maxTokens=20 is intentional. If the model outputs more than
+ *       one short word, the prompt is not being followed and we
+ *       treat it as failure (default to 'printed').
+ */
+export async function classifySheet(
+  dataUrl: string,
+): Promise<{ type: SheetType; model: string; elapsed: number }> {
+  const start = Date.now();
+  try {
+    const result = await analyzeImageWithFallback(dataUrl, CLASSIFIER_USER, {
+      models: ['qwen3-vl-flash'] as const,
+      maxTokens: 20,
+      temperature: 0,
+      systemPrompt: CLASSIFIER_SYSTEM,
+    });
+    const raw = result.content.trim().toLowerCase();
+    const elapsed = (Date.now() - start) / 1000;
+
+    if (raw === 'printed' || raw === 'handwritten' || raw === 'mixed') {
+      console.log(
+        `[auction-sheet] Pass 0 classifier: type=${raw} model=${result.usedModel} elapsed=${elapsed.toFixed(1)}s`,
+      );
+      return { type: raw, model: result.usedModel, elapsed };
+    }
+
+    console.warn(
+      `[auction-sheet] Pass 0 classifier returned unexpected output: "${result.content.slice(0, 50)}" — defaulting to printed (elapsed=${elapsed.toFixed(1)}s)`,
+    );
+    return { type: 'printed', model: result.usedModel, elapsed };
+  } catch (err) {
+    const elapsed = (Date.now() - start) / 1000;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[auction-sheet] Pass 0 classifier failed: ${msg.slice(0, 120)} — defaulting to printed after ${elapsed.toFixed(1)}s`,
+    );
+    return { type: 'printed', model: 'classifier-failed', elapsed };
+  }
+}
