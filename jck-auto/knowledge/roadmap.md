@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-21
-  @version:     1.10
-  @lines:       139
+  @version:     1.11
+  @lines:       142
 -->
 
 # Roadmap
@@ -13,6 +13,18 @@
 
 ## Done
 
+- [x] **2026-04-21 — Wire Telegram bot auction-sheet handler to shared service via queue**
+  `src/bot/handlers/auctionSheet.ts` rewritten to delete the duplicated
+  SYSTEM_PROMPT and the direct single-model `analyzeImage` call.
+  The handler now compresses with Sharp (same params as the website),
+  enqueues into `auctionSheetQueue` with
+  `runAuctionSheetPipeline(buf, { channel: 'bot', telegramId })`, and
+  polls the job status every 1s with a 180s hard timeout. Bot and
+  website now share concurrency=1 and one source of truth for OCR +
+  parse prompts. `formatAuctionResult`, `splitMessage`, and
+  `severityLabel` stay bot-local (bot-surface concerns). Closes the
+  regression bullet from In Progress (bot auction-sheet analysis via
+  photo).
 - [x] **2026-04-21 — Extract auction-sheet pipeline into shared service (`src/lib/auctionSheetService.ts`)**
   Bot was still calling a duplicated, single-model version of the
   decoder; website had the production pipeline inline in its route.
@@ -58,7 +70,6 @@
 - [~] Phase 5: Finalization (SEO audit, mobile check, sitemap)
 - [~] Merge all branches into main
 - [~] Regenerate bot token in BotFather (Step 0 — manual, pending)
-- [~] Bot: auction sheet analysis via photo — regression, see bugs.md Б-2
 
 ## Planned — Site
 
@@ -72,12 +83,6 @@
 
 ## Planned — Bot
 
-- [ ] **Prompt 2.2 — Wire bot auction-sheet handler to `auctionSheetService`.**
-  Delete local SYSTEM_PROMPT + direct `analyzeImage` call in
-  `src/bot/handlers/auctionSheet.ts`. Replace with
-  `auctionSheetQueue.enqueue(() => runAuctionSheetPipeline(buf, {channel:'bot', telegramId}))`
-  + await. Keep `formatAuctionResult` and `splitMessage` in the bot
-  file — those are bot-surface concerns.
 - [ ] **Prompt 2.3 — Bot progress indicator for auction-sheet.**
   `editMessageText` the "🔍 Анализирую…" message once at ~45s with
   "Занимает дольше обычного, ещё около минуты…". On final success —

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-21
-  @version:     1.30
-  @lines:       ~2420
+  @version:     1.31
+  @lines:       ~2470
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -2235,6 +2235,88 @@ toggled off.
 **Discovered via:** Bot reply delay verification on 2026-04-20 per
 bugs.md Б-1 action item ("live test — send /start to @jckauto_help_bot,
 confirm <1s response").
+
+## [2026-04-21] Wire Telegram bot to shared auction-sheet service
+
+**Status:** Accepted
+**Confidence:** High
+
+**Context:** Prompt 2.1 (2026-04-21) extracted the auction-sheet AI
+pipeline into `src/lib/auctionSheetService.ts` with a single public
+entry point `runAuctionSheetPipeline(buffer, { channel, ip?, telegramId? })`
+and switched the website to call it via the shared `auctionSheetQueue`
+(concurrency=1). The Telegram bot handler
+`src/bot/handlers/auctionSheet.ts` still ran an older, drift-prone
+path: a local `SYSTEM_PROMPT` literally marked "Copied exactly from
+route.ts" plus a single direct `analyzeImage(..., { model: 'qwen3.5-plus' })`
+call, with no Sharp compression and no shared queue. Symptoms: the bot
+decode timed out in production on 2026-04-21 under load (tracked as
+the "bot auction-sheet regression" In Progress bullet), and the bot
+could overload DashScope independently of the website's queue-based
+back-pressure.
+
+**Decision:** Rewrite `src/bot/handlers/auctionSheet.ts` as a thin
+Telegram adapter that enqueues into the same `auctionSheetQueue` the
+website uses, and polls for the result:
+
+1. Keep the pre-pipeline gate unchanged: `checkBotLimit(telegramId, 'ai')`
+   is called before any download or API call. Site `rateLimiter` is NOT
+   consulted — the bot uses its own `botRateLimiter` (ai cooldown 2 min).
+2. After `bot.getFile()` + 5 MB size check + env validation + status
+   message, download the photo via the Worker URL
+   (`TELEGRAM_API_BASE_URL` — api.telegram.org is blocked from VDS).
+3. Compress with Sharp using parameters byte-identical to the website
+   (`resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })`,
+   `jpeg({ quality: 85 })`, `sharpen({ sigma: 0.5 })`). The pipeline
+   expects a specific input-quality envelope; any divergence here
+   requires changing the website too.
+4. Enqueue with
+   `auctionSheetQueue.enqueue(() => runAuctionSheetPipeline(buf, { channel: 'bot', telegramId }))`.
+   Because the service gates rate-limit bookkeeping on `channel === 'web'`,
+   the bot path touches neither `recordUsage` nor the site `remaining`
+   counter.
+5. On `QueueFullError` at enqueue time: user-visible "service overloaded"
+   message pointing to the site, and RETURN without calling
+   `recordBotUsage` (queue refusal is not a successful service call).
+6. Poll the queue every 1s with a 180s hard timeout. 1s is a
+   free Map lookup in the same process; 180s leaves headroom for
+   queue position + processing (typical pipeline 30–90s). On timeout:
+   user-visible "analysis is taking longer than usual" message, and
+   RETURN without `recordBotUsage`. The job continues running inside
+   the queue after our timeout — cancellation support is a future
+   improvement.
+7. On `status === 'failed'`: parse the `ai_error:` / `parse_error:`
+   prefix produced by the pipeline, strip the prefix, and send the
+   Russian remainder to the user. For any other error format, fall
+   back to a generic message. RETURN without `recordBotUsage`.
+8. On `status === 'done'`: format via the local `formatAuctionResult`,
+   split via the local `splitMessage`, send to chat, THEN call
+   `recordBotUsage(telegramId, 'ai')` and
+   `incrementCommand('auction')`. If the send itself fails, user did
+   not get the result — do NOT record usage.
+
+`formatAuctionResult`, `splitMessage`, and `severityLabel` stay in
+the bot file: they are bot-surface concerns (Telegram chunking, Russian
+copy, emoji). They do not belong in `src/lib/auctionSheetService.ts`.
+
+**Consequences:**
+- Bot and website share a single OCR + parse prompt set, a single
+  DashScope/DeepSeek client path, and a single queue. DashScope
+  prompt tweaks or rate-limit shifts now require one edit, not two.
+- Concurrency=1 is now enforced across both surfaces. A burst of bot
+  decodes cannot independently saturate DashScope while the site is
+  also busy.
+- Bot perceived latency increases slightly (Sharp compression + queue
+  wait) but typical steady-state stays well under 180s.
+- The previous "bot auction-sheet regression" In Progress bullet is
+  removed from roadmap.md — the bot now shares the production pipeline
+  proven stable on the website.
+- Polling the queue for 180s uses a negligible amount of work (Map
+  lookup every 1s). If we later add server-push for completion, the
+  poll loop becomes redundant and can be removed — keep the contract
+  `auctionSheetQueue.getStatus(jobId)` stable.
+- Writing to disk is forbidden by existing `@rule` comments. Buffers
+  stay in memory end-to-end.
 
 ## [2026-04-21] Architecture: shared auction-sheet service
 

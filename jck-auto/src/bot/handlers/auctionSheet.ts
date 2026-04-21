@@ -1,95 +1,45 @@
 /**
  * @file        auctionSheet.ts
- * @description Telegram bot photo handler — analyzes Japanese auction sheets via Qwen-VL.
- *              Fires on any incoming photo message. Rate-limited via botRateLimiter (ai, 2 min).
- * @dependencies src/lib/dashscope (analyzeImage),
+ * @description Telegram bot photo handler — analyzes Japanese auction sheets
+ *              by enqueuing into the shared auctionSheetQueue and polling for
+ *              the result produced by runAuctionSheetPipeline. Rate-limited
+ *              via botRateLimiter (ai, 2 min).
+ * @dependencies src/lib/auctionSheetService (runAuctionSheetPipeline, PipelineResult),
+ *               src/lib/auctionSheetQueue (auctionSheetQueue, QueueFullError),
  *               src/lib/botRateLimiter (checkBotLimit, recordBotUsage, getBotLimitMessage),
+ *               sharp 0.34.5 (image compression),
  *               TELEGRAM_BOT_TOKEN, TELEGRAM_API_BASE_URL env vars
  * @rule        File download MUST use TELEGRAM_API_BASE_URL, never api.telegram.org
  * @rule        checkBotLimit BEFORE any download or API call
- * @rule        recordBotUsage AFTER successful message send only
+ * @rule        recordBotUsage AFTER successful send only — NOT on queue_full,
+ *              NOT on pipeline failure, NOT on polling timeout, NOT on format/send error
  * @rule        Buffer must NOT be written to disk — in-memory only
  * @rule        file_size check MUST use value from bot.getFile(), not msg.photo[N].file_size
+ * @rule        Sharp compression parameters MUST match the website's
+ *              (2000x2000 inside, JPEG 85, sharpen 0.5) — the pipeline
+ *              expects a specific input quality envelope
+ * @rule        All DashScope/DeepSeek calls MUST go through the shared
+ *              auctionSheetQueue (concurrency=1). Direct calls to
+ *              analyzeImage / callDeepSeek / callQwenText from this
+ *              file are FORBIDDEN — they bypass the concurrency lock.
+ * @rule        Polling interval is 1s (in-process Map lookup — free).
+ *              Hard timeout is 180s (pipeline typically 30-90s).
  * @lastModified 2026-04-21
  */
 
 import TelegramBot from 'node-telegram-bot-api';
-import { analyzeImage } from '../../lib/dashscope';
+import sharp from 'sharp';
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from '../../lib/botRateLimiter';
 import { incrementCommand } from '../store/botStats';
+import {
+  runAuctionSheetPipeline,
+  type PipelineResult,
+} from '../../lib/auctionSheetService';
+import { auctionSheetQueue, QueueFullError } from '../../lib/auctionSheetQueue';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-
-// ─── PROMPTS ──────────────────────────────────────────────────────────────────
-
-// Copied exactly from src/app/api/tools/auction-sheet/route.ts
-const SYSTEM_PROMPT = `Ты — эксперт по расшифровке японских аукционных листов. Анализируй загруженное изображение и извлеки все данные.
-
-СИСТЕМА ОЦЕНОК:
-- Общая оценка: S > 6 > 5 > 4.5 > 4 > 3.5 > 3 > 2 > 1 > R (восстановленный) > A (аварийный) > *** (не подлежит оценке)
-- Оценка салона: A (отлично) > B (хорошо) > C (удовлетворительно) > D (плохо)
-- Аукционы: USS, TAA, HAA, JU, CAA, AUCNET, JAA и др.
-
-КОДЫ ДЕФЕКТОВ:
-- A1 (мелкая царапина), A2 (царапина), A3 (большая царапина)
-- E/U1 (маленькая вмятина), U2 (вмятина), U3 (большая вмятина)
-- W1 (мелкий ремонт/подкрас), W2 (ремонт с покраской), W3 (значительный ремонт)
-- S1 (следы ржавчины), S2 (значительная ржавчина)
-- X (деталь заменена), XX (деталь заменена на неоригинальную)
-- P (краска отличается от оригинала), H (краска потускнела)
-- C1 (мелкая коррозия), C2 (коррозия)
-- B1 (маленькая вмятина с царапиной), B2 (вмятина с царапиной)
-- Y1 (мелкая трещина), Y2 (трещина), Y3 (большая трещина)
-
-РАСПОЛОЖЕНИЕ ДЕФЕКТОВ:
-Схема кузова на аукционном листе показывает вид сверху. Стороны: передний бампер, капот, крыша, задний бампер, левая/правая передняя дверь, левая/правая задняя дверь, левое/правое переднее крыло, левое/правое заднее крыло.
-
-КОМПЛЕКТАЦИЯ (сокращения):
-AC (кондиционер), AAC (климат-контроль), PS (гидроусилитель), PW (электростеклоподъёмники), AW (литые диски), SR (люк), ABS, AB (подушки безопасности), TV, NAVI (навигация), CD, MD, ETC (электронная система оплаты), HID/LED (фары), RS (задний спойлер), 4WD
-
-ФОРМАТ ОТВЕТА — строго JSON:
-{
-  "auctionName": "название аукциона или null",
-  "lotNumber": "номер лота или null",
-  "overallGrade": "общая оценка (S, 6, 5, 4.5, 4, 3.5, 3, 2, 1, R, A, ***) или null",
-  "interiorGrade": "оценка салона (A, B, C, D) или null",
-  "make": "марка или null",
-  "model": "модель или null",
-  "year": "год (формат: 'R3 (2021)' для японского календаря или просто '2021') или null",
-  "engineVolume": "объём двигателя в см³ или null",
-  "engineType": "тип двигателя (бензин/дизель/гибрид/электро) или null",
-  "transmission": "коробка передач (AT/MT/CVT) или null",
-  "mileage": "пробег в км или null",
-  "mileageWarning": true/false,
-  "color": "цвет кузова или null",
-  "ownership": "тип владения или null",
-  "bodyDamages": [
-    {
-      "location": "расположение на русском",
-      "code": "код дефекта",
-      "description": "расшифровка на русском",
-      "severity": "minor|moderate|major"
-    }
-  ],
-  "equipment": ["расшифрованные опции на русском"],
-  "expertComments": "комментарии эксперта переведённые на русском или null",
-  "unrecognized": ["что не удалось распознать"],
-  "confidence": "high|medium|low",
-  "recommendation": "краткая рекомендация по покупке на русском",
-  "warnings": ["предупреждения"]
-}
-
-ПРАВИЛА:
-- Все тексты на русском языке
-- Если данные не удалось распознать — записать в unrecognized, НЕ выдумывать
-- Если пробег вызывает сомнения (несоответствие возрасту) — mileageWarning: true
-- confidence: high если распознано >80% полей, medium если 50-80%, low если <50%
-- Год из японского календаря: R = Reiwa (2019+), H = Heisei (1989-2019), конвертировать в европейский
-- Ответ — ТОЛЬКО JSON, без пояснений, без markdown-обёрток`;
-
-const USER_PROMPT = 'Расшифруй этот аукционный лист. Извлеки все данные которые видишь. Ответ — строго JSON по заданной схеме.';
 
 // ─── FORMATTER ────────────────────────────────────────────────────────────────
 
@@ -236,7 +186,8 @@ function splitMessage(text: string, maxLen = 4000): string[] {
 // ─── HANDLER ──────────────────────────────────────────────────────────────────
 
 /**
- * Registers a photo message handler that analyzes Japanese auction sheets via Qwen-VL.
+ * Registers a photo message handler that analyzes Japanese auction sheets
+ * through the shared auctionSheetService (via auctionSheetQueue).
  */
 export function registerAuctionSheetHandler(bot: TelegramBot): void {
   bot.on('message', async (msg) => {
@@ -279,60 +230,145 @@ export function registerAuctionSheetHandler(bot: TelegramBot): void {
     await bot.sendMessage(chatId, '🔍 Анализирую аукционный лист...');
 
     // 5. Download via Worker URL — NEVER api.telegram.org
-    let imageBase64: string;
+    let rawBuffer: Buffer;
     try {
       const fileUrl = `${apiBase}/file/bot${botToken}/${file.file_path}`;
       const response = await fetch(fileUrl);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const buffer = await response.arrayBuffer();
-      imageBase64 = Buffer.from(buffer).toString('base64');
-      // buffer goes out of scope here — GC handles cleanup, no disk writes
+      const arr = await response.arrayBuffer();
+      rawBuffer = Buffer.from(arr);
     } catch (err) {
       console.error('[auctionSheet] download error:', err);
       bot.sendMessage(chatId, 'Не удалось загрузить фото. Попробуйте ещё раз.');
       return;
     }
 
-    // 6. Analyze via Qwen-VL
-    const dataUrl = `data:image/jpeg;base64,${imageBase64}`;
+    // 6. Compress with Sharp — MUST match website compression parameters
+    //    (resize to 2000x2000 inside, JPEG quality 85, mild sharpen).
+    //    Same parameters as in src/app/api/tools/auction-sheet/route.ts.
+    // @rule Sharp compression parameters MUST match the website's —
+    //       the pipeline expects a specific input quality envelope.
+    //       Any change here requires changing the website too.
+    let compressedBuffer: Buffer;
     try {
-      const result = await analyzeImage(dataUrl, USER_PROMPT, {
-        model: 'qwen3.5-plus',
-        maxTokens: 4096,
-        temperature: 0.1,
-        systemPrompt: SYSTEM_PROMPT,
-      });
+      compressedBuffer = await sharp(rawBuffer)
+        .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .sharpen({ sigma: 0.5 })
+        .toBuffer();
+    } catch (err) {
+      console.warn('[auctionSheet] Sharp compression failed:', err instanceof Error ? err.message : err);
+      bot.sendMessage(chatId, 'Не удалось обработать фото. Попробуйте прислать другое изображение.');
+      return;
+    }
 
-      // 7. Parse JSON response
-      let parsed: Record<string, unknown>;
-      try {
-        const match = result.content.match(/```json\s*([\s\S]*?)\s*```/);
-        parsed = JSON.parse(match?.[1] || result.content) as Record<string, unknown>;
-      } catch {
+    // 7. Enqueue into shared auction-sheet queue (concurrency=1 shared with website).
+    //    Bot calls the pipeline with channel='bot' — bot has its own
+    //    rate limiter (botRateLimiter); the site rateLimiter is NOT consulted.
+    let jobId: string;
+    try {
+      jobId = auctionSheetQueue.enqueue(() =>
+        runAuctionSheetPipeline(compressedBuffer, {
+          channel: 'bot',
+          telegramId,
+        }),
+      );
+    } catch (err) {
+      if (err instanceof QueueFullError) {
         bot.sendMessage(
           chatId,
-          'Не удалось распознать аукционный лист. Попробуйте другое фото или используйте сайт: jckauto.ru/tools/auction-sheet',
+          'Сервис временно перегружен. Попробуйте через 5 минут или воспользуйтесь сайтом: jckauto.ru/tools/auction-sheet',
+        );
+        // NOTE: Do NOT recordBotUsage — queue refusal is not a successful service call.
+        return;
+      }
+      console.error('[auctionSheet] enqueue failed unexpectedly:', err instanceof Error ? err.message : err);
+      bot.sendMessage(chatId, 'Ошибка при постановке задачи в очередь. Попробуйте позже.');
+      return;
+    }
+
+    // 8. Poll the queue for completion. 1s interval, 180s hard timeout.
+    //    The job continues running in the queue if we time out here —
+    //    this is a known trade-off (see ADR). Cancellation support is a
+    //    future improvement.
+    // @rule Polling interval is intentionally 1s — it's a Map lookup in
+    //       the same process, effectively free. Do NOT widen without reason.
+    // @rule Hard timeout is 180s (3 minutes). Pipeline typically completes
+    //       in 30-90s; 180s leaves headroom for queue position + processing.
+    const POLL_INTERVAL_MS = 1000;
+    const HARD_TIMEOUT_MS = 180_000;
+    const startedAt = Date.now();
+
+    let finalSnapshot: ReturnType<typeof auctionSheetQueue.getStatus> = null;
+    while (Date.now() - startedAt < HARD_TIMEOUT_MS) {
+      await new Promise<void>((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      const snapshot = auctionSheetQueue.getStatus(jobId);
+      if (snapshot === null) {
+        // Job TTL-expired or lost — should not happen within 180s, but guard anyway.
+        console.error(`[auctionSheet] job ${jobId} disappeared during polling`);
+        bot.sendMessage(
+          chatId,
+          'Произошла внутренняя ошибка. Попробуйте ещё раз или воспользуйтесь сайтом: jckauto.ru/tools/auction-sheet',
         );
         return;
       }
+      if (snapshot.status === 'done' || snapshot.status === 'failed') {
+        finalSnapshot = snapshot;
+        break;
+      }
+    }
 
-      // 8. Format and send (split if >4000 chars)
-      const text = formatAuctionResult(parsed);
+    // 9. Handle timeout: pipeline did not finish within 180s.
+    if (finalSnapshot === null) {
+      console.warn(`[auctionSheet] job ${jobId} timed out after ${HARD_TIMEOUT_MS}ms`);
+      bot.sendMessage(
+        chatId,
+        'Анализ занимает дольше обычного. Попробуйте позже или воспользуйтесь сайтом: jckauto.ru/tools/auction-sheet',
+      );
+      // NOTE: Do NOT recordBotUsage — user never got a result.
+      return;
+    }
+
+    // 10. Handle failure: pipeline threw. Extract user-friendly message.
+    if (finalSnapshot.status === 'failed') {
+      console.error(`[auctionSheet] job ${jobId} failed:`, finalSnapshot.error);
+      // Pipeline throws errors prefixed with "ai_error:" or "parse_error:"
+      // followed by a Russian message suitable for the user.
+      // For any other error format, fall back to a generic message.
+      const rawError = finalSnapshot.error ?? '';
+      let userMessage: string;
+      if (rawError.startsWith('ai_error:') || rawError.startsWith('parse_error:')) {
+        userMessage = rawError.replace(/^(ai_error|parse_error):\s*/, '').trim()
+          || 'Ошибка при анализе. Попробуйте позже или воспользуйтесь сайтом: jckauto.ru/tools/auction-sheet';
+      } else {
+        userMessage = 'Ошибка при анализе. Попробуйте позже или воспользуйтесь сайтом: jckauto.ru/tools/auction-sheet';
+      }
+      bot.sendMessage(chatId, userMessage);
+      // NOTE: Do NOT recordBotUsage — pipeline failure is not a successful service call.
+      return;
+    }
+
+    // 11. Format and send the successful result.
+    const pipelineResult = finalSnapshot.result as PipelineResult;
+    const data = pipelineResult.data as Record<string, unknown>;
+
+    try {
+      const text = formatAuctionResult(data);
       const chunks = splitMessage(text);
       for (const chunk of chunks) {
         await bot.sendMessage(chatId, chunk);
       }
 
-      // 9. Record usage AFTER successful send only
+      // 12. Record usage AFTER successful send only.
       recordBotUsage(telegramId, 'ai');
       incrementCommand('auction');
-
-    } catch (err) {
-      console.error('[auctionSheet] AI error:', err instanceof Error ? err.message : err);
+    } catch (sendErr) {
+      console.error('[auctionSheet] format/send error:', sendErr instanceof Error ? sendErr.message : sendErr);
       bot.sendMessage(
         chatId,
-        'Ошибка при анализе. Попробуйте позже или воспользуйтесь сайтом: jckauto.ru/tools/auction-sheet',
+        'Отчёт получен, но не удалось отправить его в Telegram. Воспользуйтесь сайтом: jckauto.ru/tools/auction-sheet',
       );
+      // NOTE: Do NOT recordBotUsage — user didn't receive the full result.
     }
   });
 }
