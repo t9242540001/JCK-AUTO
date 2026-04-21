@@ -2,9 +2,9 @@
   @file:        knowledge/infrastructure.md
   @project:     JCK AUTO
   @description: Server config, PM2 processes, deploy procedures, constraints, per-endpoint nginx overrides
-  @updated:     2026-04-18
-  @version:     1.7
-  @lines:       ~260
+  @updated:     2026-04-22
+  @version:     1.8
+  @lines:       ~305
 -->
 
 # Infrastructure
@@ -44,13 +44,41 @@
 - **Script:** `node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local`
 - **CWD:** `/var/www/jckauto/app/jck-auto`
 - **Port:** `8443` (webhook listener)
-- **Restart:**
+- **Restart (canonical, cwd-safe):**
   ```bash
-  pm2 delete jckauto-bot
-  pm2 start "node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
+  cd /var/www/jckauto/app/jck-auto
+  pm2 delete jckauto-bot 2>/dev/null || true
+  pm2 start bash --name jckauto-bot --max-restarts 5 -- \
+    -c "cd /var/www/jckauto/app/jck-auto && exec node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local"
   pm2 save
   ```
-- **CRITICAL:** use `pm2 delete` + `pm2 start` (NOT `pm2 restart`) — `pm2 restart` does not reload `.env.local`.
+- **CRITICAL — five protective layers:**
+  1. `cd` BEFORE `pm2 start` — gives the PM2 daemon the right cwd to
+     inherit when it spawns the process.
+  2. `cd` AGAIN inside `bash -c` — defense in depth. Even if PM2 ignores
+     the inherited cwd (e.g. it picks one up from `~/.pm2/dump.pm2`),
+     bash itself moves into the project directory before exec.
+  3. `exec node_modules/.bin/tsx ...` — replaces the bash process with
+     tsx so PM2's PID equals the actual bot PID. Correct restart metrics
+     and correct graceful shutdown.
+  4. `--max-restarts 5` — caps any future crash-loop at 5 attempts before
+     PM2 marks the process `errored`. Without this cap, a misconfigured
+     command can produce 30+ restarts before being noticed (incident
+     2026-04-22, process id 296).
+  5. `pm2 delete jckauto-bot 2>/dev/null || true` — strips any stale
+     entry from the dump file before starting fresh. Prevents the "id
+     reuse with wrong cwd" failure mode.
+- **`pm2 restart` is FORBIDDEN for this process** — does not reload
+  `.env.local`. Always `pm2 delete` + `pm2 start` per the form above.
+- **Direct `pm2 start "node_modules/.bin/tsx ..."` (without bash wrapper)
+  is FORBIDDEN.** PM2 may resolve the relative path against the operator's
+  shell pwd, not the daemon's cwd — causes spawn-from-`/root` crash loops.
+  See `rules.md` Infrastructure Rules and ADR `[2026-04-22] PM2 cwd
+  inheritance incident`.
+- **Why `node_modules/.bin/tsx`, not `npx tsx`:** `npx tsx` may pick up a
+  global tsx that fails to resolve `dotenv/config` (incident 2026-04-10,
+  documented in `telegram-bot.md`). The local binary is deterministic and
+  available after every `npm ci`.
 
 ### mcp-gateway
 
@@ -106,7 +134,8 @@ NEXT_DIST_DIR="$NEXT_SLOT" npm run build
 ln -sfn "$NEXT_SLOT" .next
 pm2 restart jckauto
 pm2 delete jckauto-bot || true
-pm2 start "node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
+pm2 start bash --name jckauto-bot --max-restarts 5 -- \
+  -c "cd /var/www/jckauto/app/jck-auto && exec node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local"
 pm2 save && pm2 status
 ```
 

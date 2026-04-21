@@ -2,9 +2,9 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-21
-  @version:     1.14
-  @lines:       139
+  @updated:     2026-04-22
+  @version:     1.15
+  @lines:       141
 -->
 
 # Critical Rules
@@ -23,6 +23,7 @@
 
 | Rule | Location | Consequence |
 |------|----------|-------------|
+| `pm2 start` MUST use `bash -c` form with explicit `cd` to project directory; relative-path commands are forbidden | All bot/process startup, `infrastructure.md` PM2 Processes, ADR [2026-04-22] PM2 cwd inheritance incident | PM2 may resolve relative paths against the operator's shell pwd before the daemon's cwd takes effect. Direct `pm2 start "node_modules/.bin/tsx ..."` from `/root` produces a crash-loop process in `/root` while the canonical entry in dump may simultaneously survive — two `jckauto-bot` processes online (incident 2026-04-22, ids 295/296/297). Always `cd /var/www/jckauto/app/jck-auto && pm2 start bash --name X --max-restarts 5 -- -c "cd <same dir> && exec <command>"` |
 | `pm2 restart` does NOT reload .env.local | Bot deploy | Bot runs with stale env vars, may crash or misbehave |
 | Anthropic API: calls ONLY from GitHub Actions runner | scripts/process-ai-pending.ts | 403 error from Russian VDS IP |
 | DashScope runs from VDS (Singapore region) | dashscope.ts | No issue, just documenting the allowed path |
@@ -64,6 +65,7 @@
 | Client components must NOT import fetchCBRRates | CalculatorCore, CustomsClient | CORS error — sravni.ru blocks browser requests |
 | Client components fetch rates from /api/exchange-rates | CalculatorCore, CustomsClient | — |
 | Bot calls fetchCBRRates() directly (server-side OK) | bot/handlers/calculator.ts | — |
+| Acceptance-Criteria grep checks MUST exclude JSDoc/comment matches OR use precise patterns | All Claude Code prompts | A JSDoc line like `* @rule ensureUsersLoaded must be awaited` will match a naive `grep -n 'ensureUsersLoaded'` AC check, inflating the expected count and causing false "criterion met" reports. Use anchored patterns (`import.*\bX\b`, `\.X\(`, `export.*X`) or pipe through `grep -v '^\s*\*'` to exclude comment lines. Established 2026-04-21 during Prompt 2.4.SESSION-CLOSE follow-up. |
 
 ## UI Wording Rules
 
