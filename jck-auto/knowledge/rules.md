@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-21
-  @version:     1.13
-  @lines:       129
+  @version:     1.14
+  @lines:       139
 -->
 
 # Critical Rules
@@ -116,6 +116,16 @@
   FORBIDDEN. Any caller that needs the pipeline imports
   `runAuctionSheetPipeline` from the service and enqueues through the
   shared `auctionSheetQueue` (concurrency=1, FIFO).
+- **Bot result inline-keyboards live in exactly one place.** The
+  keyboards shown below AI-analysis or calculation result messages in
+  `src/bot/handlers/**` MUST be built through the helpers exported
+  from `src/bot/lib/inlineKeyboards.ts`
+  (`siteAndRequestButtons`, `siteRequestAndAgainButtons`,
+  `noscutResultButtons`). Direct literal `inline_keyboard: [...]`
+  objects for result messages are FORBIDDEN — they cause the text
+  drift that the 2026-04-21 audit revealed. Navigation and wizard-step
+  keyboards (catalog paging, customs wizard) are NOT covered — only
+  terminal result messages.
 
 ## Noscut Business Rules
 
