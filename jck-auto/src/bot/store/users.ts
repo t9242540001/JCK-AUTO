@@ -23,6 +23,19 @@ async function loadUsers(): Promise<void> {
   }
   loaded = true;
 }
+/**
+ * Public idempotent helper to hydrate the in-memory user store from disk.
+ * Call once at the start of any sync code path that relies on `getUser`
+ * returning real data. Second and later calls are no-op thanks to the
+ * `loaded` flag inside `loadUsers`.
+ *
+ * @rule getUser() is synchronous and WILL return undefined until
+ *       ensureUsersLoaded() has resolved at least once in the
+ *       process lifetime.
+ */
+export async function ensureUsersLoaded(): Promise<void> {
+  await loadUsers();
+}
 async function persistUsers(): Promise<void> {
   const arr = Array.from(users.values());
   await fs.mkdir(path.dirname(USERS_FILE), { recursive: true });

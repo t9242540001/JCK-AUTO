@@ -2,9 +2,9 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-20
-  @version:     1.10
-  @lines:       ~140
+  @updated:     2026-04-21
+  @version:     1.11
+  @lines:       ~166
 -->
 
 # Bugs — open issues tracker
@@ -68,6 +68,34 @@
   timestamps with deploy timestamps. Candidate fix: pm2 graceful reload
   (pm2 reload instead of restart), or hold symlink swap until next start
   completes (harder).
+
+### Б-9 — user store race on bot restart [Closed 2026-04-21]
+- **File:** src/bot/store/users.ts, src/bot/handlers/request.ts
+- **Severity:** High — silently breaks "Оставить заявку" CTAs after every bot restart.
+- **Symptom:** After `pm2 delete + pm2 start`, existing users tapping an
+  inline "Оставить заявку" button receive "Нажмите /start чтобы начать."
+  instead of the phone-request keyboard. Starts working after the user
+  types /start (which triggers saveUser → loadUsers).
+- **Root cause:** `src/bot/store/users.ts` is an async-load store: the
+  in-memory `users` Map is populated only inside the async `loadUsers()`
+  function, which is called only by async public accessors. The sync
+  `getUser(chatId)` accessor does not trigger the load, so immediately
+  after process restart it returns `undefined` until some other code
+  path has awaited loadUsers. `handleRequestCommand` in
+  `src/bot/handlers/request.ts` called `getUser` synchronously without
+  pre-hydrating, resulting in a spurious fallback.
+- **Fix (2026-04-21):** Exposed `ensureUsersLoaded()` from `users.ts`.
+  `handleRequestCommand` became async and awaits `ensureUsersLoaded()`
+  before calling `getUser`. Callback_query listener calls the handler
+  with `void` to intentionally not await. See ADR
+  `[2026-04-21] Bot user store lazy-load race — minimal lazy-await fix`.
+- **Discovered by:** Live verification of Prompt 2.4.2 (adding result
+  keyboard to auction-sheet handler) — the new keyboard made the race
+  reproducible because each bot restart created a larger pool of
+  "existing buttons on old messages" in the wild.
+- **Long-term follow-up:** Consider rewriting users.ts in the
+  synchronous-load-at-import style used by `botStats.ts` — removes
+  the race class entirely. Deferred; not blocking.
 
 ### Б-8 — capture-deploy-log.yml registration verification pending
 - **File:** .github/workflows/capture-deploy-log.yml
