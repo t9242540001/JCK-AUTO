@@ -1,5 +1,20 @@
+/**
+ * @file        request.ts
+ * @description Telegram bot "Оставить заявку" flow — collects phone
+ *              number via reply keyboard, forwards lead to the
+ *              group chat.
+ * @dependencies ../store/users (ensureUsersLoaded, getUser, savePhone)
+ * @rule        handleRequestCommand MUST await ensureUsersLoaded()
+ *              before calling getUser — otherwise on bot restart the
+ *              in-memory user map is empty and users who tap an old
+ *              inline button without first typing /start hit the
+ *              "Нажмите /start" fallback even though they are
+ *              registered. See Б-9 in knowledge/bugs.md and the
+ *              2026-04-21 ADR in knowledge/decisions.md.
+ * @lastModified 2026-04-21
+ */
 import TelegramBot from "node-telegram-bot-api";
-import { getUser, savePhone, type BotUser } from "../store/users";
+import { ensureUsersLoaded, getUser, savePhone, type BotUser } from "../store/users";
 
 export const pendingSource = new Map<number, string>();
 export const pendingPhone = new Set<number>();
@@ -23,7 +38,8 @@ function finishRequest(bot: TelegramBot, groupChatId: string, user: BotUser, sou
   });
 }
 
-export function handleRequestCommand(bot: TelegramBot, chatId: number, groupChatId: string) {
+export async function handleRequestCommand(bot: TelegramBot, chatId: number, groupChatId: string): Promise<void> {
+  await ensureUsersLoaded();
   const user = getUser(chatId);
 
   if (!user) {
@@ -70,7 +86,7 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
     if (query.data !== "request_start") return;
 
     bot.answerCallbackQuery(query.id);
-    handleRequestCommand(bot, query.message.chat.id, groupChatId);
+    void handleRequestCommand(bot, query.message.chat.id, groupChatId);
   });
 
   bot.on("contact", async (msg) => {

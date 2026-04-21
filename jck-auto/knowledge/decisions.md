@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-21
-  @version:     1.31
-  @lines:       ~2470
+  @version:     1.32
+  @lines:       ~2520
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -2235,6 +2235,44 @@ toggled off.
 **Discovered via:** Bot reply delay verification on 2026-04-20 per
 bugs.md Б-1 action item ("live test — send /start to @jckauto_help_bot,
 confirm <1s response").
+
+## [2026-04-21] Bot user store lazy-load race — minimal lazy-await fix
+
+**Status:** Accepted
+**Confidence:** High
+**Context:** `src/bot/store/users.ts` lazy-loads user records from
+`/var/www/jckauto/storage/users.json` asynchronously. Its sync public
+accessor `getUser()` returns data only after some other async code
+path has already awaited the internal `loadUsers()`. On fresh bot
+process, a user tapping an "Оставить заявку" inline button before
+typing any command hits `handleRequestCommand` → `getUser` → empty
+map → "Нажмите /start чтобы начать." fallback. Bug Б-9.
+**Decision:** Minimal targeted fix. Expose
+`ensureUsersLoaded()` from users.ts (idempotent wrapper over
+`loadUsers`). Make `handleRequestCommand` async and await
+`ensureUsersLoaded()` on its first line before any `getUser` call.
+The callback_query listener continues to fire synchronously and
+invokes the handler with `void` (fire-and-forget).
+**Rejected alternative 1:** Rewrite users.ts to load synchronously at
+module import (like `botStats.ts`). Better architecturally but much
+larger scope — changes the signature of every async accessor and ripples
+through all callers.
+**Rejected alternative 2:** Wrap handler registration in an async IIFE
+inside `src/bot/index.ts` with `await ensureUsersLoaded()` before
+`registerRequestHandler`. Theoretically leaves a ~10ms race window
+during which webhook events could arrive before the listener is
+registered. `node-telegram-bot-api` does not buffer events pre-listener
+(it extends EventEmitter). Rejected to avoid the risk; a lazy-await
+inside the handler is gone as soon as the first callback arrives.
+**Consequences:**
+- Targeted fix; one handler changed, one public helper added.
+- Every subsequent callback_query `request_start` adds a ~10ms cost
+  for the first one and ~0ns for the rest of process lifetime.
+- Pattern is reusable: any other handler reading the user store
+  synchronously can await ensureUsersLoaded() the same way. None
+  exist today.
+- Long-term follow-up logged in bugs.md Б-9 "Long-term follow-up"
+  section: synchronous-init refactor of users.ts.
 
 ## [2026-04-21] Wire Telegram bot to shared auction-sheet service
 
