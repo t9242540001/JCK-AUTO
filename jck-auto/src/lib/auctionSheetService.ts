@@ -315,3 +315,192 @@ export async function classifySheet(
     return { type: 'printed', model: 'classifier-failed', elapsed };
   }
 }
+
+// ─── PIPELINE ORCHESTRATOR ──────────────────────────────────────────────────
+
+/**
+ * runAuctionSheetPipeline — Pass 0 classifier + 3 parallel OCR passes
+ * + Step 2 parse. Callers MUST enqueue via auctionSheetQueue to preserve
+ * concurrency=1 against DashScope / DeepSeek.
+ *
+ * @rule The full AI pipeline (Pass 0 classifier + three OCR passes + Step 2
+ *       parse) lives ONLY in this function. HTTP routes and bot handlers
+ *       MUST NOT call DashScope or DeepSeek directly — every model call
+ *       has to run under the queue's concurrency=1 lock.
+ * @rule recordUsage + checkRateLimit (site rateLimiter) are called ONLY
+ *       when opts.channel='web'. Bot has its own counter (botRateLimiter).
+ *       A failed pipeline (thrown error) MUST NOT consume the user's quota
+ *       on either channel.
+ * @rule opts.ip is required when opts.channel='web'. An explicit throw
+ *       guards this — a silent null-IP would corrupt anonymous-user
+ *       lifetime quota accounting.
+ */
+export async function runAuctionSheetPipeline(
+  compressedJpegBuffer: Buffer,
+  opts: RunOpts,
+): Promise<PipelineResult> {
+  const base64 = compressedJpegBuffer.toString('base64');
+  const dataUrl = `data:image/jpeg;base64,${base64}`;
+
+  // Pass 0: classify sheet type (advisory, non-blocking)
+  const sheetClassification = await classifySheet(dataUrl);
+
+  // Step 1: OCR — three parallel narrow passes.
+  // Pass 1 = text fields (REQUIRED), Pass 2 = damages (soft-fail),
+  // Pass 3 = free text (soft-fail).
+  const ocrStart = Date.now();
+  const ocrOptionsBase = {
+    models: ['qwen-vl-ocr', 'qwen3-vl-flash'] as const,
+    maxTokens: 8192,
+    temperature: 0.1,
+  };
+
+  const [textFieldsRes, damagesRes, freeTextRes] = await Promise.allSettled([
+    analyzeImageWithFallback(dataUrl, OCR_TEXT_FIELDS_USER, {
+      ...ocrOptionsBase,
+      models: [...ocrOptionsBase.models],
+      systemPrompt: OCR_TEXT_FIELDS_SYSTEM,
+    }),
+    analyzeImageWithFallback(dataUrl, OCR_DAMAGES_USER, {
+      ...ocrOptionsBase,
+      // RULE: Pass 2 uses qwen3-vl-flash primary (visual reasoning),
+      // qwen-vl-ocr as fallback. qwen-vl-ocr alone returns "no codes"
+      // for every sheet — it cannot visually parse damage diagrams.
+      // Do NOT switch back to ocrOptionsBase.models here.
+      models: ['qwen3-vl-flash', 'qwen-vl-ocr'] as const,
+      systemPrompt: OCR_DAMAGES_SYSTEM,
+    }),
+    analyzeImageWithFallback(dataUrl, OCR_FREE_TEXT_USER, {
+      ...ocrOptionsBase,
+      models: [...ocrOptionsBase.models],
+      systemPrompt: OCR_FREE_TEXT_SYSTEM,
+    }),
+  ]);
+
+  const ocrElapsed = ((Date.now() - ocrStart) / 1000).toFixed(1);
+
+  // Pass 1 is REQUIRED — throw on failure (maps to failed job + 'ai_error:' prefix)
+  if (textFieldsRes.status !== 'fulfilled') {
+    const errMsg = textFieldsRes.reason instanceof Error
+      ? textFieldsRes.reason.message
+      : String(textFieldsRes.reason);
+    console.error(`[auction-sheet] OCR Pass 1 (text fields) failed: ${errMsg}`);
+    throw new Error('ai_error: Ошибка при обработке изображения. Попробуйте позже.');
+  }
+
+  const textFieldsContent = textFieldsRes.value.content;
+  console.log(`[auction-sheet] Pass 1 OCR complete: model=${textFieldsRes.value.usedModel}, chars=${textFieldsContent.length}`);
+
+  if (textFieldsContent.length < 30) {
+    throw new Error('parse_error: Не удалось распознать аукционный лист. Попробуйте другое фото.');
+  }
+
+  // Pass 2 is soft-fail
+  let damagesContent: string;
+  if (damagesRes.status === 'fulfilled') {
+    damagesContent = damagesRes.value.content;
+    console.log(`[auction-sheet] Pass 2 OCR complete: model=${damagesRes.value.usedModel}, chars=${damagesContent.length}`);
+  } else {
+    const errMsg = damagesRes.reason instanceof Error ? damagesRes.reason.message : String(damagesRes.reason);
+    console.warn(`[auction-sheet] Pass 2 OCR (damages) failed (soft): ${errMsg.slice(0, 120)}`);
+    damagesContent = '';
+  }
+
+  // Pass 3 is soft-fail
+  let freeTextContent: string;
+  if (freeTextRes.status === 'fulfilled') {
+    freeTextContent = freeTextRes.value.content;
+    console.log(`[auction-sheet] Pass 3 OCR complete: model=${freeTextRes.value.usedModel}, chars=${freeTextContent.length}`);
+  } else {
+    const errMsg = freeTextRes.reason instanceof Error ? freeTextRes.reason.message : String(freeTextRes.reason);
+    console.warn(`[auction-sheet] Pass 3 OCR (free text) failed (soft): ${errMsg.slice(0, 120)}`);
+    freeTextContent = '';
+  }
+
+  console.log(`[auction-sheet] OCR total elapsed: ${ocrElapsed}s`);
+
+  // Compose combined OCR text for Step 2
+  const textFieldsSection = `=== TEXT FIELDS ===\n${textFieldsContent}`;
+  const damagesSection = damagesContent
+    ? `=== DAMAGES ===\n${damagesContent}`
+    : `=== DAMAGES UNAVAILABLE ===`;
+  const freeTextSection = freeTextContent
+    ? `=== FREE TEXT ===\n${freeTextContent}`
+    : `=== FREE TEXT UNAVAILABLE ===`;
+
+  const rawText = `${textFieldsSection}\n\n${damagesSection}\n\n${freeTextSection}`;
+
+  const ocrTokens =
+    (textFieldsRes.status === 'fulfilled' ? textFieldsRes.value.usage.totalTokens : 0) +
+    (damagesRes.status === 'fulfilled' ? damagesRes.value.usage.totalTokens : 0) +
+    (freeTextRes.status === 'fulfilled' ? freeTextRes.value.usage.totalTokens : 0);
+  const ocrModelUsed = textFieldsRes.value.usedModel;
+
+  // Step 2: Parse — structure raw text into JSON via text model.
+  const parseUserPrompt = `Parse the following three-pass OCR output from a Japanese car auction sheet into the JSON schema specified in your system instructions.\n\n${rawText}`;
+
+  let parseContent: string;
+  let parseModel: string;
+  let parseTokens: number;
+
+  try {
+    // RULE: DeepSeek is primary for Step 2 — DashScope text models
+    // (qwen3.5-flash/plus) timeout from VDS. Do NOT swap back without
+    // verifying DashScope text API availability first.
+    const dsResult = await callDeepSeek(parseUserPrompt, {
+      maxTokens: 4096,
+      temperature: 0.1,
+      systemPrompt: PARSE_SYSTEM_PROMPT,
+    });
+    parseContent = dsResult.content;
+    parseModel = 'deepseek-chat';
+    parseTokens = dsResult.usage.totalTokens;
+    console.log(`[auction-sheet] Step 2 parse complete: model=${parseModel}, tokens=${parseTokens}`);
+  } catch (step2Err) {
+    const errMsg = step2Err instanceof Error ? step2Err.message : String(step2Err);
+    console.warn(`[auction-sheet] Step 2 DeepSeek failed: ${errMsg.slice(0, 120)}, trying qwen3.5-flash fallback...`);
+
+    const qwenResult = await callQwenText(parseUserPrompt, {
+      model: 'qwen3.5-flash',
+      maxTokens: 4096,
+      temperature: 0.1,
+      systemPrompt: PARSE_SYSTEM_PROMPT,
+    });
+    parseContent = qwenResult.content;
+    parseModel = 'qwen3.5-flash';
+    parseTokens = qwenResult.usage.totalTokens;
+    console.log(`[auction-sheet] Step 2 parse complete (fallback): model=${parseModel}, tokens=${parseTokens}`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = parseJsonFromContent(parseContent);
+  } catch {
+    console.error('[auction-sheet] JSON parse failed after Step 2. Content length:', parseContent.length);
+    throw new Error('parse_error: Не удалось распознать аукционный лист. Попробуйте другое фото.');
+  }
+
+  // Record usage only after the full pipeline succeeds.
+  // Web channel uses the site-wide rateLimiter; bot has its own
+  // counter (botRateLimiter) and MUST NOT double-account here.
+  let remaining: number | null = null;
+  if (opts.channel === 'web') {
+    if (!opts.ip) {
+      throw new Error('auctionSheetService: web channel requires opts.ip');
+    }
+    recordUsage(opts.ip, opts.telegramId);
+    remaining = checkRateLimit(opts.ip, opts.telegramId).remaining;
+  }
+
+  return {
+    data: parsed,
+    meta: {
+      model: `${ocrModelUsed} ×3 → ${parseModel}`,
+      tokens: ocrTokens + parseTokens,
+      remaining,
+      sheetType: sheetClassification.type,
+      classifierModel: sheetClassification.model,
+      classifierElapsed: sheetClassification.elapsed,
+    },
+  };
+}

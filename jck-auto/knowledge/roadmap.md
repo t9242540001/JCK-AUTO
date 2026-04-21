@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-21
-  @version:     1.9
-  @lines:       124
+  @version:     1.10
+  @lines:       139
 -->
 
 # Roadmap
@@ -13,6 +13,14 @@
 
 ## Done
 
+- [x] **2026-04-21 — Extract auction-sheet pipeline into shared service (`src/lib/auctionSheetService.ts`)**
+  Bot was still calling a duplicated, single-model version of the
+  decoder; website had the production pipeline inline in its route.
+  Rolled the pipeline into `src/lib/auctionSheetService.ts` exporting
+  `runAuctionSheetPipeline(buffer, {channel, ip?, telegramId?})`.
+  Website route refactored to call the service through its existing
+  queue. Pure refactor — website behaviour byte-identical. Unblocks
+  Prompt 2.2 (wire the bot to the service).
 - [x] Calculator for China, Korea, Japan (unified engine calculator.ts)
 - [x] Tools section — /tools hub with 4 tool cards
 - [x] Calculator "pod klyuch" (/tools/calculator)
@@ -64,6 +72,16 @@
 
 ## Planned — Bot
 
+- [ ] **Prompt 2.2 — Wire bot auction-sheet handler to `auctionSheetService`.**
+  Delete local SYSTEM_PROMPT + direct `analyzeImage` call in
+  `src/bot/handlers/auctionSheet.ts`. Replace with
+  `auctionSheetQueue.enqueue(() => runAuctionSheetPipeline(buf, {channel:'bot', telegramId}))`
+  + await. Keep `formatAuctionResult` and `splitMessage` in the bot
+  file — those are bot-surface concerns.
+- [ ] **Prompt 2.3 — Bot progress indicator for auction-sheet.**
+  `editMessageText` the "🔍 Анализирую…" message once at ~45s with
+  "Занимает дольше обычного, ещё около минуты…". On final success —
+  replace with full report; on error — replace with error + site link.
 - [ ] Auto-post new cars to channel t.me/jckauto_import_koreya
 - [ ] AI consultant (Claude API + knowledge base)
 - [ ] Bot: add PDF download for auction-sheet and encar results, matching the website's PDF export. Goal: feature parity between bot and site. Investigate whether existing PDF generator (from `/api/tools/*/pdf` routes) can be reused server-side and streamed to Telegram.

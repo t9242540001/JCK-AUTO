@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-21
-  @version:     1.29
+  @version:     1.30
   @lines:       ~2420
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -2235,6 +2235,49 @@ toggled off.
 **Discovered via:** Bot reply delay verification on 2026-04-20 per
 bugs.md Б-1 action item ("live test — send /start to @jckauto_help_bot,
 confirm <1s response").
+
+## [2026-04-21] Architecture: shared auction-sheet service
+
+**Status:** Accepted
+**Confidence:** High
+**Context:** The Japanese-auction-sheet AI pipeline existed in two
+places: the website route `src/app/api/tools/auction-sheet/route.ts`
+used the modern multi-pass pipeline (Pass 0 classifier + 3 parallel
+OCR via `analyzeImageWithFallback` + DeepSeek Step 2), while
+`src/bot/handlers/auctionSheet.ts` used a single heavy
+`analyzeImage(..., { model: 'qwen3.5-plus' })` call with a duplicated,
+drift-prone SYSTEM_PROMPT. That bot implementation timed out in
+production on 2026-04-21 — a regression waiting to happen the moment
+DashScope slows down. The SYSTEM_PROMPT comment in bot/handlers
+literally said "Copied exactly from route.ts", which is the anti-pattern
+our "Principle of Common Mechanics" rule forbids.
+
+**Decision:** Extract the pipeline into `src/lib/auctionSheetService.ts`
+with a single public entry point:
+  `runAuctionSheetPipeline(buffer, { channel: 'web' | 'bot', ip?, telegramId? })`.
+The website route becomes a thin HTTP adapter (rate-limit pre-gate,
+Sharp compression, enqueue, 202 Accepted). Rate-limit bookkeeping is
+gated by `channel`: on `'web'` we call `recordUsage` + `checkRateLimit`
+from `src/lib/rateLimiter`; on `'bot'` we do neither (bot has its own
+`botRateLimiter`). Concurrency=1 across both channels is enforced by
+routing every caller through the same `auctionSheetQueue` — the bot
+will enqueue the same way in Prompt 2.2.
+
+The extraction was executed as three commits
+(`[1/3]`, `[2/3]`, `[3/3]`) because a single-commit attempt hit a stream
+idle timeout on file generation. Each intermediate commit is
+self-consistent and compiles; only the final commit changes runtime
+behaviour routing.
+
+**Consequences:**
+- Single source of truth for all OCR and parse prompts — no more
+  accidental drift between channels.
+- Website behaviour is byte-identical after the refactor (tracked by
+  the behavioural shield in Prompt 2.1c acceptance criteria).
+- Bot auction-sheet fix is one call away (Prompt 2.2).
+- Next time DashScope behaviour changes, one file to edit.
+- Encoding `channel` as an explicit discriminator (rather than
+  inferring from presence of `ip`) makes future channels trivial.
 
 ## [2026-04-21] Remove internal auction codes from bot report
 

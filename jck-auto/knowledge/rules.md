@@ -2,9 +2,9 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-20
-  @version:     1.12
-  @lines:       121
+  @updated:     2026-04-21
+  @version:     1.13
+  @lines:       129
 -->
 
 # Critical Rules
@@ -106,6 +106,16 @@
 | Rule | Location | Consequence |
 |------|----------|-------------|
 | `<LeadFormTrigger triggerVariant>` MUST match the surrounding background: `"primary"` or `"outline"` on light/neutral bg; `"on-primary"` (white fill + primary text) on `bg-primary` (or any coloured) section. Never use `"outline"` on `bg-primary` — text-primary on bg-primary is invisible. When adding a new variant, extend the `switch` in `LeadFormTrigger.tsx` AND the `triggerVariant` union type; the `_exhaustive: never` check will break the build if a case is missed | `src/components/LeadFormTrigger.tsx`, all consumers in `/tools/*`, `/catalog/*`, `/news/*` | Invisible CTA button — users see only the secondary "Позвонить" link, lead flow collapses silently. C-3 shipped in production for weeks before being noticed |
+
+## Architecture Rules
+
+- **Auction-sheet pipeline lives in exactly one place.** The SYSTEM_PROMPT,
+  the three OCR prompts, the classifier prompt, the parse prompt, and the
+  pipeline function itself live ONLY in `src/lib/auctionSheetService.ts`.
+  Duplication in `src/bot/**`, `src/app/api/**`, or any other file is
+  FORBIDDEN. Any caller that needs the pipeline imports
+  `runAuctionSheetPipeline` from the service and enqueues through the
+  shared `auctionSheetQueue` (concurrency=1, FIFO).
 
 ## Noscut Business Rules
 
