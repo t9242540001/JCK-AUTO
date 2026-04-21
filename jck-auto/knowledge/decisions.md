@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-21
-  @version:     1.32
-  @lines:       ~2520
+  @updated:     2026-04-22
+  @version:     1.33
+  @lines:       ~2674
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,140 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-22] PM2 cwd inheritance incident — duplicate jckauto-bot processes
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+On 2026-04-22, while reproducing the bot startup commands from the previous
+session's handoff post, three jckauto-bot processes ended up running
+simultaneously: id 295 (the canonical one, online, cwd
+`/var/www/jckauto/app/jck-auto`), id 296 (online, ↺ 34, cwd `/root`,
+crash-loop), id 297 (stopped, ↺ 1, cwd `/root`).
+
+Sequence of events:
+1. Operator ran `pm2 start bash --name jckauto-bot -- -c "npx tsx ..."` from
+   shell with `pwd = /root`. Process 295 spawned with the correct cwd
+   `/var/www/jckauto/app/jck-auto`. The correct cwd was inherited from a
+   prior `~/.pm2/dump.pm2` entry under the same name, NOT from the
+   operator's current shell or from the command itself.
+2. Operator ran `pm2 start "node_modules/.bin/tsx ..." --name jckauto-bot`
+   from the same shell (`pwd = /root`). PM2 resolved the relative path
+   `node_modules/.bin/tsx` against the operator's `pwd`, found nothing, and
+   the bash invocation failed at startup. PM2 respawned 34+ times — id 296
+   in crash-loop.
+3. Id 297 also appeared, also crash-looping in `/root`. Two candidate
+   mechanisms (neither verified after the fact): PM2 watchdog respawn after
+   `pm2 delete 296`, OR a third paste of the broken command from shell
+   history. Logs at `~/.pm2/pm2.log` for the relevant moment had already
+   rotated by diagnosis time.
+
+Manual cleanup: `pm2 delete 296 && pm2 delete 297 && pm2 save`. Process 295
+remained as the live bot.
+
+**Decision:**
+Canonical bot startup command updated to be cwd-independent and fail-loud
+on misuse:
+
+```bash
+cd /var/www/jckauto/app/jck-auto
+pm2 delete jckauto-bot 2>/dev/null || true
+pm2 start bash --name jckauto-bot --max-restarts 5 -- \
+  -c "cd /var/www/jckauto/app/jck-auto && exec node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local"
+pm2 save
+```
+
+Five protective measures, layered:
+- `cd` BEFORE `pm2 start` — gives the daemon the right cwd to inherit.
+- `cd` AGAIN inside `bash -c` — defense in depth: even if PM2 ignores the
+  inherited cwd, bash itself moves to the project directory before exec.
+- `exec` — replaces the bash process with the tsx process so PM2's PID
+  equals the actual bot PID (correct restart metrics, correct graceful
+  shutdown).
+- `--max-restarts 5` — prevents future broken commands from spawning
+  unbounded crash-loops like 296 did (34+ restarts before manual catch).
+- `pm2 delete jckauto-bot 2>/dev/null || true` — strips any stale entry
+  from the dump file before starting fresh, eliminating the "id reuse
+  with wrong cwd" failure mode that caused this incident.
+
+The choice of tsx binary (`node_modules/.bin/tsx` vs `npx tsx`) was
+researched separately on 2026-04-22 (research-protocol skill, lightweight
+pass) and the pre-existing rule from `telegram-bot.md` (2026-04-10) and
+`infrastructure.md` (2026-04-18) was reaffirmed: `node_modules/.bin/tsx`
+remains canonical because `npx tsx` may pick up a global tsx that fails
+to resolve `dotenv/config`. The `npx tsx` form in the session handoff
+post was a one-off repair, not a policy change.
+
+**Alternatives considered:**
+- Just `cd` before `pm2 start`, no `bash -c` wrapper, direct
+  `pm2 start "node_modules/.bin/tsx ..."` form: rejected. PM2 may resolve
+  the relative path at start-time against the operator's shell pwd before
+  the daemon's cwd takes effect (this is what triggered the incident).
+  The `bash -c` form puts the path resolution inside bash, after the
+  internal `cd`.
+- Move the startup to `ecosystem.config.js` committed to the repo:
+  deferred to Planned — Technical debt. Not a quick fix; involves a
+  policy decision on which processes to migrate together.
+- Drop `--max-restarts`: rejected. The incident produced 34+ restarts
+  before manual intervention. The cap turns a runaway loop into a clear
+  `errored` state visible in `pm2 status`.
+
+**Consequences:**
+- Old canonical command in `infrastructure.md` (the form
+  `pm2 start "node_modules/.bin/tsx ..." --name jckauto-bot` with no
+  explicit `cd`) is SUPERSEDED by this ADR. Any reference to the old
+  form anywhere in knowledge must be updated.
+- Operators must always run `pm2 status` after starting the bot to verify
+  exactly one online jckauto-bot process exists, no duplicates.
+- A new `rules.md` entry forbids `pm2 start` with relative paths; all
+  future bot/process starts go through `bash -c` + explicit `cd`.
+
+## [2026-04-21] Session close 2026-04-21 — delivery summary
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Single-day work session on 2026-04-21 covered the auction-sheet bot
+regression (DashScope timeout from legacy single-model call) and the start
+of CTA unification across bot handlers. The session produced nine commits
+landed on main via auto-merge of `claude/**` branches.
+
+**Decision:**
+Record the session as a single ADR for traceability. Individual ADRs
+already exist for the substantive architecture changes (extract
+auction-sheet service, wire bot to service, bot user store lazy-load fix,
+inline-keyboards helper). This entry is the index pointing to them.
+
+Commits, in chronological order:
+- `b5503b4` — Prompt 01: Encar inline button text rename to "Подробный отчёт на сайте"
+- `129df73` — Prompt 02: replace internal auction codes A1/W1/G/S with Russian severity labels in bot output
+- `4645101` — Prompt 2.1a: skeleton of `src/lib/auctionSheetService.ts` + nine planned prompts
+- `e911832` — Prompt 2.1b: service types `RunOpts`, `PipelineResult`, helpers, `classifySheet`
+- `086d986` — Prompt 2.1c: `runAuctionSheetPipeline` + website route.ts via service
+- `1716921` — Prompt 2.2: bot `registerAuctionSheetHandler` enqueues into `auctionSheetQueue` + polling
+- `9639ba3` — Prompt 2.4.1: introduce `src/bot/lib/inlineKeyboards.ts` + Architecture Rule in `rules.md`
+- `b18e117` — Prompt 2.4.2: bot auction-sheet handler uses inline-keyboards helper
+- `716cc06` — Prompt 2.4.2.1: Б-9 closed — `ensureUsersLoaded()` + async `handleRequestCommand`
+
+Closed bugs: Б-9 (user store lazy-load race on bot restart).
+Closed regressions: bot auction-sheet DashScope timeout via legacy single-
+model call (now uses shared multi-pass pipeline through queue).
+
+**Consequences:**
+- Bot and website now share one source of truth for the auction-sheet
+  pipeline (`src/lib/auctionSheetService.ts`), enforced through one queue
+  (concurrency=1).
+- Bot result-message keyboards have a helper layer; remaining handlers
+  (encar, calculator, customs, noscut) migrate in series 2.4.3–2.4.6.
+- Prompt-process improvements in this session: AC grep checks must be
+  written to exclude JSDoc comment matches (recorded as a separate rule
+  in `rules.md`); session-suffixed branch names from Claude Code (e.g.
+  `claude/xxx-ytmKy`) are accepted as normal.
 
 ## [2026-04-18] Async-only contract for POST /api/tools/auction-sheet (jobId + polling)
 

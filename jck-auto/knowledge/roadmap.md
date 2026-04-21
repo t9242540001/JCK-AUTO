@@ -2,9 +2,9 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
-  @updated:     2026-04-21
-  @version:     1.11
-  @lines:       142
+  @updated:     2026-04-22
+  @version:     1.12
+  @lines:       225
 -->
 
 # Roadmap
@@ -13,6 +13,37 @@
 
 ## Done
 
+- [x] **2026-04-21 — Bot user store lazy-load race fixed (Б-9 closed)**
+  `src/bot/store/users.ts` is an async-load store: the in-memory `users` Map
+  is populated only inside the async `loadUsers()` function. The sync
+  `getUser(chatId)` accessor did not trigger the load, so immediately after
+  every `pm2 delete + pm2 start` cycle, existing users tapping inline
+  "Оставить заявку" buttons received the spurious "Нажмите /start" fallback
+  until some other code path awaited loadUsers. Fix: exposed
+  `ensureUsersLoaded()` from `users.ts`; `handleRequestCommand` became async
+  and awaits `ensureUsersLoaded()` before calling `getUser`. Callback_query
+  listener invokes the handler with `void` (intentional non-await). Bug
+  surfaced via live verification of Prompt 2.4.2 — the new keyboard added
+  there made the race reproducible on every bot restart. See ADR
+  `[2026-04-21] Bot user store lazy-load race — minimal lazy-await fix`.
+- [x] **2026-04-21 — Auction-sheet bot handler wired to inline-keyboards helper**
+  `src/bot/handlers/auctionSheet.ts` now appends the result CTA buttons via
+  `siteAndRequestButtons(siteUrl)` from `src/bot/lib/inlineKeyboards.ts`
+  instead of building a literal `inline_keyboard: [...]` block. Buttons are
+  attached to the LAST chunk of the report (multi-message split case
+  preserved). Behaviourally identical for users; eliminates the divergence
+  risk caught in the 2026-04-21 audit. Pairs with the architecture rule
+  added in Prompt 2.4.1.
+- [x] **2026-04-21 — Bot inline-keyboards helper introduced (single source of truth)**
+  Created `src/bot/lib/inlineKeyboards.ts` with three helpers:
+  `siteAndRequestButtons`, `siteRequestAndAgainButtons`,
+  `noscutResultButtons`. Result-message keyboards across all bot handlers
+  must now be built through these helpers — direct literal
+  `inline_keyboard: [...]` for terminal result messages is forbidden
+  (rules.md → Architecture Rules). Navigation/wizard keyboards (catalog
+  paging, customs wizard) are out of scope by design. Series 2.4.3–2.4.7
+  will migrate the remaining handlers (encar, calculator, customs, noscut)
+  one at a time.
 - [x] **2026-04-21 — Wire Telegram bot auction-sheet handler to shared service via queue**
   `src/bot/handlers/auctionSheet.ts` rewritten to delete the duplicated
   SYSTEM_PROMPT and the direct single-model `analyzeImage` call.
@@ -83,6 +114,29 @@
 
 ## Planned — Bot
 
+- [ ] **Prompt 2.4.3 — Encar handler refactor (literal → helper).** Replace the
+  literal `inline_keyboard: [...]` in `src/bot/handlers/encar.ts` with
+  `siteAndRequestButtons(siteUrl)` from `src/bot/lib/inlineKeyboards.ts`.
+  Behaviourally identical (text and button order already match the helper
+  output). Pure refactor.
+- [ ] **Prompt 2.4.4 — Calculator handler refactor (literal → helper, text
+  unification).** Replace literal keyboard in `src/bot/handlers/calculator.ts`
+  with `siteRequestAndAgainButtons(siteUrl)`. Unify the site button text
+  `На сайт` → `🌐 Подробный отчёт на сайте` to match the helper canonical
+  label.
+- [ ] **Prompt 2.4.5 — Customs handler refactor (literal → helper, text
+  unification).** Replace literal keyboard in `src/bot/handlers/customs.ts`
+  with `siteRequestAndAgainButtons(siteUrl)`. Unify the site button text
+  `Подробнее на сайте` → `🌐 Подробный отчёт на сайте`.
+- [ ] **Prompt 2.4.6 — Noscut handler refactor (literal → helper, text
+  unification).** Replace literal keyboard in `src/bot/handlers/noscut.ts`
+  result branch with `noscutResultButtons(catalogUrl)`. Unify the catalog
+  button text `Смотреть каталог` → `🌐 Каталог ноускатов на сайте`. Empty-
+  result branch is NOT in scope — leave as-is.
+- [ ] **Prompt 2.4.7 — Series 2.4 finalization.** After 2.4.3–2.4.6 are
+  merged: remove the four migrated entries from Planned — Bot, write a
+  consolidating ADR `[2026-04-XX] CTA unification across bot handlers via
+  inlineKeyboards helpers`, bump INDEX.md.
 - [ ] **Prompt 2.3 — Bot progress indicator for auction-sheet.**
   `editMessageText` the "🔍 Анализирую…" message once at ~45s with
   "Занимает дольше обычного, ещё около минуты…". On final success —
@@ -90,7 +144,6 @@
 - [ ] Auto-post new cars to channel t.me/jckauto_import_koreya
 - [ ] AI consultant (Claude API + knowledge base)
 - [ ] Bot: add PDF download for auction-sheet and encar results, matching the website's PDF export. Goal: feature parity between bot and site. Investigate whether existing PDF generator (from `/api/tools/*/pdf` routes) can be reused server-side and streamed to Telegram.
-- [ ] Bot: unify CTA after auction-sheet and encar results — Vasily-approved style is **inline buttons** (site link + "Оставить заявку" lead-form trigger). Auction-sheet currently shows only a plain text link with no form capture; bring it to encar-style inline-buttons pattern.
 - [ ] Bot: clarify queue and rate-limit semantics for auction-sheet and encar in the bot — currently unclear whether the bot enforces the same async queue / 2-minute cooldown contract as the website, or whether it bypasses them. If bypassed, system overload is possible under concurrent bot+site traffic. Audit and, if needed, route bot calls through the same queue + rate-limiter layer used by `/api/tools/*`.
 - [ ] Bot: `/noscut` command — after the user sends `/noscut` without an argument, the next plain-text message (e.g. `Hyundai`) is not recognized as the query. User must resend with `/noscut Hyundai` explicitly. Fix: set a per-user "awaiting noscut query" state in bot storage after empty `/noscut`, then treat the next plain message as the noscut query.
 
@@ -102,6 +155,34 @@
 - [ ] Capture-deploy-log workflow registration verification (see bugs.md Б-8)
 - [ ] OCR label-swap mitigation in auction-sheet Pass 1 — qwen-vl-ocr occasionally misassigns adjacent label/value pairs on auction sheets (example observed 2026-04-18: 最大積載量 label paired with 寒冷地仕様 value that belongs to a different field). Result: seats / bodyType / salesPoints often arrive empty on test sheets. Two candidate fixes: (a) post-process in Step 2 DeepSeek parser with reasoning prompt that catches mismatches, or (b) replace Pass 1 model with qwen3-vl-flash (already used in Pass 2 with good results). Requires diagnostic comparison before choosing.
 - [ ] Move Cloudflare Worker `tg-proxy` source code from Dashboard-only to the repository. Target files: `worker/tg-proxy.ts` + `wrangler.toml`. Put the Worker on the same git-versioning track as the rest of the codebase, deployable via `wrangler deploy` from GitHub Actions or the VDS. At the same time: (a) clean up the Telegram-branch headers to match the Anthropic-branch pattern (pass only minimum required headers, not `request.headers` wholesale), (b) add console.log at ingress/egress of each routing branch for future latency debugging, (c) document Smart Placement as a required deploy setting in `wrangler.toml` or a separate README. Pre-requisite: Cloudflare API token or `wrangler login` from VDS. See ADR `[2026-04-20] Enable Cloudflare Smart Placement on tg-proxy Worker (close Б-1)` "Consequences" section for rationale.
+
+## Planned — Technical debt
+
+> Quality-of-life follow-ups discovered during the 2026-04-21 work session.
+> None blocking, all worth doing before the next major refactor.
+
+- [ ] **Refactor `src/bot/store/users.ts` to sync-init style.** The 2026-04-21
+  fix for Б-9 (`ensureUsersLoaded()` lazy-await) is the minimal patch — it
+  closes the user-visible regression but leaves the async-load class of races
+  in place. Long-term direction is to load users synchronously at module
+  import time, the same pattern used by `src/bot/store/botStats.ts`. Removes
+  the entire race class, no lazy-await needed at any call site. See
+  `bugs.md` Б-9 long-term follow-up for the original analysis.
+- [ ] **Add `void` prefix to `handleRequestCommand` invocation in
+  `src/bot/handlers/catalog.ts:375`.** Currently a floating promise — works
+  behaviourally but stylistically inconsistent with `request.ts:89` which
+  uses `void` explicitly. One-line fix; make sure any noscut/customs
+  handlers that call request through callback_query use the same pattern.
+- [ ] **Commit `ecosystem.config.js` to the repository.** The canonical bot
+  startup command (see `infrastructure.md` → PM2 Processes) currently lives
+  only in `~/.pm2/dump.pm2` on VDS. If the dump file is lost or PM2 is
+  reinstalled, there is no source-of-truth document defining how to start
+  the bot beyond `infrastructure.md` prose. A committed `ecosystem.config.js`
+  would let `pm2 start ecosystem.config.js --only jckauto-bot` reproduce the
+  canonical state from git, and `pm2 save` becomes a backup, not the
+  primary record. Pre-requisite: agree on whether all three processes
+  (jckauto, jckauto-bot, mcp-gateway) move to ecosystem.config.js together
+  or just the bot.
 
 ## Strategic initiatives
 
