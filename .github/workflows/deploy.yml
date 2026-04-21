@@ -120,8 +120,9 @@ jobs:
             echo "[build] step 6: symlink swapped, restarting jckauto"
             pm2 restart jckauto
             echo "[build] step 7: restarting jckauto-bot"
-            pm2 delete jckauto-bot || true
-            pm2 start "node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local" --name jckauto-bot
+            pm2 delete jckauto-bot 2>/dev/null || true
+            pm2 start bash --name jckauto-bot --max-restarts 5 -- \
+              -c "cd /var/www/jckauto/app/jck-auto && exec node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local"
             pm2 save
             echo "[build] step 8: deploy complete"
             pm2 status

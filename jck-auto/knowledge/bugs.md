@@ -2,9 +2,9 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-21
-  @version:     1.11
-  @lines:       ~166
+  @updated:     2026-04-22
+  @version:     1.12
+  @lines:       ~204
 -->
 
 # Bugs — open issues tracker
@@ -38,6 +38,44 @@
   /api/tools/auction-sheet) + per-endpoint nginx 200s timeout + 15MB body —
   slow cascades no longer cause "Ошибка сети", because the client polls
   a job status endpoint instead of holding an HTTP request open. С-1 closed.
+
+### С-8 — encar handler hangs indefinitely on DeepSeek translation/power timeout
+- **File:** src/bot/handlers/encar.ts
+- **Severity:** Critical — bot becomes unresponsive for the affected user
+  for the duration of the hang (observed 2026-04-22: indefinite, only
+  resolved by `pm2 delete + pm2 start`).
+- **Symptom:** User sends an encar.com link, bot replies
+  "🔍 Получаю данные с Encar...", AI enrichment partially completes (logs
+  show `[encar] estimateEnginePower: ... → N hp (...)`), then NO further
+  log lines and NO message back to the user. Other user messages to the
+  bot may also stall because the event loop is waiting on the unresolved
+  promise.
+- **Root cause:** `registerEncarHandler` runs power estimation and Korean
+  translation in parallel via
+  `await Promise.allSettled([estimateEnginePower(...), translateEncarFields(...)])`
+  with NO timeout wrapper on either call. `Promise.allSettled` returns
+  only when BOTH promises settle. When DeepSeek (used by both
+  `estimateEnginePower` and `translateEncarFields` indirectly) is slow
+  or hangs (likely cause: concurrent auction-sheet job in the shared
+  queue saturating the DeepSeek connection), the handler blocks
+  indefinitely.
+- **Discovered:** 2026-04-22 during live verification of Prompt 2.4.3.
+  Initially suspected as a regression from the inline-keyboards refactor,
+  but log analysis confirmed the hang occurs BEFORE the
+  `bot.sendMessage` call where the helper is used — the refactor is
+  innocent.
+- **Workaround:** `pm2 delete jckauto-bot && pm2 start ...` per the
+  canonical form in `infrastructure.md` PM2 Processes. Restores
+  responsiveness immediately. The user's hung request is lost — they
+  must retry.
+- **Action:** separate prompt AFTER series 2.4 completes. Wrap each
+  `Promise.allSettled` arm in `Promise.race([call(), timeout(30000)])`;
+  on timeout set `result.translationFailed = true` (or skip power
+  estimate) and continue to `formatEncarResult` + `bot.sendMessage`.
+  Do NOT change to `Promise.race` of the whole thing — that loses the
+  partial success path. Single-file fix (`src/bot/handlers/encar.ts`).
+- **Related:** the auction-sheet pipeline already has timeouts
+  (DeepSeek 180s, polling 180s) — encar handler is the outlier.
 
 ## Important (noticeable but workarounds exist)
 

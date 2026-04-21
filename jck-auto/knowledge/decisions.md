@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-22
-  @version:     1.33
-  @lines:       ~2674
+  @version:     1.34
+  @lines:       ~2729
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,61 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-22] Canonical bot startup change requires workflow grep — addendum to PM2 cwd ADR
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+The earlier 2026-04-22 ADR `PM2 cwd inheritance incident — duplicate
+jckauto-bot processes` updated `infrastructure.md` with the new canonical
+bot startup command (`bash -c` form, double `cd`, `--max-restarts 5`,
+`pm2 delete ... 2>/dev/null || true`). It did NOT include a step to grep
+the actual deploy automation (`.github/workflows/*.yml`) for the OLD
+form and update those occurrences in the same prompt. As a result, the
+old form survived in `.github/workflows/deploy.yml` step 7 unchanged.
+Today's deploy of Prompt 2.4.3 saved a process whose `pm_exec_path` was
+the old relative-path form. The process happened to work because
+`appleboy/ssh-action` had already `cd`'d into the project directory
+before `pm2 start`, but any future `pm2 resurrect` from a non-project
+cwd would have triggered the exact crash-loop the original ADR was
+written to prevent.
+
+**Decision:**
+Whenever the canonical startup command of any PM2-managed process changes,
+the same prompt MUST update both `infrastructure.md` AND every occurrence
+of `pm2 start` for that process across `.github/workflows/*.yml`. Verify
+via `grep -rn "pm2 start" .github/workflows/` after the edit — the result
+must show ONLY the new form for the affected process. This rule applies
+to all future canonical-command changes, not just bot startup.
+
+The encar hang inadvertently caught this gap today: live verification of
+2.4.3 surfaced it because the operator manually restarted the bot under
+the new canonical form to fix the hang, then noticed the `deploy.yml`
+mismatch on subsequent inspection. Without that side-channel, the gap
+would have remained latent until the next VDS reboot.
+
+**Alternatives considered:**
+- Add a one-off CI check that greps workflows for old pm2 patterns:
+  rejected. Patterns evolve; the check would calcify on today's specific
+  shape. The discipline of "search workflows when changing canon" lives
+  better as a written rule (here) than as a brittle CI assertion.
+- Move all PM2 startup to a committed `ecosystem.config.js` so workflows
+  reference one file: deferred — already in roadmap.md → Planned —
+  Technical debt. When implemented, this addendum becomes redundant for
+  PM2 startup but the general rule (grep automation when canon changes)
+  still applies.
+
+**Consequences:**
+- The earlier 2026-04-22 PM2 cwd ADR is NOT modified (append-only). This
+  addendum extends it.
+- Future prompts that change any PM2 process startup MUST include in
+  Acceptance Criteria a grep over `.github/workflows/` confirming no
+  occurrences of the old form survive.
+- This prompt itself satisfies the new rule for the bot-startup case:
+  edits `deploy.yml` step 7 in the same prompt as the addendum.
 
 ## [2026-04-22] PM2 cwd inheritance incident — duplicate jckauto-bot processes
 
