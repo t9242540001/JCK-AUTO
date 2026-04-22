@@ -4,13 +4,14 @@
  * @runs VDS (jckauto-bot pm2 process)
  * @rule Rate label MUST say "Ориентировочный курс", not "Курс ЦБ РФ" — the rate already includes bank markup, calling it "ЦБ" misleads customers.
  * @rule Disclaimer text and rate formatting MUST match what the site shows in CalculatorCore.tsx — bot and site are two faces of the same calculator.
- * @lastModified 2026-04-08
+ * @lastModified 2026-04-22
  */
 
 import TelegramBot from "node-telegram-bot-api";
 import { calculateTotal, formatPrice, type CalcInput, type CarAge } from "../../lib/calculator";
 import { fetchCBRRates, COUNTRY_CURRENCY } from "../../lib/currencyRates";
 import { incrementCommand } from "../store/botStats";
+import { siteRequestAndAgainButtons } from "../lib/inlineKeyboards";
 
 interface CalcState {
   step: "country" | "price" | "volume" | "power" | "age";
@@ -192,15 +193,10 @@ async function finishCalc(bot: TelegramBot, chatId: number, state: CalcState) {
     );
 
     bot.sendMessage(chatId, lines.join("\n"), {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "Оставить заявку", callback_data: "request_start" },
-            { text: "Рассчитать ещё", callback_data: "calc_again" },
-          ],
-          [{ text: "На сайт", url: "https://jckauto.ru/tools/calculator" }],
-        ],
-      },
+      reply_markup: siteRequestAndAgainButtons(
+        "https://jckauto.ru/tools/calculator",
+        "calc_again",
+      ),
     });
     incrementCommand('calc');
   } catch (err) {
