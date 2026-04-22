@@ -4,7 +4,7 @@
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-22
   @version:     1.14
-  @lines:       ~261
+  @lines:       ~276
 -->
 
 # Bugs — open issues tracker
@@ -111,30 +111,45 @@
 
 ## Important (noticeable but workarounds exist)
 
-### Б-12 — articles not publishing since 2026-04-08
-- **Pipeline:** RSS → DeepSeek → covers → JSON → /news (see
-  `news-pipeline.md`)
-- **Severity:** Important — site `/news` section has had no new
-  articles since 2026-04-08; SEO/freshness signal degrading. Existing
-  archived articles still serve correctly.
-- **Symptom:** No new entries appear under `/news`. The article
-  cron/pipeline either is not running, is failing silently, or is
-  running but producing no output. Last successful publish: 2026-04-08.
-- **Root cause:** unknown — needs diagnostic session. Candidate
-  hypotheses (NOT verified):
-  1. Article cron disabled or not registered after the deploy pipeline
-     decoupling on 2026-04-13 (PAT_AUTO_MERGE / push-trigger-only /
-     two-slot atomic build / article cron decoupled).
-  2. RSS source feed broken or returning empty.
-  3. DeepSeek call failing silently in the article generator (no
-     observability on the publish step).
-  4. Output write step writing to a stale slot path after the
-     two-slot build was introduced.
-- **Action:** dedicated diagnostic prompt. Inspect cron schedule on
-  VDS, last cron run logs, RSS fetch state, last DeepSeek invocation
-  log, output write target. Likely a single-cause fix once observed.
-- **Registered:** 2026-04-22 during the PM2 ecosystem migration
-  session (separate concern, not blocking).
+### Б-12 — Articles stopped publishing on the site since 2026-04-08
+- **Symptom:** No new articles appearing on the site since 2026-04-08.
+  Noted by Vasily on 2026-04-22. Exact surface of the failure not yet
+  identified (is it the generation pipeline, the publishing step, the
+  rendering, a cron not firing, or a deploy-side issue?).
+- **File/subsystem:** Unknown at registration time. Likely involves
+  the content pipeline — the articles-publication flow is described
+  in `news-pipeline.md` (article cadence: ~10 articles/month, one
+  every 3 days). Any of these could be the break point: cron on VDS,
+  GitHub Actions schedule, markdown generation, cover illustration
+  step, commit/push step, build/deploy step.
+- **Last known good:** On or before 2026-04-08 (last successful
+  publication).
+- **Diagnostics required (part of fix):**
+  1. Identify the latest published article on jckauto.ru/blog (or
+     equivalent article listing route) — confirm the "since
+     2026-04-08" boundary.
+  2. Read `news-pipeline.md` to map the pipeline end-to-end and
+     identify each checkpoint (generation → illustration → commit →
+     deploy → render).
+  3. Check each checkpoint for evidence of breakage since 2026-04-08:
+     logs, recent commits to the articles directory, GitHub Actions
+     runs of the article workflow (if any), VDS cron logs.
+  4. One of the checkpoints will show the break. Fix is
+     checkpoint-specific.
+- **Severity rationale:** registered as Important (not Critical)
+  because the site is not broken — existing articles render fine,
+  bot and calculator work, no user-facing error. However, if the
+  break persists it impacts SEO growth and the strategic 10→100
+  cars/month goal; reclassify to Critical if diagnostics show the
+  break is systemic (e.g. the entire generator pipeline is down,
+  not a one-off content issue).
+- **Discovered:** 2026-04-22 by Vasily (noted during session
+  stabilization after the PM2 incident).
+- **Action:** separate prompt AFTER series 2.4 completes and after
+  the PM2 ecosystem migration settles. Start with diagnostics (step
+  1-3 above); fix is checkpoint-specific so a pre-written plan is
+  not meaningful at registration time.
+- **Status:** Open.
 
 ### С-2 — cursor does not change to pointer on clickable elements
 - **Pages:** site-wide. Confirmed example: file upload button on /tools/auction-sheet
