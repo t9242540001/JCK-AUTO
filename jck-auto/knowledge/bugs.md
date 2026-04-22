@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-22
-  @version:     1.12
-  @lines:       ~204
+  @version:     1.13
+  @lines:       ~240
 -->
 
 # Bugs — open issues tracker
@@ -76,6 +76,35 @@
   partial success path. Single-file fix (`src/bot/handlers/encar.ts`).
 - **Related:** the auction-sheet pipeline already has timeouts
   (DeepSeek 180s, polling 180s) — encar handler is the outlier.
+
+### Б-11 — mcp-gateway loses FILESYSTEM_ROOTS env on raw `pm2 restart` [Closed 2026-04-22]
+- **Process:** mcp-gateway (PM2)
+- **Severity:** Critical for diagnostics — without `FILESYSTEM_ROOTS` the
+  MCP connector serves no files, breaking the deploy-log workflow
+  (`/var/www/jckauto/deploy-logs/deploy-latest.log` becomes inaccessible
+  via MCP) and any other read against the project tree.
+- **Symptom:** After `pm2 restart mcp-gateway`, the MCP connector starts
+  with no `FILESYSTEM_ROOTS` env. All filesystem reads return
+  permission errors or empty results. Fixed temporarily by manually
+  re-running with the env inline:
+  `FILESYSTEM_ROOTS=/var/www/jckauto pm2 restart mcp-gateway --update-env`,
+  but the next `pm2 restart` (without `--update-env`) drops it again.
+- **Root cause:** PM2 `restart` does NOT re-read env from a config file
+  or any `.env` source. It only re-spawns `pm_exec_path` with the env
+  snapshot saved at start time. mcp-gateway's startup command on VDS
+  was `FILESYSTEM_ROOTS=… pm2 start <bin>` — env passed inline at
+  start, not declared anywhere persistent. After the first
+  `pm2 restart` the env was lost.
+- **Discovered:** observed sporadically since the deploy-log workflow
+  was added (2026-04-15); root cause confirmed 2026-04-22.
+- **Fix (2026-04-22):** declared `env: { FILESYSTEM_ROOTS:
+  '/var/www/jckauto' }` on the mcp-gateway entry in
+  `ecosystem.config.js` (committed). All future restarts go through
+  `pm2 startOrReload ecosystem.config.js --only mcp-gateway`, which
+  re-applies the declared env every time. Raw `pm2 restart
+  mcp-gateway` is now FORBIDDEN by `rules.md` Infrastructure Rules.
+  See ADR `[2026-04-22] Move PM2 process management to committed
+  ecosystem.config.js`.
 
 ## Important (noticeable but workarounds exist)
 

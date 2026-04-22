@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-22
-  @version:     1.34
-  @lines:       ~2729
+  @version:     1.35
+  @lines:       ~2820
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,126 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-22] Move PM2 process management to committed ecosystem.config.js
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+Up to today, PM2 process startup definitions for the three VDS processes
+(jckauto, jckauto-bot, mcp-gateway) lived in three uncoordinated places:
+1. `~/.pm2/dump.pm2` on the server — the live PM2 dump that survives
+   reboots via `pm2 resurrect`. Operator-mutable.
+2. `infrastructure.md` prose — descriptive documentation for humans.
+3. `.github/workflows/deploy.yml` — the actual `pm2 start bash --name X
+   -- -c "…"` form executed on every deploy.
+
+This trio drifted twice in two days:
+- 2026-04-22 PM2 cwd inheritance incident: deploy.yml step 7 was using the
+  pre-incident form. Updated separately in `claude/fix-deploy-bot-startup-
+  and-register-encar-bug` (commit `c2467a9`). The fix worked but only
+  because the addendum ADR added a "grep workflows when canon changes"
+  rule — without that procedural safeguard the gap could have stayed
+  latent for weeks.
+- Б-11 (registered today): `mcp-gateway` was losing `FILESYSTEM_ROOTS`
+  env on raw `pm2 restart mcp-gateway` because PM2 restart only re-spawns
+  `pm_exec_path` with the env snapshot saved at start time — not from
+  any config file or .env source. Each `pm2 restart` quietly stripped
+  the env, requiring manual `FILESYSTEM_ROOTS=… pm2 restart`.
+
+Both incidents share a single root cause: PM2 process definitions are not
+in the repo. Three uncoordinated copies → drift is inevitable. Procedural
+discipline (grep before commit, "always cd before pm2 start") only
+mitigates symptoms.
+
+**Decision:**
+Introduce a committed `ecosystem.config.js` at the project root as the
+SINGLE SOURCE OF TRUTH for all three PM2 processes. The file declares
+each app's `name`, `cwd`, `script`/`args`/`interpreter`, `env`, and
+`max_restarts`. `deploy.yml` calls
+`pm2 startOrReload ecosystem.config.js --only jckauto,jckauto-bot`
+in place of the previous separate `pm2 restart jckauto` + `pm2 delete
+jckauto-bot` + `pm2 start bash --name jckauto-bot -- -c "…"` triple.
+Manual restarts on VDS use the same file via the same call (with `--only`
+matching the affected process). Raw `pm2 start <bash> --name X -- -c "…"`
+is FORBIDDEN going forward; codified in `rules.md` Infrastructure Rules.
+
+Layout choice: CommonJS `.js` extension. Verified `package.json` has no
+`"type": "module"` field, so Node treats `.js` as CommonJS by default.
+`module.exports = { apps: [...] }` is the standard PM2 ecosystem shape.
+
+The file extension matters because PM2 must be able to `require()` the
+config at start time on the VDS. If the project later adopts `"type":
+"module"`, this file MUST be renamed to `ecosystem.config.cjs` in the
+same commit, otherwise `pm2 startOrReload` fails with "require() of ES
+Module".
+
+mcp-gateway is included in the file but NOT in the deploy `--only` list.
+It lives outside the site/bot deploy cycle. The committed entry exists
+so the next manual `pm2 startOrReload ecosystem.config.js --only
+mcp-gateway` re-applies `FILESYSTEM_ROOTS=/var/www/jckauto` declaratively
+— closing Б-11. The placeholder `script`/`args` for mcp-gateway documents
+the canonical form; if the actual command on VDS differs, it MUST be
+updated in the same commit as the VDS change. This is the discipline the
+new file is meant to enforce.
+
+**Five protective layers from the 2026-04-22 PM2 cwd ADR are preserved**,
+now expressed declaratively in `ecosystem.config.js` `apps[1]`:
+1. `cwd: '/var/www/jckauto/app/jck-auto'` — daemon cwd.
+2. `cd <same dir>` inside `bash -c` — defense in depth.
+3. `exec node_modules/.bin/tsx ...` — PM2 PID == tsx PID.
+4. `max_restarts: 5` — crash-loop cap.
+5. `pm2 startOrReload` reload semantics — for fork-mode apps the entry is
+   re-spawned with the current ecosystem config, eliminating the "id
+   reuse with wrong cwd" failure mode.
+
+**Alternatives considered:**
+- Keep the inline `pm2 start bash …` form in `deploy.yml`, just add a
+  CI grep that compares against `infrastructure.md`: rejected. Patterns
+  would calcify on today's specific shape; the grep would itself drift
+  and become a false-positive nuisance. Drift is a structural problem,
+  not a procedural one.
+- Use `ecosystem.config.cjs` (explicit CommonJS extension) regardless
+  of `package.json` "type": rejected for now. The repo is currently
+  CommonJS by default; `.js` is more idiomatic. The "rename to .cjs if
+  type: module is added" rule above covers the future case.
+- Move all three processes (incl. mcp-gateway) into the deploy `--only`
+  list: rejected. mcp-gateway's lifecycle is decoupled from the site/bot
+  release cadence and may have independent restart triggers (knowledge
+  base index regeneration, FILESYSTEM_ROOTS scope changes). Coupling it
+  to every site deploy would risk dragging the MCP connection down on
+  unrelated changes.
+- Put the bot startup in a shell script under `scripts/` and invoke it
+  from PM2: rejected. Adds an extra layer with no tangible benefit;
+  ecosystem entries already accept a full bash command via
+  `args: ['-c', '…']`.
+
+**Consequences:**
+- `ecosystem.config.js` is now the only allowed source for PM2 process
+  definitions. Editing process startup means editing this file — never
+  hand-typing flags into a `pm2 start` shell invocation.
+- `deploy.yml` step 7 (the bot start block) and step 8 (deploy complete
+  echo) collapse into a single new step 7 (`pm2 startOrReload …` + new
+  echo). The `[build] step N` marker count goes from 8 to 7. The
+  `deploy.md` documentation is descriptive of the markers — does not
+  need to be updated for this collapse, but `infrastructure.md` Deploy
+  section IS updated to reflect step 7 as the final marker.
+- Б-11 closed: declaring `FILESYSTEM_ROOTS` on the mcp-gateway entry
+  means every reload through ecosystem.config.js re-applies the env.
+  Raw `pm2 restart mcp-gateway` is now FORBIDDEN by `rules.md`.
+- The 2026-04-22 PM2 cwd ADR addendum (workflow grep on canonical
+  command changes) remains in force, but its scope narrows: PM2
+  startup commands now live in one place (`ecosystem.config.js`), so
+  the grep target for PM2 changes becomes that single file rather than
+  `.github/workflows/`. The addendum still applies to other
+  canonical-command changes (cron jobs, ad-hoc scripts).
+- `~/.pm2/dump.pm2` on VDS becomes a runtime cache, not a primary
+  record. After the first `pm2 startOrReload ecosystem.config.js` the
+  dump can be safely deleted and re-generated.
+- The Planned — Technical debt entry "Commit ecosystem.config.js to the
+  repository" in `roadmap.md` is closed and moved to Done.
 
 ## [2026-04-22] Canonical bot startup change requires workflow grep — addendum to PM2 cwd ADR
 

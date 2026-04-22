@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-22
-  @version:     1.15
-  @lines:       141
+  @version:     1.16
+  @lines:       144
 -->
 
 # Critical Rules
@@ -23,7 +23,8 @@
 
 | Rule | Location | Consequence |
 |------|----------|-------------|
-| `pm2 start` MUST use `bash -c` form with explicit `cd` to project directory; relative-path commands are forbidden | All bot/process startup, `infrastructure.md` PM2 Processes, ADR [2026-04-22] PM2 cwd inheritance incident | PM2 may resolve relative paths against the operator's shell pwd before the daemon's cwd takes effect. Direct `pm2 start "node_modules/.bin/tsx ..."` from `/root` produces a crash-loop process in `/root` while the canonical entry in dump may simultaneously survive — two `jckauto-bot` processes online (incident 2026-04-22, ids 295/296/297). Always `cd /var/www/jckauto/app/jck-auto && pm2 start bash --name X --max-restarts 5 -- -c "cd <same dir> && exec <command>"` |
+| All PM2 process startup MUST go through committed `ecosystem.config.js` via `pm2 startOrReload ecosystem.config.js --only <name>`. Raw `pm2 start <bash> --name X -- -c "…"` is FORBIDDEN | `ecosystem.config.js`, `deploy.yml`, ADR [2026-04-22] Move PM2 process management to committed ecosystem.config.js | Hand-typed `pm2 start` flags create a third copy of process definitions (alongside `~/.pm2/dump.pm2` and `infrastructure.md`) — the three drift, causing the 2026-04-22 PM2 cwd incident (duplicate jckauto-bot processes, ids 295/296/297) and Б-11 (mcp-gateway losing FILESYSTEM_ROOTS env on raw restart). The ecosystem file holds `cwd`, `script`/`args`, `env`, and `max_restarts` declaratively; every reload re-applies them. To change a process's startup, edit `ecosystem.config.js` AND deploy in the same commit |
+| `pm2 restart jckauto-bot` and `pm2 restart mcp-gateway` are FORBIDDEN — use `pm2 startOrReload ecosystem.config.js --only <name>` instead | All deploy/restart scripts, ADR [2026-04-22] Move PM2 process management to committed ecosystem.config.js | `pm2 restart` does NOT re-read env from any source — it only re-spawns `pm_exec_path` with the env snapshot saved at start time. Bot loses `.env.local` reload (existing rule); mcp-gateway loses `FILESYSTEM_ROOTS` (Б-11). `pm2 startOrReload <ecosystem-file>` re-spawns from the committed config, applying current env on every call |
 | `pm2 restart` does NOT reload .env.local | Bot deploy | Bot runs with stale env vars, may crash or misbehave |
 | Anthropic API: calls ONLY from GitHub Actions runner | scripts/process-ai-pending.ts | 403 error from Russian VDS IP |
 | DashScope runs from VDS (Singapore region) | dashscope.ts | No issue, just documenting the allowed path |

@@ -117,12 +117,16 @@ jobs:
 
             # Atomic symlink swap + short restart (~5-10s downtime)
             ln -sfn "$NEXT_SLOT" .next
-            echo "[build] step 6: symlink swapped, restarting jckauto"
-            pm2 restart jckauto
-            echo "[build] step 7: restarting jckauto-bot"
-            pm2 delete jckauto-bot 2>/dev/null || true
-            pm2 start bash --name jckauto-bot --max-restarts 5 -- \
-              -c "cd /var/www/jckauto/app/jck-auto && exec node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local"
+            echo "[build] step 6: symlink swapped, reloading PM2 from ecosystem.config.js"
+            # Single source of truth for PM2 process definitions lives in
+            # ecosystem.config.js (cwd, script, env, max_restarts). startOrReload
+            # creates new entries and reloads existing ones with current config —
+            # this is the only place PM2 process startup is defined. Raw
+            # `pm2 start … --name X -- -c "…"` is FORBIDDEN here; see
+            # rules.md → Infrastructure Rules and ADR [2026-04-22] PM2 cwd
+            # inheritance incident. mcp-gateway is intentionally NOT in --only;
+            # it lives outside the site/bot deploy cycle.
+            pm2 startOrReload ecosystem.config.js --only jckauto,jckauto-bot
             pm2 save
-            echo "[build] step 8: deploy complete"
+            echo "[build] step 7: deploy complete"
             pm2 status
