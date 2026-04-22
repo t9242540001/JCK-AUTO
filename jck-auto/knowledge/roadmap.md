@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-22
-  @version:     1.12
-  @lines:       225
+  @version:     1.13
+  @lines:       232
 -->
 
 # Roadmap
@@ -13,6 +13,35 @@
 
 ## Done
 
+- [x] **2026-04-22 — PM2 process management migrated to committed `ecosystem.config.js` (Б-11 closed)**
+  All three PM2-managed processes (jckauto, jckauto-bot, mcp-gateway) are
+  now defined in a single committed `ecosystem.config.js` at the project
+  root. `deploy.yml` reduced from a separate `pm2 restart jckauto` +
+  `pm2 delete jckauto-bot` + `pm2 start bash --name … -- -c "…"` triple
+  to a single `pm2 startOrReload ecosystem.config.js --only
+  jckauto,jckauto-bot`. Closes Б-11 (mcp-gateway losing
+  `FILESYSTEM_ROOTS` env on raw `pm2 restart`) by declaring env on the
+  ecosystem entry — every reload re-applies it. Raw `pm2 start <bash>
+  --name X -- -c "…"` is now FORBIDDEN by `rules.md` Infrastructure
+  Rules. Removes the three-copy drift class (dump.pm2 / infrastructure.md
+  / deploy.yml) that caused the 2026-04-22 PM2 cwd incident two days
+  ago. See ADR `[2026-04-22] Move PM2 process management to committed
+  ecosystem.config.js`.
+- [x] **2026-04-22 — С-8 registered: encar handler hangs indefinitely on DeepSeek timeout**
+  Live verification of Prompt 2.4.3 surfaced an indefinite hang in
+  `src/bot/handlers/encar.ts` when DeepSeek translation/power calls run
+  in an unbounded `Promise.allSettled`. Documented in `bugs.md` as С-8
+  with root cause + planned fix (wrap each arm in `Promise.race(call,
+  timeout(30000))`). Refactor itself (Prompt 2.4.3) is innocent — the
+  hang occurs before the helper is invoked.
+- [x] **2026-04-22 — Encar handler refactored to use `siteAndRequestButtons` helper**
+  `src/bot/handlers/encar.ts` no longer builds a literal
+  `inline_keyboard: [...]` for its result message. Now uses
+  `siteAndRequestButtons(siteUrl)` from `src/bot/lib/inlineKeyboards.ts`,
+  matching the architecture rule introduced in Prompt 2.4.1. Pure
+  refactor — text and button order already matched the helper output.
+  Series 2.4 progress: 2.4.1 ✓ 2.4.2 ✓ 2.4.3 ✓ — calculator/customs/
+  noscut still pending (2.4.4–2.4.6).
 - [x] **2026-04-21 — Bot user store lazy-load race fixed (Б-9 closed)**
   `src/bot/store/users.ts` is an async-load store: the in-memory `users` Map
   is populated only inside the async `loadUsers()` function. The sync
@@ -173,16 +202,6 @@
   behaviourally but stylistically inconsistent with `request.ts:89` which
   uses `void` explicitly. One-line fix; make sure any noscut/customs
   handlers that call request through callback_query use the same pattern.
-- [ ] **Commit `ecosystem.config.js` to the repository.** The canonical bot
-  startup command (see `infrastructure.md` → PM2 Processes) currently lives
-  only in `~/.pm2/dump.pm2` on VDS. If the dump file is lost or PM2 is
-  reinstalled, there is no source-of-truth document defining how to start
-  the bot beyond `infrastructure.md` prose. A committed `ecosystem.config.js`
-  would let `pm2 start ecosystem.config.js --only jckauto-bot` reproduce the
-  canonical state from git, and `pm2 save` becomes a backup, not the
-  primary record. Pre-requisite: agree on whether all three processes
-  (jckauto, jckauto-bot, mcp-gateway) move to ecosystem.config.js together
-  or just the bot.
 
 ## Strategic initiatives
 

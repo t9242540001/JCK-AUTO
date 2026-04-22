@@ -1,10 +1,10 @@
 <!--
   @file:        knowledge/infrastructure.md
   @project:     JCK AUTO
-  @description: Server config, PM2 processes, deploy procedures, constraints, per-endpoint nginx overrides
+  @description: Server config, PM2 processes (now driven by committed ecosystem.config.js), deploy procedures, constraints, per-endpoint nginx overrides
   @updated:     2026-04-22
-  @version:     1.8
-  @lines:       ~305
+  @version:     1.9
+  @lines:       ~315
 -->
 
 # Infrastructure
@@ -26,6 +26,13 @@
 
 ## PM2 Processes
 
+**Single source of truth:** `ecosystem.config.js` at the project root. All
+three PM2 processes (jckauto, jckauto-bot, mcp-gateway) are defined there.
+Deploy and manual restarts both go through that file. Raw
+`pm2 start <script> --name <X> -- …` is FORBIDDEN — see `rules.md`
+Infrastructure Rules and ADR `[2026-04-22] Move PM2 process management to
+committed ecosystem.config.js`.
+
 | Process | Purpose | Port |
 |---------|---------|------|
 | jckauto | Next.js site | 3000 |
@@ -34,59 +41,93 @@
 
 ### jckauto (Next.js site)
 
-- **Script:** `npm run start` (via Next.js built output)
+- **Defined in:** `ecosystem.config.js` → `apps[0]`
+- **Script:** `npm start` (via Next.js built output)
 - **CWD:** `/var/www/jckauto/app/jck-auto`
 - **Port:** `3000`
-- **Restart:** `pm2 restart jckauto`
+- **Restart:**
+  ```bash
+  pm2 startOrReload /var/www/jckauto/app/jck-auto/ecosystem.config.js --only jckauto
+  ```
+  `pm2 restart jckauto` is also acceptable for this process (Next.js does not
+  depend on .env.local being re-read at runtime — env is baked at build time).
 
 ### jckauto-bot (Telegram bot)
 
-- **Script:** `node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local`
-- **CWD:** `/var/www/jckauto/app/jck-auto`
+- **Defined in:** `ecosystem.config.js` → `apps[1]`
+- **Script (resolved):** `bash -c "cd /var/www/jckauto/app/jck-auto && exec node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local"`
+- **CWD:** `/var/www/jckauto/app/jck-auto` (set explicitly via the `cwd`
+  field on the PM2 entry; bash-internal `cd` is defense in depth)
 - **Port:** `8443` (webhook listener)
-- **Restart (canonical, cwd-safe):**
+- **Restart (canonical, ecosystem-driven):**
   ```bash
-  cd /var/www/jckauto/app/jck-auto
-  pm2 delete jckauto-bot 2>/dev/null || true
-  pm2 start bash --name jckauto-bot --max-restarts 5 -- \
-    -c "cd /var/www/jckauto/app/jck-auto && exec node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local"
+  pm2 startOrReload /var/www/jckauto/app/jck-auto/ecosystem.config.js --only jckauto-bot
   pm2 save
   ```
-- **CRITICAL — five protective layers:**
-  1. `cd` BEFORE `pm2 start` — gives the PM2 daemon the right cwd to
-     inherit when it spawns the process.
-  2. `cd` AGAIN inside `bash -c` — defense in depth. Even if PM2 ignores
-     the inherited cwd (e.g. it picks one up from `~/.pm2/dump.pm2`),
-     bash itself moves into the project directory before exec.
+  This is the same call `deploy.yml` makes. Manual ad-hoc shell forms
+  (`pm2 start bash --name jckauto-bot -- -c "…"`) are FORBIDDEN — they
+  bypass the committed source of truth and re-introduce the drift class
+  that caused the 2026-04-22 PM2 cwd incident.
+- **CRITICAL — five protective layers (now expressed in `ecosystem.config.js`):**
+  1. Explicit `cwd: '/var/www/jckauto/app/jck-auto'` on the PM2 entry —
+     the daemon spawns the process there regardless of the operator's
+     shell pwd.
+  2. `cd /var/www/jckauto/app/jck-auto` AGAIN inside `bash -c` — defense
+     in depth. Even if PM2 ignores `cwd` (e.g. it picks one up from a
+     stale `~/.pm2/dump.pm2`), bash itself moves into the project
+     directory before exec.
   3. `exec node_modules/.bin/tsx ...` — replaces the bash process with
      tsx so PM2's PID equals the actual bot PID. Correct restart metrics
      and correct graceful shutdown.
-  4. `--max-restarts 5` — caps any future crash-loop at 5 attempts before
+  4. `max_restarts: 5` — caps any future crash-loop at 5 attempts before
      PM2 marks the process `errored`. Without this cap, a misconfigured
      command can produce 30+ restarts before being noticed (incident
      2026-04-22, process id 296).
-  5. `pm2 delete jckauto-bot 2>/dev/null || true` — strips any stale
-     entry from the dump file before starting fresh. Prevents the "id
-     reuse with wrong cwd" failure mode.
-- **`pm2 restart` is FORBIDDEN for this process** — does not reload
-  `.env.local`. Always `pm2 delete` + `pm2 start` per the form above.
-- **Direct `pm2 start "node_modules/.bin/tsx ..."` (without bash wrapper)
-  is FORBIDDEN.** PM2 may resolve the relative path against the operator's
-  shell pwd, not the daemon's cwd — causes spawn-from-`/root` crash loops.
-  See `rules.md` Infrastructure Rules and ADR `[2026-04-22] PM2 cwd
-  inheritance incident`.
+  5. `pm2 startOrReload` reload semantics — for fork-mode apps the entry
+     is re-spawned with the current ecosystem config, eliminating the
+     "id reuse with wrong cwd" failure mode that caused the 2026-04-22
+     incident.
+- **`pm2 restart jckauto-bot` is FORBIDDEN** — does not reload
+  `.env.local`. Always `pm2 startOrReload ecosystem.config.js
+  --only jckauto-bot` per the form above.
 - **Why `node_modules/.bin/tsx`, not `npx tsx`:** `npx tsx` may pick up a
   global tsx that fails to resolve `dotenv/config` (incident 2026-04-10,
   documented in `telegram-bot.md`). The local binary is deterministic and
-  available after every `npm ci`.
+  available after every `npm ci`. Hard-coded inside the bash arg of
+  `ecosystem.config.js` `apps[1]`.
 
 ### mcp-gateway
 
-- **Purpose:** JCK AUTO Files MCP connector.
+- **Defined in:** `ecosystem.config.js` → `apps[2]`
+- **Purpose:** JCK AUTO Files MCP connector — read-only filesystem access
+  to deploy logs and project files via nginx `/mcp`.
 - **Port:** проксируется через nginx по пути `/mcp`.
+- **Env (declarative — closes Б-11):** `FILESYSTEM_ROOTS=/var/www/jckauto`.
+  Declaring the env on the ecosystem entry means every
+  `pm2 startOrReload ecosystem.config.js --only mcp-gateway` re-applies
+  it. Raw `pm2 restart mcp-gateway` was dropping `FILESYSTEM_ROOTS`
+  because PM2 restart only re-spawns `pm_exec_path` with the env
+  snapshot saved at start time — see ADR `[2026-04-22] Move PM2 process
+  management to committed ecosystem.config.js` and `bugs.md` Б-11.
+- **Restart:**
+  ```bash
+  pm2 startOrReload /var/www/jckauto/app/jck-auto/ecosystem.config.js --only mcp-gateway
+  pm2 save
+  ```
+- **NOT included in deploy.yml `--only` list.** mcp-gateway lives outside
+  the site/bot deploy cycle. `ecosystem.config.js` is its source of
+  truth for the next manual restart, NOT a trigger for automatic
+  redeploy. If the script command on VDS differs from the placeholder
+  in `ecosystem.config.js`, update the file in the same commit as the
+  VDS change — never let the two diverge (this is exactly what caused
+  Б-11).
 
-**IMPORTANT:** `deploy.yml` автоматически перезапускает `jckauto-bot` на каждом деплое.
-Ручной перезапуск нужен только при: смене токена бота, смене переменных окружения вне цикла деплоя.
+**IMPORTANT:** `deploy.yml` автоматически рестартит `jckauto` и
+`jckauto-bot` на каждом деплое через
+`pm2 startOrReload ecosystem.config.js --only jckauto,jckauto-bot`.
+Ручной перезапуск нужен только при: смене токена бота, смене переменных
+окружения вне цикла деплоя, изменении `ecosystem.config.js` без
+ребилда сайта.
 
 ## Cron Jobs
 
@@ -114,10 +155,12 @@ Push to any `claude/**` branch — GitHub Actions handles everything:
    - Self-healing: if `.next` is a directory (not symlink), restores two-slot setup
    - Two-slot build: `NEXT_DIST_DIR="$NEXT_SLOT" npm run build` into inactive slot
    - Atomic symlink swap: `ln -sfn "$NEXT_SLOT" .next`
-   - `pm2 restart jckauto`
-   - `pm2 delete jckauto-bot` + `pm2 start` (bot requires delete+start, never restart)
+   - `pm2 startOrReload ecosystem.config.js --only jckauto,jckauto-bot` — single
+     call that restarts the site and (re)spawns the bot from the committed
+     ecosystem config. Replaces the previous separate `pm2 restart jckauto` +
+     `pm2 delete jckauto-bot` + `pm2 start bash …` triple.
    - `pm2 save`
-   - `[wrapper] step 1-6` and `[build] step 1-8` echo markers for observability
+   - `[wrapper] step 1-6` and `[build] step 1-7` echo markers for observability
 
 **VDS is synced to `main`.** Claude Code always commits to `claude/**` branches — GitHub Actions auto-merges them into `main` and deploys automatically.
 
@@ -132,19 +175,23 @@ if [ "$CURRENT_SLOT" = ".next-a" ]; then NEXT_SLOT=".next-b"; else NEXT_SLOT=".n
 rm -rf "$NEXT_SLOT"
 NEXT_DIST_DIR="$NEXT_SLOT" npm run build
 ln -sfn "$NEXT_SLOT" .next
-pm2 restart jckauto
-pm2 delete jckauto-bot || true
-pm2 start bash --name jckauto-bot --max-restarts 5 -- \
-  -c "cd /var/www/jckauto/app/jck-auto && exec node_modules/.bin/tsx -r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local"
+pm2 startOrReload /var/www/jckauto/app/jck-auto/ecosystem.config.js --only jckauto,jckauto-bot
 pm2 save && pm2 status
 ```
 
-**IMPORTANT:** `pm2 restart` does NOT reload `.env.local` for the bot.
-Always use `pm2 delete` + `pm2 start` for jckauto-bot.
+**IMPORTANT:** `pm2 restart jckauto-bot` does NOT reload `.env.local` for the
+bot. Always use `pm2 startOrReload ecosystem.config.js --only jckauto-bot`
+(reload from a config file re-spawns the entry with current env).
+**NEVER** start PM2 processes via raw `pm2 start <bash> --name X -- -c "…"` —
+`ecosystem.config.js` is the only allowed source of process definitions
+(see `rules.md` Infrastructure Rules and ADR `[2026-04-22] Move PM2 process
+management to committed ecosystem.config.js`).
 **NEVER** run `npm run build` without `NEXT_DIST_DIR` — it destroys the `.next` symlink.
-**IMPORTANT:** Bot startup uses `node_modules/.bin/tsx` (not `npx tsx`). `tsx` is in `devDependencies`
-and installed by `npm ci`. Using `npx tsx` falls back to a global tsx that cannot resolve local
-`dotenv/config` → bot crash with `Cannot find module 'dotenv/config'`.
+**IMPORTANT:** Bot startup uses `node_modules/.bin/tsx` (not `npx tsx`),
+hard-coded inside `ecosystem.config.js` `apps[1].args`. `tsx` is in
+`devDependencies` and installed by `npm ci`. Using `npx tsx` falls back to a
+global tsx that cannot resolve local `dotenv/config` → bot crash with
+`Cannot find module 'dotenv/config'`.
 
 ## Nginx
 
