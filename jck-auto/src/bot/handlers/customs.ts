@@ -7,7 +7,7 @@
  * @rule        Rate label: "Ориентировочный курс", never "Курс ЦБ РФ"
  * @rule        All callback_data use "cust_" prefix — never "calc_"
  * @rule        checkBotLimit BEFORE any API call; recordBotUsage AFTER successful send
- * @lastModified 2026-04-10
+ * @lastModified 2026-04-22
  */
 
 import TelegramBot from "node-telegram-bot-api";
@@ -15,6 +15,7 @@ import { calculateTotal, formatPrice, type CalcInput, type CarAge } from "../../
 import { fetchCBRRates, COUNTRY_CURRENCY } from "../../lib/currencyRates";
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from "../../lib/botRateLimiter";
 import { incrementCommand } from "../store/botStats";
+import { siteRequestAndAgainButtons } from "../lib/inlineKeyboards";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -108,15 +109,10 @@ async function finishCustoms(bot: TelegramBot, chatId: number, state: CustState)
     );
 
     await bot.sendMessage(chatId, lines.join("\n"), {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "Оставить заявку", callback_data: "request_start" },
-            { text: "Рассчитать ещё", callback_data: "cust_again" },
-          ],
-          [{ text: "Подробнее на сайте", url: "https://jckauto.ru/tools/customs" }],
-        ],
-      },
+      reply_markup: siteRequestAndAgainButtons(
+        "https://jckauto.ru/tools/customs",
+        "cust_again",
+      ),
     });
 
     recordBotUsage(state.telegramId, "calc");

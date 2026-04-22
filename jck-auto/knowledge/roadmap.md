@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-22
-  @version:     1.15
-  @lines:       286
+  @version:     1.16
+  @lines:       296
 -->
 
 # Roadmap
@@ -13,6 +13,20 @@
 
 ## Done
 
+- [x] **2026-04-22 — Customs handler refactored to use `siteRequestAndAgainButtons` helper (Prompt 2.4.5).**
+  `src/bot/handlers/customs.ts` no longer builds a literal
+  `inline_keyboard: [...]` for its result message. Now uses
+  `siteRequestAndAgainButtons('https://jckauto.ru/tools/customs',
+  'cust_again')` from `src/bot/lib/inlineKeyboards.ts`. Site-button
+  label unified from 'Подробнее на сайте' to '🌐 Подробный отчёт
+  на сайте', matching what auction-sheet, encar, and calculator
+  already show. Two navigation keyboards (country-select in
+  `startCustoms`, age-select in the message handler) stay
+  literal — they are navigation / wizard-step, not result
+  messages, which is out of the helper's documented scope.
+  Series 2.4 progress: 2.4.1 done, 2.4.2 done, 2.4.3 done,
+  2.4.4 done, 2.4.5 done — noscut (2.4.6) and series finalization
+  (2.4.7) still pending.
 - [x] **2026-04-22 (evening) — Б-13 closed: stale jckauto-bot process replaced after 13 hours.**
   A manually-started bot process from 13 hours earlier survived
   commit `59555b8` (ecosystem.config.js introduction) and every
@@ -195,10 +209,6 @@
   `siteAndRequestButtons(siteUrl)` from `src/bot/lib/inlineKeyboards.ts`.
   Behaviourally identical (text and button order already match the helper
   output). Pure refactor.
-- [ ] **Prompt 2.4.5 — Customs handler refactor (literal → helper, text
-  unification).** Replace literal keyboard in `src/bot/handlers/customs.ts`
-  with `siteRequestAndAgainButtons(siteUrl)`. Unify the site button text
-  `Подробнее на сайте` → `🌐 Подробный отчёт на сайте`.
 - [ ] **Prompt 2.4.6 — Noscut handler refactor (literal → helper, text
   unification).** Replace literal keyboard in `src/bot/handlers/noscut.ts`
   result branch with `noscutResultButtons(catalogUrl)`. Unify the catalog
