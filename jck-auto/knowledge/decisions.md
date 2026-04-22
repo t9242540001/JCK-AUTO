@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-22
-  @version:     1.36
-  @lines:       ~2873
+  @version:     1.37
+  @lines:       ~3008
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,141 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-22] pm2 startOrReload is graceful reload — pm2 delete required to apply any ecosystem.config.js change
+
+**Status:** Accepted
+
+**Confidence:** High
+
+**Context:**
+ADR `[2026-04-22] Move PM2 process management to committed
+ecosystem.config.js` introduced declarative PM2 configuration as
+single source of truth (commit `59555b8`). deploy.yml was simplified
+to `pm2 startOrReload ecosystem.config.js --only jckauto,jckauto-bot`,
+and the informal expectation was that `startOrReload` re-reads the
+file on every invocation and brings online processes into sync with
+the declared definition.
+
+This expectation was INCORRECT. The actual PM2 behaviour is:
+
+- For a process NAME that PM2 does NOT currently have: `pm2
+  startOrReload <file> --only <name>` creates a new process from the
+  file. All fields in the file are applied at spawn time. Works as
+  expected.
+
+- For a process NAME that PM2 already has online:
+  `pm2 startOrReload` performs graceful reload. PM2 re-spawns the
+  running process — but using its EXISTING in-memory definition:
+  `pm_exec_path`, `script_args`, `exec_interpreter`, and env snapshot
+  that PM2 captured when the process was first started. No field
+  from the ecosystem file is re-read for an online process.
+
+Incident Б-13 (2026-04-22 evening) made this production-visible. A
+13-hour-old manually-started `jckauto-bot` process survived the
+merge of commit `59555b8` and every subsequent `pm2 startOrReload
+--only jckauto-bot` throughout the day. Its `script path` remained
+`/usr/bin/bash -c "npx tsx …"` (the old manual form), while the
+ecosystem.config.js file declared `script: 'node_modules/.bin/tsx'`
+with `interpreter: 'none'` and no bash wrapper. `pm2 describe`
+showed the stale values; users experienced 20-second callback
+latency from 13 hours of accumulated process state.
+
+Retroactive evidence from Prompt 2.4.3.6.1 post-merge confirmed the
+same pattern for a different process: `pm2 startOrReload --only
+mcp-gateway` after the args correction preserved the old (wrong)
+`-c exec npx -y ...` args; only `pm2 delete mcp-gateway && pm2
+start ecosystem.config.js --only mcp-gateway` applied the
+corrected entry.
+
+**Decision:**
+Any change in `ecosystem.config.js` to a field of an ALREADY-ONLINE
+process (script, interpreter, args, cwd, env, max_restarts,
+autorestart, or any other pm2 option) does NOT take effect on
+`pm2 startOrReload` alone. The correct sequence to apply such a
+change is:
+
+```bash
+pm2 delete <name>
+pm2 start ecosystem.config.js --only <name>   # or startOrReload
+pm2 save
+```
+
+`pm2 delete <name>` removes PM2's in-memory entry entirely, so the
+next `pm2 start ecosystem.config.js` creates a fresh process from
+the file with all current field values applied at spawn.
+
+This rule does NOT apply to the first start of a process (when PM2
+has no entry yet) — that case works correctly with `pm2 startOrReload`
+alone. The rule applies only when updating an existing process's
+definition.
+
+`deploy.yml` is NOT changed by this ADR. Normal deploys ship code
+but do not change PM2 script/args/env fields — the vast majority of
+deploys are fine with `pm2 startOrReload` alone. The `pm2 delete`
+step is an operator-discipline rule for the rare case of
+ecosystem.config.js field changes, not a CI rule applied to every
+deploy.
+
+**Alternatives considered:**
+- Make deploy.yml unconditional `pm2 delete <name> && pm2 start` for
+  bot and site: rejected. Causes 5–10 seconds of downtime on every
+  deploy. 99% of deploys do not touch PM2 fields; discipline should
+  scope to the rare case.
+- Switch from `pm2 startOrReload` to `pm2 reload`: rejected.
+  `pm2 reload` has the same graceful-reload semantics; it is a
+  strict subset of `startOrReload`, not a different operation.
+- Automate a diff check in deploy.yml that compares live process
+  definitions against the ecosystem file and fails if they drift:
+  rejected for now. Useful but non-trivial to implement (PM2 has no
+  single API that returns the full process definition in the same
+  shape as the file). Can be revisited as a Technical debt item if
+  the operator-discipline approach proves insufficient.
+- Rename processes with a version suffix on every ecosystem change
+  to force fresh creation: rejected. Invasive, loses PM2's
+  restart-count and log-tail continuity, does not match PM2's
+  intended usage.
+
+**Consequences:**
+- (+) Future prompts that change script / interpreter / args / cwd /
+  env / max_restarts in ecosystem.config.js have a clear operational
+  requirement: the post-merge operator action documented in the
+  prompt MUST include `pm2 delete <name>` before the startOrReload.
+- (+) Diagnostic workflow gains a first-check rule: whenever a PM2
+  process behaves unexpectedly after an ecosystem.config.js change,
+  compare `pm2 describe <name> | grep -E "script path|script args"`
+  against the file. If they disagree, the pm2 delete step was
+  skipped. This check is now documented in infrastructure.md.
+- (+) Б-11 closure evidence is correctly re-attributed: the mcp-gateway
+  FILESYSTEM_ROOTS env was applied to the live process via an
+  explicit `pm2 delete` (visible in the session transcript), not via
+  startOrReload alone. This ADR corrects an informal belief about
+  env reconciliation that briefly appeared during Б-13 diagnosis.
+- (−) Operators must remember the asymmetry between first start
+  (works) and update (needs delete). Documented in rules.md,
+  infrastructure.md, and this ADR, but it remains a cognitive load.
+- (−) The three retroactive 2026-04-22 startOrReload runs (for
+  2.4.3.6 post-merge, 2.4.3.6.1 post-merge, 2.4.4 post-merge) silently
+  preserved whichever stale definition the bot and mcp-gateway had.
+  Only the one explicit `pm2 delete` for mcp-gateway in 2.4.3.6.1,
+  and the one explicit `pm2 delete` for jckauto-bot at the end of
+  the session, applied the correct definitions. Without those two
+  explicit deletes, the bot would still be serving stale code and
+  mcp-gateway would still have the wrong args. This explains the
+  whole-day symptom.
+
+**Files changed:**
+- `jck-auto/knowledge/bugs.md` — Б-13 entry added and closed in the
+  same commit.
+- `jck-auto/knowledge/rules.md` — new Infrastructure Rule.
+- `jck-auto/knowledge/infrastructure.md` — new subsection in PM2
+  Processes; one-phrase correction in Deploy section removing a
+  misleading `(re)spawns` wording.
+- `jck-auto/knowledge/roadmap.md` — three new Done bullets
+  (2.4.4 calculator refactor; Б-13 closed in same session; 2.4.3.6.1
+  mcp-gateway entry correction); 2.4.4 removed from Planned — Bot.
+- `jck-auto/knowledge/INDEX.md` — version bump to 1.61, dates, and
+  description refreshes for the five changed files.
 
 ## [2026-04-22] Move PM2 process management to committed ecosystem.config.js
 

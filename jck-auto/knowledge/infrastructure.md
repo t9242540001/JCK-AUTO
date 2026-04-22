@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Server config, PM2 processes (now driven by committed ecosystem.config.js), deploy procedures, constraints, per-endpoint nginx overrides
   @updated:     2026-04-22
-  @version:     1.9
-  @lines:       ~315
+  @version:     1.10
+  @lines:       ~410
 -->
 
 # Infrastructure
@@ -32,6 +32,68 @@ Deploy and manual restarts both go through that file. Raw
 `pm2 start <script> --name <X> -- …` is FORBIDDEN — see `rules.md`
 Infrastructure Rules and ADR `[2026-04-22] Move PM2 process management to
 committed ecosystem.config.js`.
+
+### Applying ecosystem.config.js changes: pm2 delete required
+
+`pm2 startOrReload ecosystem.config.js --only <name>` does NOT
+replace or update a process that PM2 considers "already online". It
+performs graceful reload, which re-spawns the running process using
+its EXISTING in-memory definition — the `pm_exec_path`,
+`script_args`, `exec_interpreter`, and env snapshot PM2 captured at
+first start. No field from the ecosystem file is re-read for an
+already-online process.
+
+This applies to every field of an app entry: `script`, `interpreter`,
+`args`, `cwd`, `env`, `max_restarts`, `autorestart`. Changing any
+of them in the file and running only `pm2 startOrReload` leaves the
+running process on the OLD values, silently.
+
+First-start case is different: if PM2 has no entry for the name,
+`pm2 startOrReload ecosystem.config.js --only <name>` creates the
+process from the file with current field values. That case works
+as expected.
+
+To apply ANY change to an already-online process, delete the process
+first:
+
+```bash
+pm2 delete <name>
+pm2 start ecosystem.config.js --only <name>
+pm2 save
+```
+
+This is a ONE-TIME action per change. After the fresh process
+starts, subsequent `pm2 startOrReload` calls (from deploy.yml or
+manual) correctly keep it running until the next ecosystem.config.js
+field change. See Б-13 and ADR `[2026-04-22] pm2 startOrReload is
+graceful reload — pm2 delete required to apply any ecosystem.config.js
+change`.
+
+Diagnostic check after any ecosystem.config.js change:
+
+```bash
+pm2 describe <name> | grep -E "script path|script args|exec cwd"
+```
+
+Compare the output against the declaration in ecosystem.config.js.
+If they disagree, `pm2 delete` was skipped. Two real incidents of
+2026-04-22 matched this pattern:
+- **Б-11 fix (mcp-gateway):** plain `startOrReload` after 2.4.3.6.1
+  merge preserved the speculative `-c exec npx -y ...` args. Only
+  the subsequent `pm2 delete mcp-gateway && pm2 start ...`
+  applied the corrected `start.sh` script.
+- **Б-13 (jckauto-bot):** a 13-hour-old manually-started process
+  survived three post-merge `startOrReload` calls across the day
+  without ever picking up the ecosystem.config.js script/args
+  changes. `pm2 delete jckauto-bot && pm2 startOrReload` ended the
+  incident.
+
+`pm2 restart <name>` does NOT reload `.env.local` for the bot
+(established earlier). `pm2 restart` also does NOT pick up
+ecosystem.config.js changes (same graceful-reload class — it just
+re-spawns the running process). For both reasons, `pm2 restart` on
+jckauto-bot and mcp-gateway is FORBIDDEN by rules.md; the correct
+sequence for any update is `pm2 delete` + `pm2 start` as above.
 
 | Process | Purpose | Port |
 |---------|---------|------|
@@ -143,9 +205,15 @@ Push to any `claude/**` branch — GitHub Actions handles everything:
    - Two-slot build: `NEXT_DIST_DIR="$NEXT_SLOT" npm run build` into inactive slot
    - Atomic symlink swap: `ln -sfn "$NEXT_SLOT" .next`
    - `pm2 startOrReload ecosystem.config.js --only jckauto,jckauto-bot` — single
-     call that restarts the site and (re)spawns the bot from the committed
-     ecosystem config. Replaces the previous separate `pm2 restart jckauto` +
-     `pm2 delete jckauto-bot` + `pm2 start bash …` triple.
+     call that gracefully reloads both processes. Note: graceful reload re-uses
+     the running processes' in-memory definitions — it does NOT re-read script /
+     interpreter / args / env / cwd from the ecosystem file for an already-online
+     process. Apply those changes with `pm2 delete <name>` before `pm2 start`
+     (see PM2 Processes → "Applying ecosystem.config.js changes" above). Normal
+     deploys ship code without touching PM2 field definitions, so `startOrReload`
+     alone is fine for the common case. This single call replaces the previous
+     separate `pm2 restart jckauto` + `pm2 delete jckauto-bot` +
+     `pm2 start bash …` triple.
    - `pm2 save`
    - `[wrapper] step 1-6` and `[build] step 1-7` echo markers for observability
 

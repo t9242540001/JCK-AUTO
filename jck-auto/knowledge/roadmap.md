@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-22
-  @version:     1.14
-  @lines:       250
+  @version:     1.15
+  @lines:       286
 -->
 
 # Roadmap
@@ -13,6 +13,47 @@
 
 ## Done
 
+- [x] **2026-04-22 (evening) — Б-13 closed: stale jckauto-bot process replaced after 13 hours.**
+  A manually-started bot process from 13 hours earlier survived
+  commit `59555b8` (ecosystem.config.js introduction) and every
+  subsequent `pm2 startOrReload ecosystem.config.js --only
+  jckauto-bot` throughout the session — three reload calls total,
+  zero applied. Cause: `pm2 startOrReload` is graceful reload for
+  already-online processes; it re-uses their existing in-memory
+  `pm_exec_path` / `script_args` / env snapshot and does not re-read
+  the file. Users experienced 20-second latency per `/calc` step
+  and `ETELEGRAM: query is too old` errors. `pm2 delete jckauto-bot
+  && pm2 startOrReload ecosystem.config.js --only jckauto-bot`
+  replaced the stale process; latency returned to normal. See
+  `bugs.md` Б-13 and ADR `[2026-04-22] pm2 startOrReload is
+  graceful reload — pm2 delete required to apply any
+  ecosystem.config.js change`.
+- [x] **2026-04-22 — Calculator handler refactored to use `siteRequestAndAgainButtons` helper (Prompt 2.4.4).**
+  `src/bot/handlers/calculator.ts` no longer builds a literal
+  `inline_keyboard: [...]` for its result message. Now uses
+  `siteRequestAndAgainButtons(siteUrl, againCallback)` from
+  `src/bot/lib/inlineKeyboards.ts`. Site-button label unified from
+  "На сайт" → "🌐 Подробный отчёт на сайте", matching what encar
+  and auction-sheet already show. Two navigation keyboards
+  (country-select in `startCalc`, age-select in the message
+  handler) stay literal — they are navigation, not result
+  messages, which is out of the helper's documented scope. Series
+  2.4 progress: 2.4.1 ✓ 2.4.2 ✓ 2.4.3 ✓ 2.4.4 ✓ — customs (2.4.5)
+  and noscut (2.4.6) still pending.
+- [x] **2026-04-22 — mcp-gateway entry in ecosystem.config.js corrected (Prompt 2.4.3.6.1).**
+  The initial 2.4.3.6 entry carried a speculative
+  `args: ['-c', 'exec npx -y
+  @modelcontextprotocol/server-filesystem "$FILESYSTEM_ROOTS"']`
+  block — wrong server, wrong package, would have broken
+  mcp-gateway on first clean start. Fixed to the real
+  `script: '/opt/ai-knowledge-system/server/start.sh'` with
+  `interpreter: 'bash'` and no args (the shell script is
+  self-sufficient). FILESYSTEM_ROOTS env preserved. Post-merge
+  operator action required `pm2 delete mcp-gateway && pm2 start
+  ecosystem.config.js --only mcp-gateway` to actually apply the
+  corrected entry — `pm2 startOrReload` alone preserved the old
+  speculative args. This was the first real observation of the
+  graceful-reload behaviour that later produced Б-13.
 - [x] **2026-04-22 — PM2 ecosystem.config.js introduced (replaces manual pm2 commands).**
   Committed `ecosystem.config.js` at the project root is now the single
   source of truth for all three PM2 processes (jckauto, jckauto-bot,
@@ -154,11 +195,6 @@
   `siteAndRequestButtons(siteUrl)` from `src/bot/lib/inlineKeyboards.ts`.
   Behaviourally identical (text and button order already match the helper
   output). Pure refactor.
-- [ ] **Prompt 2.4.4 — Calculator handler refactor (literal → helper, text
-  unification).** Replace literal keyboard in `src/bot/handlers/calculator.ts`
-  with `siteRequestAndAgainButtons(siteUrl)`. Unify the site button text
-  `На сайт` → `🌐 Подробный отчёт на сайте` to match the helper canonical
-  label.
 - [ ] **Prompt 2.4.5 — Customs handler refactor (literal → helper, text
   unification).** Replace literal keyboard in `src/bot/handlers/customs.ts`
   with `siteRequestAndAgainButtons(siteUrl)`. Unify the site button text
