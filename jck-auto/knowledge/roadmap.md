@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-22
-  @version:     1.13
-  @lines:       232
+  @version:     1.14
+  @lines:       250
 -->
 
 # Roadmap
@@ -13,20 +13,26 @@
 
 ## Done
 
-- [x] **2026-04-22 — PM2 process management migrated to committed `ecosystem.config.js` (Б-11 closed)**
-  All three PM2-managed processes (jckauto, jckauto-bot, mcp-gateway) are
-  now defined in a single committed `ecosystem.config.js` at the project
-  root. `deploy.yml` reduced from a separate `pm2 restart jckauto` +
-  `pm2 delete jckauto-bot` + `pm2 start bash --name … -- -c "…"` triple
-  to a single `pm2 startOrReload ecosystem.config.js --only
-  jckauto,jckauto-bot`. Closes Б-11 (mcp-gateway losing
-  `FILESYSTEM_ROOTS` env on raw `pm2 restart`) by declaring env on the
-  ecosystem entry — every reload re-applies it. Raw `pm2 start <bash>
-  --name X -- -c "…"` is now FORBIDDEN by `rules.md` Infrastructure
-  Rules. Removes the three-copy drift class (dump.pm2 / infrastructure.md
-  / deploy.yml) that caused the 2026-04-22 PM2 cwd incident two days
-  ago. See ADR `[2026-04-22] Move PM2 process management to committed
-  ecosystem.config.js`.
+- [x] **2026-04-22 — PM2 ecosystem.config.js introduced (replaces manual pm2 commands).**
+  Committed `ecosystem.config.js` at the project root is now the single
+  source of truth for all three PM2 processes (jckauto, jckauto-bot,
+  mcp-gateway). Raw `pm2 start <bash> --name X -- -c "…"` is FORBIDDEN
+  going forward; `bash -c` wrapper retained only as Emergency Manual
+  Deploy fallback. See ADR `[2026-04-22] Move PM2 process management
+  to committed ecosystem.config.js`.
+- [x] **2026-04-22 — Б-11 closed (MCP gateway FILESYSTEM_ROOTS lost and recovered).**
+  `pm2 delete all` on VDS wiped `mcp-gateway` along with the bots; its
+  `FILESYSTEM_ROOTS` env (passed inline at first start, never persisted)
+  was lost, and Claude's MCP file-serving broke. Fixed by declaring
+  `env: { FILESYSTEM_ROOTS: '/var/www/jckauto/app/jck-auto' }` on the
+  mcp-gateway entry in `ecosystem.config.js` — every reload re-applies
+  it.
+- [x] **2026-04-22 — deploy.yml simplified: single pm2 reload call.**
+  The previous separate `pm2 restart jckauto` + `pm2 delete jckauto-bot`
+  + `pm2 start bash --name jckauto-bot -- -c "…"` triple collapsed into
+  a single `pm2 startOrReload ecosystem.config.js --only
+  jckauto,jckauto-bot`. `[build] step N` marker count reduced from 8 to
+  7.
 - [x] **2026-04-22 — С-8 registered: encar handler hangs indefinitely on DeepSeek timeout**
   Live verification of Prompt 2.4.3 surfaced an indefinite hang in
   `src/bot/handlers/encar.ts` when DeepSeek translation/power calls run

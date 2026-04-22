@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-22
-  @version:     1.13
-  @lines:       ~240
+  @version:     1.14
+  @lines:       ~261
 -->
 
 # Bugs — open issues tracker
@@ -77,36 +77,64 @@
 - **Related:** the auction-sheet pipeline already has timeouts
   (DeepSeek 180s, polling 180s) — encar handler is the outlier.
 
-### Б-11 — mcp-gateway loses FILESYSTEM_ROOTS env on raw `pm2 restart` [Closed 2026-04-22]
+### Б-11 — mcp-gateway lost FILESYSTEM_ROOTS env after `pm2 delete all` [Closed 2026-04-22]
 - **Process:** mcp-gateway (PM2)
-- **Severity:** Critical for diagnostics — without `FILESYSTEM_ROOTS` the
-  MCP connector serves no files, breaking the deploy-log workflow
-  (`/var/www/jckauto/deploy-logs/deploy-latest.log` becomes inaccessible
-  via MCP) and any other read against the project tree.
-- **Symptom:** After `pm2 restart mcp-gateway`, the MCP connector starts
-  with no `FILESYSTEM_ROOTS` env. All filesystem reads return
-  permission errors or empty results. Fixed temporarily by manually
-  re-running with the env inline:
-  `FILESYSTEM_ROOTS=/var/www/jckauto pm2 restart mcp-gateway --update-env`,
-  but the next `pm2 restart` (without `--update-env`) drops it again.
-- **Root cause:** PM2 `restart` does NOT re-read env from a config file
-  or any `.env` source. It only re-spawns `pm_exec_path` with the env
-  snapshot saved at start time. mcp-gateway's startup command on VDS
-  was `FILESYSTEM_ROOTS=… pm2 start <bin>` — env passed inline at
-  start, not declared anywhere persistent. After the first
-  `pm2 restart` the env was lost.
-- **Discovered:** observed sporadically since the deploy-log workflow
-  was added (2026-04-15); root cause confirmed 2026-04-22.
+- **Severity:** Critical for diagnostics — without `FILESYSTEM_ROOTS`
+  the MCP connector returns `Filesystem access disabled —
+  FILESYSTEM_ROOTS is empty` to every read, breaking the deploy-log
+  workflow (`/var/www/jckauto/deploy-logs/deploy-latest.log` becomes
+  inaccessible via MCP) and any other read against the project tree.
+- **Symptom:** On 2026-04-22, while clearing duplicate jckauto-bot
+  processes from the cwd-inheritance incident, the operator ran
+  `pm2 delete all` — wiping the running `mcp-gateway` process along
+  with the bots. Restarting `mcp-gateway` brought it up with empty
+  `FILESYSTEM_ROOTS`. The JCK AUTO Files MCP connector returned
+  `Filesystem access disabled` to every read until the env was
+  manually re-passed inline.
+- **Root cause:** `mcp-gateway`'s `FILESYSTEM_ROOTS` value was passed
+  inline on the original `pm2 start` command line weeks earlier and
+  never persisted anywhere — no `.env` file, no `dump.pm2` capture, no
+  hardcode in `/opt/ai-knowledge-system/server/start.sh`. Once the
+  PM2 process was deleted, the value was gone. PM2 has no mechanism
+  to recover env from a runtime-only source.
+- **Discovered:** 2026-04-22 (the `pm2 delete all` incident).
 - **Fix (2026-04-22):** declared `env: { FILESYSTEM_ROOTS:
-  '/var/www/jckauto' }` on the mcp-gateway entry in
-  `ecosystem.config.js` (committed). All future restarts go through
+  '/var/www/jckauto/app/jck-auto' }` on the mcp-gateway entry in the
+  committed `ecosystem.config.js`. All future restarts go through
   `pm2 startOrReload ecosystem.config.js --only mcp-gateway`, which
   re-applies the declared env every time. Raw `pm2 restart
   mcp-gateway` is now FORBIDDEN by `rules.md` Infrastructure Rules.
-  See ADR `[2026-04-22] Move PM2 process management to committed
-  ecosystem.config.js`.
+  Source code for the MCP server still lives in
+  `/opt/ai-knowledge-system/`; only the PM2 process definition (with
+  env) lives in this repo. See ADR `[2026-04-22] Move PM2 process
+  management to committed ecosystem.config.js`.
 
 ## Important (noticeable but workarounds exist)
+
+### Б-12 — articles not publishing since 2026-04-08
+- **Pipeline:** RSS → DeepSeek → covers → JSON → /news (see
+  `news-pipeline.md`)
+- **Severity:** Important — site `/news` section has had no new
+  articles since 2026-04-08; SEO/freshness signal degrading. Existing
+  archived articles still serve correctly.
+- **Symptom:** No new entries appear under `/news`. The article
+  cron/pipeline either is not running, is failing silently, or is
+  running but producing no output. Last successful publish: 2026-04-08.
+- **Root cause:** unknown — needs diagnostic session. Candidate
+  hypotheses (NOT verified):
+  1. Article cron disabled or not registered after the deploy pipeline
+     decoupling on 2026-04-13 (PAT_AUTO_MERGE / push-trigger-only /
+     two-slot atomic build / article cron decoupled).
+  2. RSS source feed broken or returning empty.
+  3. DeepSeek call failing silently in the article generator (no
+     observability on the publish step).
+  4. Output write step writing to a stale slot path after the
+     two-slot build was introduced.
+- **Action:** dedicated diagnostic prompt. Inspect cron schedule on
+  VDS, last cron run logs, RSS fetch state, last DeepSeek invocation
+  log, output write target. Likely a single-cause fix once observed.
+- **Registered:** 2026-04-22 during the PM2 ecosystem migration
+  session (separate concern, not blocking).
 
 ### С-2 — cursor does not change to pointer on clickable elements
 - **Pages:** site-wide. Confirmed example: file upload button on /tools/auction-sheet
