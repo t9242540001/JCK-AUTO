@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-22
-  @version:     1.14
-  @lines:       ~276
+  @version:     1.15
+  @lines:       ~340
 -->
 
 # Bugs — open issues tracker
@@ -108,6 +108,70 @@
   `/opt/ai-knowledge-system/`; only the PM2 process definition (with
   env) lives in this repo. See ADR `[2026-04-22] Move PM2 process
   management to committed ecosystem.config.js`.
+
+### Б-13 — Stale jckauto-bot process survived ecosystem.config.js reload for 13 hours [Closed 2026-04-22]
+- **Process:** jckauto-bot (PM2), port 8443
+- **Severity:** Critical for users — 20-second latency per callback
+  in `/calc`, with `ETELEGRAM: query is too old` errors on the
+  server. Bot effectively unusable during the window.
+- **Symptom:** After commit `59555b8` (ecosystem.config.js
+  introduction, 2026-04-22) merged and deploy.yml ran, the bot
+  continued running on a 13-hour-old manual startup command
+  (`/usr/bin/bash -c "npx tsx -r dotenv/config
+  scripts/start-bot.ts dotenv_config_path=.env.local"`). The
+  ecosystem.config.js file declares a different form
+  (`script: 'node_modules/.bin/tsx'`, `interpreter: 'none'`, args
+  without the bash wrapper). Each post-merge `pm2 startOrReload
+  ecosystem.config.js --only jckauto-bot` executed during the
+  session preserved the stale process definition unchanged. A
+  second process kept trying to spawn under the new form, failing
+  with `EADDRINUSE: 0.0.0.0:8443` because port was held by the
+  stale one, then quieting down after burning through
+  `max_restarts: 5`. The stale process served callbacks but slowly
+  due to 13 hours of accumulated runtime state.
+- **Root cause:** `pm2 startOrReload <ecosystem-file>` is graceful
+  reload for already-online processes. It re-spawns the running
+  process using its EXISTING in-memory `pm_exec_path`,
+  `script_args`, and env snapshot — the values PM2 captured when
+  the process was first started. It does NOT re-read any field
+  from the ecosystem file for an already-online process.
+  `pm2 delete <name>` before the next `pm2 start` is the only
+  way to apply changes from ecosystem.config.js to an existing
+  process. This applies to every field: script, interpreter, args,
+  cwd, env, max_restarts.
+- **Fix (2026-04-22 evening):**
+  ```bash
+  pm2 delete jckauto-bot
+  cd /var/www/jckauto/app/jck-auto
+  pm2 startOrReload ecosystem.config.js --only jckauto-bot
+  pm2 save
+  ```
+  Verified via `pm2 describe jckauto-bot | grep -E "script
+  path|script args|uptime|restart"`: fresh script path
+  `node_modules/.bin/tsx`, correct args, uptime 3s, 0 restarts.
+  Bot latency returned to normal; live verification of `/calc`
+  confirmed instant per-step responsiveness.
+- **Preventive action (same commit as this entry):** new
+  Infrastructure Rule in `rules.md`; new subsection in
+  `infrastructure.md` PM2 Processes section; one-phrase correction
+  in the existing infrastructure.md Deploy section (removing a
+  misleading `(re)spawns` wording that suggested reload did what
+  it does not); new ADR in `decisions.md` documenting the
+  semantics and the pm2 delete requirement.
+- **Related historical evidence:** during Prompt 2.4.3.6.1
+  post-merge, a plain `pm2 startOrReload --only mcp-gateway`
+  preserved the old (wrong) args; only the explicit `pm2 delete
+  mcp-gateway && pm2 start ecosystem.config.js --only
+  mcp-gateway` applied the corrected entry. That signal was
+  present in the session but not generalized until Б-13 made the
+  pattern production-visible.
+- **Discovered:** 2026-04-22 evening by Vasily reporting
+  "calculator very slow, every request 20 seconds" after the 2.4.4
+  live verification attempt.
+- **Status:** Closed 2026-04-22 (same-session fix).
+- **Related ADR:** `[2026-04-22] pm2 startOrReload is graceful
+  reload — pm2 delete required to apply any ecosystem.config.js
+  change`.
 
 ## Important (noticeable but workarounds exist)
 
