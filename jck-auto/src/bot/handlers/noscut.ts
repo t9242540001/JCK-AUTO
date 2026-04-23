@@ -3,17 +3,27 @@
  * @description Telegram bot /noscut command — search noscut catalog by make/model.
  *              Usage: /noscut Toyota RAV4 or /noscut Toyota
  *              Returns up to 5 matching entries with price and request button.
- * @dependencies src/lib/botRateLimiter, /var/www/jckauto/storage/noscut/noscut-catalog.json
+ * @dependencies src/lib/botRateLimiter, /var/www/jckauto/storage/noscut/noscut-catalog.json,
+ *              src/bot/lib/inlineKeyboards (noscutResultButtons)
  * @rule        Catalog is loaded once into module-level cache on first call — never re-read per request.
  * @rule        checkBotLimit BEFORE file read and search.
  * @rule        recordBotUsage AFTER successful sendMessage only.
- * @lastModified 2026-04-10
+ * @rule        Bot result-message inline keyboards MUST be built via
+ *              src/bot/lib/inlineKeyboards.ts helpers. Direct literal
+ *              inline_keyboard objects in this file for result messages
+ *              are FORBIDDEN. Empty-result branch is the documented
+ *              exception — its single-button keyboard stays inline
+ *              by helper design.
+ * @lastModified 2026-04-23
+ * @series      2.4 (prompt 2.4.6) — migrated results-present branch
+ *              reply_markup to noscutResultButtons() helper
  */
 
 import fs from 'fs';
 import TelegramBot from 'node-telegram-bot-api';
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from '../../lib/botRateLimiter';
 import { incrementCommand } from '../store/botStats';
+import { noscutResultButtons } from '../lib/inlineKeyboards';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -132,12 +142,7 @@ export function registerNoscutHandler(bot: TelegramBot): void {
     const text = header + formatResults(results);
 
     await bot.sendMessage(chatId, text, {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'Оставить заявку', callback_data: 'request_start' }],
-          [{ text: 'Смотреть каталог', url: 'https://jckauto.ru/catalog/noscut' }],
-        ],
-      },
+      reply_markup: noscutResultButtons(),
     });
 
     // 6. Record usage AFTER successful send
