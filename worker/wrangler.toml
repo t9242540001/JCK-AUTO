@@ -1,0 +1,18 @@
+# Wrangler configuration for the tg-proxy Cloudflare Worker.
+# Deployed via .github/workflows/deploy-worker.yml using
+# cloudflare/wrangler-action@v3 with API token from GitHub Secrets.
+#
+# Single source of truth for Worker configuration. Changes in
+# Cloudflare Dashboard are overwritten on next `wrangler deploy`.
+#
+# [placement] region = "eu" pins the Worker to a European edge.
+# This is a deterministic region hint, distinct from Smart Placement
+# (which requires multi-source traffic statistics we do not have).
+# See decisions.md regarding the 2026-04-23 Placement drift incident.
+
+name = "tg-proxy"
+main = "tg-proxy.js"
+compatibility_date = "2026-03-21"
+
+[placement]
+region = "eu"
