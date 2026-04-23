@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-23
-  @version:     1.17
-  @lines:       298
+  @version:     1.18
+  @lines:       285
 -->
 
 # Roadmap
@@ -13,6 +13,7 @@
 
 ## Done
 
+- [x] **2026-04-23 — Series 2.4 complete: bot result-message keyboards unified via `inlineKeyboards.ts` helpers.** Seven prompts (2.4.1–2.4.7) migrated four terminal-result handlers (auction-sheet, encar, calculator, customs, noscut) from literal `inline_keyboard: [...]` to three shared helpers (`siteAndRequestButtons`, `siteRequestAndAgainButtons`, `noscutResultButtons`). Button text, ordering, callback_data now centralized in `src/bot/lib/inlineKeyboards.ts`. Side-effect: URL bug in `noscutResultButtons()` fixed in 2.4.6 (`catalog/noscut` instead of nonexistent `tools/noscut`, `@fix 2026-04-23` marker in code). New process discipline codified in rules.md: `@fix` code marker, `@series` header marker, Conventional Commits format, mid-series bug variant B. Commits: `9639ba3` (2.4.1), `b18e117` (2.4.2), 2.4.3 closed, 2.4.4 closed, `6ab3f6e` (2.4.5), `cba938b` (2.4.6), this commit (2.4.7). See ADR `[2026-04-23] Series 2.4 complete` for full context. Out of series scope: `/noscut` state bug (empty-argument input does not transition to "awaiting query" state) still open — remains in Planned — Bot.
 - [x] 2026-04-23: Cloudflare Worker `tg-proxy` migrated from Dashboard-only to git. Three new files: `worker/tg-proxy.js` (4-mode routing code copied verbatim), `worker/wrangler.toml` (placement pinned via `mode = "smart"` + `region = "gcp:europe-west1"`), `.github/workflows/deploy-worker.yml` (auto-deploy on push to `worker/**` via `cloudflare/wrangler-action@v3`). GitHub Secrets added: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Closes Etap 1 of Cloudflare infrastructure migration. Production-verified: `cf-placement: local-ARN` (Stockholm), 0.193s latency (better than 0.227s baseline). Supersedes ADR [2026-04-20] Smart Placement via Dashboard. See ADR [2026-04-23] for full trace of the drift incident that triggered this migration. Commits: `bdc5a611` (Infra-1), `b162b2b` (Infra-1-Fix-1).
 - [x] **2026-04-22 — Customs handler refactored to use `siteRequestAndAgainButtons` helper (Prompt 2.4.5).**
   `src/bot/handlers/customs.ts` no longer builds a literal
@@ -205,20 +206,6 @@
 
 ## Planned — Bot
 
-- [ ] **Prompt 2.4.3 — Encar handler refactor (literal → helper).** Replace the
-  literal `inline_keyboard: [...]` in `src/bot/handlers/encar.ts` with
-  `siteAndRequestButtons(siteUrl)` from `src/bot/lib/inlineKeyboards.ts`.
-  Behaviourally identical (text and button order already match the helper
-  output). Pure refactor.
-- [ ] **Prompt 2.4.6 — Noscut handler refactor (literal → helper, text
-  unification).** Replace literal keyboard in `src/bot/handlers/noscut.ts`
-  result branch with `noscutResultButtons(catalogUrl)`. Unify the catalog
-  button text `Смотреть каталог` → `🌐 Каталог ноускатов на сайте`. Empty-
-  result branch is NOT in scope — leave as-is.
-- [ ] **Prompt 2.4.7 — Series 2.4 finalization.** After 2.4.3–2.4.6 are
-  merged: remove the four migrated entries from Planned — Bot, write a
-  consolidating ADR `[2026-04-XX] CTA unification across bot handlers via
-  inlineKeyboards helpers`, bump INDEX.md.
 - [ ] **Prompt 2.3 — Bot progress indicator for auction-sheet.**
   `editMessageText` the "🔍 Анализирую…" message once at ~45s with
   "Занимает дольше обычного, ещё около минуты…". On final success —
