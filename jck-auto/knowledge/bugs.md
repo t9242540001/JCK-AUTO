@@ -2,9 +2,9 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-22
-  @version:     1.15
-  @lines:       ~340
+  @updated:     2026-04-24
+  @version:     1.16
+  @lines:       ~333
 -->
 
 # Bugs — open issues tracker
@@ -175,45 +175,38 @@
 
 ## Important (noticeable but workarounds exist)
 
-### Б-12 — Articles stopped publishing on the site since 2026-04-08
+### Б-12 — Articles stopped publishing on the site since 2026-04-08 [Closed 2026-04-24]
 - **Symptom:** No new articles appearing on the site since 2026-04-08.
-  Noted by Vasily on 2026-04-22. Exact surface of the failure not yet
-  identified (is it the generation pipeline, the publishing step, the
-  rendering, a cron not firing, or a deploy-side issue?).
-- **File/subsystem:** Unknown at registration time. Likely involves
-  the content pipeline — the articles-publication flow is described
-  in `news-pipeline.md` (article cadence: ~10 articles/month, one
-  every 3 days). Any of these could be the break point: cron on VDS,
-  GitHub Actions schedule, markdown generation, cover illustration
-  step, commit/push step, build/deploy step.
-- **Last known good:** On or before 2026-04-08 (last successful
-  publication).
-- **Diagnostics required (part of fix):**
-  1. Identify the latest published article on jckauto.ru/blog (or
-     equivalent article listing route) — confirm the "since
-     2026-04-08" boundary.
-  2. Read `news-pipeline.md` to map the pipeline end-to-end and
-     identify each checkpoint (generation → illustration → commit →
-     deploy → render).
-  3. Check each checkpoint for evidence of breakage since 2026-04-08:
-     logs, recent commits to the articles directory, GitHub Actions
-     runs of the article workflow (if any), VDS cron logs.
-  4. One of the checkpoints will show the break. Fix is
-     checkpoint-specific.
-- **Severity rationale:** registered as Important (not Critical)
-  because the site is not broken — existing articles render fine,
-  bot and calculator work, no user-facing error. However, if the
-  break persists it impacts SEO growth and the strategic 10→100
-  cars/month goal; reclassify to Critical if diagnostics show the
-  break is systemic (e.g. the entire generator pipeline is down,
-  not a one-off content issue).
+  Noted by Vasily on 2026-04-22.
+- **Root cause (2026-04-24):** DashScope text-generation systematically
+  timed out from VDS on large requests (`qwen3.5-plus`, 6000+ output
+  tokens). Small DashScope requests (5-token ping) returned 200 so the
+  key and network were fine; but every cron run from ~2026-04-11
+  onward died at the first AI call in `topicGenerator.ts`
+  (`generateTopic`) with `DashScope API failed after 2 retries: The
+  operation was aborted due to timeout`. Even after prompt 01 fixed
+  that call site, the article body call in `generator.ts` had the
+  same failure mode at 8192 output tokens.
+- **Fix (2026-04-24):** migrated both AI calls in the article pipeline
+  from `callQwenText` (DashScope) to `callDeepSeek`. Two commits:
+  - Prompt 01 commit `c3e8513` — `topicGenerator.ts` (1024 maxTokens).
+  - Prompt 02 (this commit) — `generator.ts` (8192 maxTokens).
+  `knowledge/rules.md` → API Economy Rules now bans `callQwenText` in
+  the content text pipeline. See ADRs `[2026-04-24] Migrate article
+  text generation to DeepSeek — step 1/2 (topicGenerator)` and
+  `[2026-04-24] Migrate article text generation to DeepSeek —
+  step 2/2 (generator)`.
+- **Class precedent:** DashScope text-generation from VDS had already
+  been replaced with DeepSeek for the auction-sheet pipeline (ADRs
+  `[2026-04-15] DeepSeek primary for Step 2 text parse` and
+  `[2026-04-18] DeepSeek timeout 60s→180s`). This fix applies the
+  same class fix to the article pipeline.
 - **Discovered:** 2026-04-22 by Vasily (noted during session
   stabilization after the PM2 incident).
-- **Action:** separate prompt AFTER series 2.4 completes and after
-  the PM2 ecosystem migration settles. Start with diagnostics (step
-  1-3 above); fix is checkpoint-specific so a pre-written plan is
-  not meaningful at registration time.
-- **Status:** Open.
+- **Status:** Closed 2026-04-24 after both migration commits land.
+  Post-deploy verification: operator runs the article cron manually
+  and confirms both steps (topic + article body) complete via
+  DeepSeek logs (`[DeepSeek] model=deepseek-chat tokens=…`).
 
 ### С-2 — cursor does not change to pointer on clickable elements
 - **Pages:** site-wide. Confirmed example: file upload button on /tools/auction-sheet

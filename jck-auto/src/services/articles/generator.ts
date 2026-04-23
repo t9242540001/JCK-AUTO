@@ -1,16 +1,22 @@
 /**
  * @file generator.ts
- * @description Генератор SEO-статей через Qwen3.5-Plus: тема + новости → MDX-статья ~2000 слов
+ * @description Генератор SEO-статей через DeepSeek: тема + новости → MDX-статья ~2000 слов
  * @runs VDS (cron-скрипт)
  * @input Topic из topicQueue.ts, NewsContextItem[], InternalLink[]
  * @output GeneratedArticle с MDX-контентом, frontmatter, стоимостью
- * @cost Qwen3.5-Plus ~$0.01-0.02 за статью (2K+ слов)
+ * @cost DeepSeek ~$0.001-0.003 за статью (2K+ слов) — ~10× дешевле Qwen3.5-Plus
  * @rule Системный промпт определяет стиль, формат и тон — менять только с согласования
  * @rule AI-маркировка обязательна в конце каждой статьи
- * @lastModified 2026-04-02
+ * @rule Article body generation uses DeepSeek only — DashScope text-generation is banned here (see ADR [2026-04-24])
+ * @lastModified 2026-04-24
  */
 
-import { callQwenText } from '@/lib/dashscope';
+// @rule Article body generation MUST use DeepSeek. DashScope text-generation
+// is unreliable from VDS — large requests (8192 output tokens) systematically
+// time out (see ADR [2026-04-24] in knowledge/decisions.md, incident Б-12 in
+// knowledge/bugs.md). Switching back to callQwenText here will reintroduce
+// the 2-week blog outage.
+import { callDeepSeek } from '@/lib/deepseek';
 import type { Topic, NewsContextItem } from './topicGenerator';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -151,7 +157,7 @@ ${topic.internalLinks.map((l) => `- ${l}`).join('\n')}`;
       : '';
 
     try {
-      const response = await callQwenText(userPrompt + extraInstruction, {
+      const response = await callDeepSeek(userPrompt + extraInstruction, {
         temperature: 0.6,
         maxTokens: 8192,
         systemPrompt: ARTICLE_SYSTEM_PROMPT,
