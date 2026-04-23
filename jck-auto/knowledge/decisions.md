@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-22
-  @version:     1.37
-  @lines:       ~3008
+  @updated:     2026-04-23
+  @version:     1.38
+  @lines:       ~3238
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,225 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-23] Cloudflare Worker tg-proxy moved to git + Placement Hints (supersedes [2026-04-20])
+
+**Status:** Accepted
+
+**Confidence:** High — production-verified 2026-04-23:
+`cf-placement: local-ARN` (Stockholm edge), `time curl .../getMe`
+0.193s (better than 0.227s baseline from ADR [2026-04-20]), bot
+responds end-to-end in single-digit seconds.
+
+**Supersedes:** [2026-04-20] Enable Cloudflare Smart Placement on
+tg-proxy Worker.
+
+**Context:**
+On 2026-04-23 morning (~14 hours after a 160-commit git pull and
+PM2 process fix for Б-13), bot was still slow — 19.6s latency per
+outbound Telegram API call via `tg-proxy.t9242540001.workers.dev`.
+Direct `curl .../getMe` reproduced this deterministically. `curl`
+on the response showed `cf-placement: local-DME` — the Moscow
+Cloudflare edge — despite the Cloudflare Dashboard UI displaying
+Smart Placement as enabled on the Worker.
+
+Investigation revealed the drift mechanism. Cloudflare Smart
+Placement analyzes Worker subrequest latency across multiple
+traffic source locations to decide where to relocate a Worker for
+optimal upstream performance. Our Worker has single-source
+traffic — every request originates from one Moscow VDS. Smart
+Placement's algorithm cannot collect multi-source statistics for
+a single-source Worker, so it defaults to placement at the origin
+region. This default can silently reassert itself when Cloudflare
+re-evaluates placement, producing drift from `remote-EU` back to
+`local-DME` — the exact symptom observed 2026-04-23 morning.
+
+The ADR `[2026-04-20] Enable Cloudflare Smart Placement on
+tg-proxy Worker` enabled Smart Placement via the Dashboard toggle,
+and verified a fast `curl` result (0.227s) immediately after.
+That ADR was correct for the knowledge available at that time;
+it closed Б-1's immediate symptom and held stable for the
+intervening days because Cloudflare's placement decision hadn't
+yet been re-evaluated against the single-source reality. The
+2026-04-23 morning drift exposed this ADR's incompleteness:
+Smart Placement alone is not a sufficient placement strategy for
+single-source Workers. A deterministic constraint is needed.
+
+Further: the Worker source code lived only in Cloudflare Dashboard.
+The old ADR's "Consequences" section noted this as follow-up work
+to be done later. Dashboard-only configuration meant any change
+(including re-enabling Smart Placement if drift happened) required
+manual Dashboard intervention — operationally fragile, not
+source-controlled.
+
+**Decision:**
+
+Three-part decision, delivered in Prompts Infra-1 (commit
+bdc5a611) and Infra-1-Fix-1 (commit b162b2b):
+
+1. **Migrate Worker source to git.** Create `worker/tg-proxy.js`
+   with the Worker's four-mode routing code (webhook, photo,
+   anthropic, telegram default) copied verbatim from Dashboard,
+   with only `@file` header and one `@rule` anchor comment added
+   above the Anthropic clean-branch pattern.
+
+2. **Pin placement deterministically.** Create `worker/wrangler.toml`
+   with:
+   ```
+   [placement]
+   mode = "smart"
+   region = "gcp:europe-west1"
+   ```
+   This uses Placement Hints (Cloudflare changelog 2026-01-22) as
+   an EXTENSION of Smart Placement, not as replacement. `mode =
+   "smart"` enables the Smart Placement mechanism (required field
+   in Wrangler ≥3.90.0, without which wrangler deploy fails with
+   `"placement.mode" is a required field`). `region =
+   "gcp:europe-west1"` provides a deterministic regional
+   constraint — Belgium GCP data center, close to Telegram's
+   infrastructure in Netherlands — that bypasses the multi-source
+   statistics requirement. This combination eliminates the drift
+   vector.
+
+3. **Automate deploy.** Create `.github/workflows/deploy-worker.yml`
+   using `cloudflare/wrangler-action@v3`, triggered on push to
+   `worker/**` and manual `workflow_dispatch`. Requires two
+   GitHub Secrets: `CLOUDFLARE_API_TOKEN` (Workers Scripts Edit
+   on the account, created via "Edit Cloudflare Workers"
+   template) and `CLOUDFLARE_ACCOUNT_ID` (non-secret identifier
+   `604d9a5c5413693bbb859f1ffab5fc99`, stored in Secrets for
+   consistency). Workflow runs wrangler deploy in ~20 seconds on
+   every `worker/**` push; operator can also manually trigger.
+
+**Conceptual correction of prompt Infra-1 initial reasoning:**
+
+Prompt Infra-1 initially described Placement Hints as "a
+deterministic mechanism, not the Smart Placement ML heuristic".
+This was wrong. Placement Hints are an EXTENSION of Smart Placement:
+- `mode = "smart"` enables the mechanism (required).
+- `region = "..."` provides a deterministic hint within that
+  mechanism (bypasses multi-source statistics requirement).
+A wrangler.toml with `[placement]` block is rejected by Wrangler
+3.90.0 if `mode` is missing. This correction was verified
+empirically by the failed `wrangler deploy` on workflow run
+24813043040 (2026-04-23 02:16 UTC) and fixed by Infra-1-Fix-1.
+
+**Verification (2026-04-23):**
+- `wrangler deploy` workflow green on commit b162b2b.
+- 15-minute Cloudflare placement analysis window elapsed.
+- `curl -sI https://tg-proxy.t9242540001.workers.dev/getMe |
+   grep cf-placement` → `cf-placement: local-ARN` (Stockholm
+   Arlanda airport, European edge; `local-` prefix means
+   "Worker ran at the edge closest to the client", not that
+   placement is at origin region — Stockholm is the European
+   edge for our traffic pattern).
+- `time curl .../getMe` → 0.193s real. Faster than the 0.227s
+   baseline from ADR [2026-04-20] (plain Smart Placement). Faster
+   than historical `remote-EU` measurements.
+- Bot `/customs` wizard completes end-to-end in single-digit
+   seconds (verified manually by operator).
+
+**Alternatives considered:**
+
+- **Keep Dashboard-only Smart Placement, diagnose drift cause
+  deeper.** Rejected: Dashboard is manual, fragile,
+  non-version-controlled. Even if Smart Placement drift were
+  solvable via Dashboard tweaks alone, the configuration would
+  remain outside git. Every future incident would require
+  Dashboard inspection as first diagnostic, not `cat` on a file.
+
+- **Plain `mode = "smart"` without `region` hint.** Rejected:
+  already tried on 2026-04-20 (via Dashboard toggle) and drift
+  occurred by 2026-04-23 morning. Without a deterministic hint,
+  single-source traffic defaults to origin region.
+
+- **Plain `region = "gcp:europe-west1"` without `mode`.**
+  Rejected: Wrangler 3.90.0 fails with `"placement.mode" is a
+  required field`. Both parts are mandatory.
+
+- **Hetzner CX22 (Helsinki, €3.49/mo) as self-hosted nginx
+  reverse proxy, independent of Cloudflare.** Considered as
+  fallback path (Etap 2 of Cloudflare migration per earlier
+  research-protocol document). Deferred: current Cloudflare path
+  verified stable and fast; Hetzner retained as strategic
+  backlog option. Activation criteria: if Cloudflare Workers
+  become unreliable in Russia, if pricing changes, or if a
+  second independent outbound path becomes a hard requirement.
+
+- **Use a different EU region.** Options considered:
+  `aws:eu-central-1` (Frankfurt AWS), `azure:westeurope`
+  (Netherlands Azure). Chose `gcp:europe-west1` (Belgium GCP)
+  because it appears explicitly in Cloudflare's own documentation
+  examples — strongest signal of support. All three options
+  would likely work similarly for our use case.
+
+**Consequences:**
+
+- (+) Worker configuration is source-controlled. The committed
+  `worker/wrangler.toml` is single source of truth. Changes in
+  Cloudflare Dashboard are overwritten by next `wrangler deploy`.
+
+- (+) Deterministic placement — the `region` hint eliminates the
+  drift vector that caused the 2026-04-23 morning incident. The
+  Worker should not spontaneously drift back to `local-DME`
+  (origin Moscow region) on future Cloudflare re-evaluation
+  windows.
+
+- (+) Auto-deploy via GitHub Actions: pushing changes to
+  `worker/**` triggers wrangler deploy automatically within ~30s.
+  No manual Dashboard steps needed. No `setWebhook` re-run needed
+  (the Worker URL `tg-proxy.t9242540001.workers.dev` is
+  unchanged).
+
+- (+) Б-1 remains closed. Today's 2026-04-23 incident was
+  placement drift within the class that the 2026-04-20 ADR
+  addressed, not a new bug class and not a Б-1 recurrence. The
+  Placement Hint eliminates the drift vector, so Б-1 is closed
+  with stronger foundation than it had on 2026-04-20.
+
+- (+) Supersedes the 2026-04-20 ADR cleanly: old ADR remains in
+  history with `Status: Superseded by [2026-04-23]`; new ADR
+  has `Supersedes: [2026-04-20]` in header. Bidirectional link
+  for future discoverability.
+
+- (−) GitHub Secrets now contain `CLOUDFLARE_API_TOKEN` with
+  Workers Scripts Edit scope on the entire account. Scope could
+  be narrowed to only the `tg-proxy` Worker resource — minor
+  security hardening, not urgent. Noted in follow-ups.
+
+- (−) Still dependent on Cloudflare as sole outbound path for
+  bot + Anthropic API. If Cloudflare becomes blocked or
+  unreliable from Russian ISPs, the bot goes down. Hetzner Etap
+  2 remains the strategic mitigation for this risk.
+
+- (−) Wrangler version drift risk: `cloudflare/wrangler-action@v3`
+  installs `wrangler@3.90.0` automatically. If this action or
+  wrangler version changes behavior, the placement config may need
+  revisiting. Mitigated by pinning action to `@v3` (major version
+  pin, stable API contract) and by keeping wrangler.toml minimal.
+
+**Follow-up items (moved to roadmap.md Planned Infrastructure):**
+
+- Telegram-branch header cleanup (worker/tg-proxy.js currently
+  forwards `request.headers` wholesale on the default branch; the
+  Anthropic branch uses a clean 4-header pattern; consider
+  harmonizing for defense-in-depth).
+- console.log ingress/egress at each routing branch (for future
+  latency debugging without Dashboard access).
+
+**Files:**
+- `worker/tg-proxy.js` (new in Infra-1, commit bdc5a611).
+- `worker/wrangler.toml` (new in Infra-1 with incorrect config,
+  fixed in Infra-1-Fix-1 commit b162b2b).
+- `.github/workflows/deploy-worker.yml` (new in Infra-1).
+- `knowledge/decisions.md` (this entry + old ADR Status change).
+- `knowledge/rules.md` (Smart Placement rule replaced with
+  Worker-in-git rule).
+- `knowledge/roadmap.md` (old "Move Cloudflare Worker" Planned
+  Infrastructure item → Done + new small Follow-up items).
+- `knowledge/infrastructure.md` (Cloudflare Worker section
+  updated).
+- `knowledge/INDEX.md` (version and dates bumped).
 
 ## [2026-04-22] pm2 startOrReload is graceful reload — pm2 delete required to apply any ecosystem.config.js change
 
@@ -2596,7 +2815,18 @@ visually absent.
 
 ## [2026-04-20] Enable Cloudflare Smart Placement on tg-proxy Worker (close Б-1)
 
-**Status:** Accepted
+**Status:** Superseded by [2026-04-23] Cloudflare Worker tg-proxy moved to git + Placement Hints
+
+> **Superseded 2026-04-23:** Smart Placement alone turned out to be
+> an incomplete solution for our single-source traffic pattern — it
+> drifted back to `local-DME` on 2026-04-23 morning (14 hours after
+> a git pull + PM2 fix). Root cause: Smart Placement's multi-source
+> statistics requirement cannot be satisfied by single-source
+> traffic from one VDS. Complete solution requires `[placement]
+> mode = "smart"` + `region = "gcp:europe-west1"` Placement Hint
+> in `worker/wrangler.toml`. See the new ADR for details. The
+> original decision below remains in history unmodified; only this
+> header was added.
 
 **Confidence:** High — root cause isolated by a deterministic reproduction
 (direct `curl` to Worker `getMe`, 19.8s), fix verified by the same
