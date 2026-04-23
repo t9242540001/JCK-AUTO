@@ -2,9 +2,9 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
-  @updated:     2026-04-22
-  @version:     1.16
-  @lines:       296
+  @updated:     2026-04-23
+  @version:     1.17
+  @lines:       298
 -->
 
 # Roadmap
@@ -13,6 +13,7 @@
 
 ## Done
 
+- [x] 2026-04-23: Cloudflare Worker `tg-proxy` migrated from Dashboard-only to git. Three new files: `worker/tg-proxy.js` (4-mode routing code copied verbatim), `worker/wrangler.toml` (placement pinned via `mode = "smart"` + `region = "gcp:europe-west1"`), `.github/workflows/deploy-worker.yml` (auto-deploy on push to `worker/**` via `cloudflare/wrangler-action@v3`). GitHub Secrets added: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Closes Etap 1 of Cloudflare infrastructure migration. Production-verified: `cf-placement: local-ARN` (Stockholm), 0.193s latency (better than 0.227s baseline). Supersedes ADR [2026-04-20] Smart Placement via Dashboard. See ADR [2026-04-23] for full trace of the drift incident that triggered this migration. Commits: `bdc5a611` (Infra-1), `b162b2b` (Infra-1-Fix-1).
 - [x] **2026-04-22 — Customs handler refactored to use `siteRequestAndAgainButtons` helper (Prompt 2.4.5).**
   `src/bot/handlers/customs.ts` no longer builds a literal
   `inline_keyboard: [...]` for its result message. Now uses
@@ -235,7 +236,8 @@
 - [ ] Middleware-manifest regression investigation — PM2 720+ restart loop (see bugs.md Б-7)
 - [ ] Capture-deploy-log workflow registration verification (see bugs.md Б-8)
 - [ ] OCR label-swap mitigation in auction-sheet Pass 1 — qwen-vl-ocr occasionally misassigns adjacent label/value pairs on auction sheets (example observed 2026-04-18: 最大積載量 label paired with 寒冷地仕様 value that belongs to a different field). Result: seats / bodyType / salesPoints often arrive empty on test sheets. Two candidate fixes: (a) post-process in Step 2 DeepSeek parser with reasoning prompt that catches mismatches, or (b) replace Pass 1 model with qwen3-vl-flash (already used in Pass 2 with good results). Requires diagnostic comparison before choosing.
-- [ ] Move Cloudflare Worker `tg-proxy` source code from Dashboard-only to the repository. Target files: `worker/tg-proxy.ts` + `wrangler.toml`. Put the Worker on the same git-versioning track as the rest of the codebase, deployable via `wrangler deploy` from GitHub Actions or the VDS. At the same time: (a) clean up the Telegram-branch headers to match the Anthropic-branch pattern (pass only minimum required headers, not `request.headers` wholesale), (b) add console.log at ingress/egress of each routing branch for future latency debugging, (c) document Smart Placement as a required deploy setting in `wrangler.toml` or a separate README. Pre-requisite: Cloudflare API token or `wrangler login` from VDS. See ADR `[2026-04-20] Enable Cloudflare Smart Placement on tg-proxy Worker (close Б-1)` "Consequences" section for rationale.
+- [ ] Cloudflare Worker: harmonize Telegram default-branch header forwarding with Anthropic branch pattern. Currently `worker/tg-proxy.js` default branch forwards `request.headers` wholesale (the Telegram API accepts this), while the `/anthropic/` branch uses a clean 4-header pattern (`Content-Type`, `x-api-key`, `anthropic-version`, `anthropic-beta` only — Anthropic API rejects extra CF-* / X-Forwarded-* headers). Defense-in-depth: apply the clean pattern to the Telegram branch as well — no functional change expected, but reduces future risk if Telegram API tightens header validation. Out of scope for Etap 1 (migration); pick up as a follow-up prompt on `worker/tg-proxy.js` when next touching it.
+- [ ] Cloudflare Worker: add `console.log` at ingress (request received) and egress (response returned) of each of the four routing branches in `worker/tg-proxy.js`. Format: `[tg-proxy] {branch} in: {url.pathname}` and `[tg-proxy] {branch} out: {status} {elapsed_ms}ms`. Purpose: future latency debugging via Cloudflare Dashboard's Worker logs tab, without needing SSH into VDS. Currently the Worker has zero logging; any latency regression requires external `curl` reproduction to diagnose. Small-scope follow-up prompt.
 
 ## Planned — Technical debt
 

@@ -2,9 +2,9 @@
   @file:        knowledge/infrastructure.md
   @project:     JCK AUTO
   @description: Server config, PM2 processes (now driven by committed ecosystem.config.js), deploy procedures, constraints, per-endpoint nginx overrides
-  @updated:     2026-04-22
-  @version:     1.10
-  @lines:       ~410
+  @updated:     2026-04-23
+  @version:     1.11
+  @lines:       ~421
 -->
 
 # Infrastructure
@@ -355,10 +355,21 @@ Last backup: `/etc/nginx/sites-available/jckauto.backup-2026-04-18`
 - Действие: переписывает host на `api.telegram.org`, пересылает запрос
 - Назначение: все вызовы Bot API (`sendMessage`, `getMe`, `setWebhook` и т.д.)
 
-### КРИТИЧНО: код Worker не в git
+### Конфигурация Worker в git
 
-- Код Worker живёт **только** в Cloudflare Dashboard — его нет в репозитории.
-- Чтобы отредактировать: `dash.cloudflare.com` → Workers & Pages → `tg-proxy` → Edit Code.
+- **Код:** `worker/tg-proxy.js` в репозитории (4-режимная маршрутизация, описана выше).
+- **Конфигурация:** `worker/wrangler.toml` — включая `[placement] mode = "smart"` + `region = "gcp:europe-west1"` (Belgium GCP edge hint, детерминированное размещение в Европе).
+- **Deploy:** `.github/workflows/deploy-worker.yml` через `cloudflare/wrangler-action@v3`. Триггеры: автоматический на push в `worker/**`, ручной — `workflow_dispatch` в GitHub Actions UI.
+- **Secrets:** `CLOUDFLARE_API_TOKEN` (scope: Workers Scripts Edit, создан из template "Edit Cloudflare Workers"), `CLOUDFLARE_ACCOUNT_ID` = `604d9a5c5413693bbb859f1ffab5fc99` (non-secret идентификатор аккаунта, хранится в Secrets для единообразия).
+- **Runtime placement:** `cf-placement: local-ARN` (Stockholm Arlanda edge). Latency к `api.telegram.org`: ~0.2s.
+- **Источник истины:** `worker/wrangler.toml` в git. Cloudflare Dashboard — НЕ источник; каждый `wrangler deploy` перезаписывает живую версию Worker'а из git.
+
+### Не править Worker в Dashboard
+
+- Редактирование кода или placement в Cloudflare Dashboard будет потеряно на следующем deploy.
+- Чтобы внести изменение: редактировать файлы в `worker/` в репозитории → commit → push (в `claude/**` или напрямую в `main`) → workflow автоматически выполнит deploy.
+- Чтобы откатиться к предыдущей версии: Cloudflare Dashboard → Workers & Pages → tg-proxy → Deployments → история деплоев → "Rollback to this deployment". Откат в Dashboard — временный; при следующем push в `worker/**` wrangler снова перезапишет. Если откат должен быть постоянным, нужен git revert коммита в `worker/**`.
+- См. ADR `[2026-04-23] Cloudflare Worker tg-proxy moved to git + Placement Hints` для полной архитектурной трактовки.
 
 ## Provider network restrictions
 
