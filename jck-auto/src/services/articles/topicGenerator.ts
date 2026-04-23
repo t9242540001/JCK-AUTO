@@ -6,12 +6,17 @@
  * @output Topic + NewsContextItem[] для передачи в generator.ts
  * @rule Тема генерируется AI на основе актуальной новостной повестки
  * @rule Проверка на дубликаты: лог + существующие slug
- * @lastModified 2026-04-02
+ * @rule Article topic generation uses DeepSeek only — DashScope text-generation is banned here (see ADR [2026-04-24])
+ * @lastModified 2026-04-24
  */
 
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
-import { callQwenText } from '@/lib/dashscope';
+// @rule Article topic generation MUST use DeepSeek. DashScope text-generation
+// is unreliable from VDS — large requests systematically time out (see
+// ADR [2026-04-24] in knowledge/decisions.md, incident Б-12 in knowledge/bugs.md).
+// Switching back to callQwenText here will reintroduce the 2-week blog outage.
+import { callDeepSeek } from '@/lib/deepseek';
 import { getAllNewsDays, getNewsByDate } from '@/services/news/reader';
 import { generateSlug } from '@/lib/transliterate';
 
@@ -173,7 +178,7 @@ export async function generateTopic(): Promise<GeneratedTopic | null> {
 
   console.log(`[TopicGen] Новостей: ${newsItems.length}, существующих тем: ${writtenTopics.length}`);
 
-  const response = await callQwenText(userPrompt, {
+  const response = await callDeepSeek(userPrompt, {
     temperature: 0.7,
     maxTokens: 1024,
     systemPrompt: TOPIC_SYSTEM_PROMPT,

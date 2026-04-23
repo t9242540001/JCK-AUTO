@@ -2,9 +2,9 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-23
-  @version:     1.20
-  @lines:       153
+  @updated:     2026-04-24
+  @version:     1.21
+  @lines:       154
 -->
 
 # Critical Rules
@@ -88,6 +88,7 @@
 | Don't re-process data already in catalog.json | process-ai-pending.ts | Wasted Claude Vision credits |
 | Cache results: rates (6h TTL), translation (24h TTL) | currencyRates.ts, encarClient.ts | Unnecessary API calls and latency |
 | Compare hashes before downloading from Drive | googleDrive.ts | Re-downloads unchanged files |
+| Text generation in content pipeline (article topics + article body) MUST use DeepSeek via `callDeepSeek` — `callQwenText` from `@/lib/dashscope` is BANNED at these call sites | `src/services/articles/topicGenerator.ts`, `src/services/articles/generator.ts`, ADR `[2026-04-24] Migrate article text generation to DeepSeek` | DashScope text-generation systematically times out from VDS on large requests. Reintroducing `callQwenText` here re-creates bug Б-12 (two-week blog outage). DashScope is still correct for image generation (`qwen-image-2.0-pro`) and image/OCR — the ban is scoped to text in the content pipeline |
 
 ## Git & Prompt Rules
 

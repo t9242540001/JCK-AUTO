@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-23
-  @version:     1.39
-  @lines:       ~3403
+  @updated:     2026-04-24
+  @version:     1.40
+  @lines:       ~3451
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,54 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-24] Migrate article text generation to DeepSeek (class fix for DashScope text timeouts from VDS) — step 1/2 (topicGenerator)
+
+**Status:** Accepted
+
+**Confidence:** High — DeepSeek reliability from VDS has already been established by the news-processor pipeline (months of stable daily 07:00 MSK runs visible in `/var/log/jckauto-news.log`) and by ADRs `[2026-04-15] DeepSeek primary for Step 2 text parse` and `[2026-04-18] DeepSeek timeout 60s→180s`. `callDeepSeek` is signature-compatible with `callQwenText` — the change is a drop-in replacement.
+
+**Context:**
+
+Article generation cron has been failing since ~2026-04-11 with `DashScope API failed after 2 retries: The operation was aborted due to timeout`. The blog has received no new articles for roughly two weeks. Diagnosis from `/var/log/jckauto-articles.log` plus direct curl tests showed: DashScope key and network are fine for small requests (5-token ping returns HTTP 200), but large text-generation requests (6000+ output tokens from `qwen3.5-plus`) systematically time out from the VDS.
+
+This is not a new class of problem. Two prior ADRs already recognised DashScope text-generation as unreliable from VDS for the auction-sheet pipeline and migrated the affected code to DeepSeek. The same class fix has not yet been applied to the article-generation pipeline; applying it is the purpose of this ADR.
+
+**Decision:**
+
+Migrate the two AI calls in the article-generation pipeline from `callQwenText` (DashScope) to `callDeepSeek`, in two prompts:
+- Prompt 01 (THIS): migrate `src/services/articles/topicGenerator.ts` — the first AI call in the pipeline, which is where every recent cron run died.
+- Prompt 02: migrate `src/services/articles/generator.ts` — the heavy long-form article writer.
+
+Scope of this step (prompt 01):
+- Replace the single `callQwenText` call inside `generateTopic()` with `callDeepSeek`. Same options object (`temperature: 0.7`, `maxTokens: 1024`, `systemPrompt`). No prompt text change.
+- Add an inline `@rule` anchor above the new import line explaining why DashScope is banned at this call site.
+- Add a file-header `@rule` entry recording the decision at file scope.
+- Add one new row in `knowledge/rules.md` under `## API Economy Rules` reflecting the new class-level rule for the content pipeline.
+
+Prompt 02 will apply the same pattern to `generator.ts` and close bug Б-12 in `knowledge/bugs.md`.
+
+DashScope remains the provider for image generation (`qwen-image-2.0-pro` in `coverGenerator.ts`) and for image/OCR tasks (auction-sheet Pass 1). Those code paths are out of scope.
+
+**Alternatives considered:**
+
+- Keep DashScope for text, increase timeout to 300s and retries to 4. Rejected: symptomatic fix only; already applied to the auction-sheet pipeline twice (ADRs 2026-04-15 and 2026-04-18) as a partial measure before the full migration. DashScope text from VDS is fundamentally unreliable on large requests — this patch class has a known half-life of 2–3 weeks.
+- Move the cron to GitHub Actions and call DashScope from the runner. Rejected for now: larger scope (secrets management, workflow setup, coordination with existing deploy pipeline), does not close the class for other future content-pipeline features, and defers the fix unnecessarily. May be revisited as a separate infrastructure initiative once the class fix is applied.
+- Migrate both files (`topicGenerator.ts` + `generator.ts`) in a single prompt. Rejected: violates the one-file-per-prompt rule. Two files with different risk profiles (1024-token vs 8192-token output, different system prompts) warrant separate verification windows; a single prompt would leave no easy rollback point for half the migration.
+
+**Consequences:**
+
+- (+) Article cron's first AI call (topic generation) runs through DeepSeek, removing the timeout failure mode observed since 2026-04-11 at that step.
+- (+) DeepSeek is ~10× cheaper than `qwen3.5-plus` on text (confirmed by `/var/log/jckauto-news.log` — DeepSeek calls at ~$0.001–0.003 vs DashScope text at ~$0.010–0.019 in `/var/log/jckauto-articles.log`). Operating cost of topic generation drops proportionally.
+- (+) Cross-pipeline consistency: news-processor and article-topic now both call DeepSeek for text, matching the pattern already established by the auction-sheet migration.
+- (−) Article cron will still fail one step later (at `generator.ts`, still on Qwen) until prompt 02 lands. This is a known intermediate state, accepted because splitting the migration preserves verifiability.
+- (−) Telegram alerts for cron failure are NOT in this prompt — if DeepSeek itself fails on production (quota, key rotation), the silent-failure problem persists until prompts 03 and 04. Fully accepted; alerts are a separate concern tracked in the same series.
+
+**Files changed:**
+- `jck-auto/src/services/articles/topicGenerator.ts`
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/rules.md`
+- `jck-auto/knowledge/INDEX.md`
 
 ## [2026-04-23] Series 2.4 complete — bot result-message keyboards unified via inlineKeyboards.ts helpers + new process discipline (@fix marker, @series marker, Conventional Commits, mid-series bug variant B)
 
