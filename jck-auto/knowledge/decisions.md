@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-24
-  @version:     1.40
-  @lines:       ~3451
+  @version:     1.41
+  @lines:       ~3519
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,74 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-24] Migrate article text generation to DeepSeek — step 2/2 (generator) — closes Б-12
+
+**Status:** Accepted
+
+**Confidence:** High — direct extension of step 1/2 pattern. `callDeepSeek`
+is signature-compatible with `callQwenText`; DeepSeek's `max_tokens` ceiling
+is 8192, which matches the existing `maxTokens: 8192` request shape exactly.
+news-processor pipeline has issued thousands of 8192-token DeepSeek calls
+over the prior months with no timeouts (verified via
+`/var/log/jckauto-news.log`).
+
+**Context:**
+
+Prompt 01 (commit `c3e8513`) migrated `topicGenerator.ts` — the first AI
+call in the article cron — from `callQwenText` to `callDeepSeek`. That
+unblocked the cron past its failure point but left the heavier second
+AI call (article-body generation in `generator.ts`, 8192 output tokens)
+still on DashScope. Post-deploy verification after prompt 01 confirmed the
+intended intermediate state: `[TopicGen]` succeeded on DeepSeek, then
+`[Article] Шаг 1/3: Генерация текста...` failed with the same DashScope
+timeout at the `generator.ts` call site.
+
+This ADR completes the migration. The class fix and decision rationale
+are fully recorded in the sibling ADR
+`[2026-04-24] Migrate article text generation to DeepSeek (class fix
+for DashScope text timeouts from VDS) — step 1/2 (topicGenerator)`; this
+ADR documents only the delta for step 2.
+
+**Decision:**
+
+Replace the single `callQwenText` call inside `generator.ts`
+(`generateArticle()`, line 154) with `callDeepSeek`. Same options object
+(`temperature: 0.6`, `maxTokens: 8192`, `systemPrompt:
+ARTICLE_SYSTEM_PROMPT`). No prompt text change, no retry logic change.
+Add the same regression anchor pattern (inline `@rule` block above the
+import, file-header `@rule` line) established in step 1/2.
+
+Close Б-12 in `knowledge/bugs.md` — both AI call sites are now on
+DeepSeek; the article cron should produce articles end-to-end on the
+next scheduled run.
+
+**Alternatives considered:**
+
+Same list as step 1/2. Chose the two-prompt split (step 1 topicGenerator,
+step 2 generator) over a single mega-prompt to preserve verifiability
+and bisectability.
+
+**Consequences:**
+
+- (+) Б-12 closed. Article cron end-to-end runs on DeepSeek; the 2-week
+  blog outage ends.
+- (+) Operating cost of article generation drops ~10× — DeepSeek at
+  ~$0.001–0.003 per article vs DashScope text at ~$0.010–0.019. Across
+  the ~10 articles/month cadence, this is ~$0.10–0.20 saved monthly;
+  the real benefit is reliability, not cost.
+- (+) `knowledge/rules.md` → API Economy Rules now fully covers both
+  call sites (`topicGenerator.ts` + `generator.ts`) with a single ban.
+- (−) If DeepSeek itself fails (quota, key rotation, outage), the cron
+  still fails silently — no Telegram alert on cron error. This is a
+  separate concern tracked as follow-up work (not in scope for this
+  ADR or prompt).
+
+**Files changed:**
+- `jck-auto/src/services/articles/generator.ts`
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/bugs.md` (Б-12 closed)
+- `jck-auto/knowledge/INDEX.md` (version bump + dates)
 
 ## [2026-04-24] Migrate article text generation to DeepSeek (class fix for DashScope text timeouts from VDS) — step 1/2 (topicGenerator)
 
