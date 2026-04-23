@@ -87,7 +87,7 @@ export function siteRequestAndAgainButtons(
 /**
  * Two-button keyboard for the noscut selection result.
  * Row 1: "Оставить заявку" → REQUEST_START_CALLBACK.
- * Row 2: "🌐 Каталог ноускатов на сайте" → jckauto.ru/tools/noscut.
+ * Row 2: "🌐 Каталог ноускатов на сайте" → jckauto.ru/catalog/noscut.
  *
  * Distinct from `siteAndRequestButtons` because the secondary action
  * is a catalog, not a "detailed report". URL is fixed — noscut has
@@ -100,7 +100,12 @@ export function noscutResultButtons(): ResultKeyboard {
   return {
     inline_keyboard: [
       [{ text: 'Оставить заявку', callback_data: REQUEST_START_CALLBACK }],
-      [{ text: '🌐 Каталог ноускатов на сайте', url: 'https://jckauto.ru/tools/noscut' }],
+      // @fix 2026-04-23: was 'tools/noscut' (404 — page does not exist),
+      //   correct path is 'catalog/noscut' (actual Next.js page in
+      //   src/app/catalog/noscut/). Discovered during Series 2.4.6
+      //   noscut handler migration before first production use of
+      //   this helper. Consolidating ADR pending in Series 2.4.7.
+      [{ text: '🌐 Каталог ноускатов на сайте', url: 'https://jckauto.ru/catalog/noscut' }],
     ],
   };
 }
