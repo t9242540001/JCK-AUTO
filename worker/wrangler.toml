@@ -5,14 +5,23 @@
 # Single source of truth for Worker configuration. Changes in
 # Cloudflare Dashboard are overwritten on next `wrangler deploy`.
 #
-# [placement] region = "eu" pins the Worker to a European edge.
-# This is a deterministic region hint, distinct from Smart Placement
-# (which requires multi-source traffic statistics we do not have).
-# See decisions.md regarding the 2026-04-23 Placement drift incident.
+# [placement] configuration:
+#   mode = "smart" enables Cloudflare Smart Placement.
+#   region = "gcp:europe-west1" is a Placement Hint (docs:
+#     https://developers.cloudflare.com/workers/configuration/placement/)
+#     that tells Smart Placement to prefer a European edge near
+#     Belgium GCP, bypassing the multi-source-traffic statistics
+#     requirement that otherwise defaults low-traffic workers to
+#     their origin region (we have single-source traffic from
+#     Moscow VDS, which defaulted to local-DME and caused 19.6s
+#     outbound latency to api.telegram.org).
+# See decisions.md entry [2026-04-23] (written in Prompt Infra-2
+# after manual verification of this deploy).
 
 name = "tg-proxy"
 main = "tg-proxy.js"
 compatibility_date = "2026-03-21"
 
 [placement]
-region = "eu"
+mode = "smart"
+region = "gcp:europe-west1"
