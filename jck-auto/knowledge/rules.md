@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-23
-  @version:     1.19
-  @lines:       145
+  @version:     1.20
+  @lines:       153
 -->
 
 # Critical Rules
@@ -106,6 +106,14 @@
 |------|----------|-------------|
 | Auto-merge triggers on every push to `claude/**` — there is no batching, no staging, no label filter | `.github/workflows/auto-merge.yml` | Strategies like "single branch for a multi-prompt series with intermediate broken state" do NOT protect production. Each prompt's push lands in main immediately. On 2026-04-19, series 02–05 shipped blank h2 headings to production on 3 pages for ~40 minutes between Prompt 02 and Prompt 05. Plan prompt series with this in mind — see decisions.md `[2026-04-19] Prompt-series strategy under auto-merge + ignoreBuildErrors` |
 | `typescript: { ignoreBuildErrors: true }` + required prop + missing consumer = silent blank render at runtime | `next.config.ts` | TypeScript errors do NOT block `npm run build`, so a missing required prop at a consumer call site passes CI but causes the component to receive `undefined` at runtime, rendering JSX expressions as empty strings / blank DOM nodes. Standard build-green check does not catch this regression class. Mitigation options are documented in decisions.md (same ADR as above) |
+
+## Process Discipline
+
+| Rule | Location | Consequence |
+|------|----------|-------------|
+| Mid-series bug fixes MUST use `@fix YYYY-MM-DD` code marker above the fixed line in the format: `// @fix YYYY-MM-DD: was <old>, correct <new>. <Why/context>. Discovered during <prompt>. ADR pending in <series finalization prompt>.` Marker lives in code permanently | Any file with mid-series bug fix; first precedent: `src/bot/lib/inlineKeyboards.ts` above `noscutResultButtons()` URL line (2026-04-23); ADR `[2026-04-23] Series 2.4 complete` | Without `@fix` marker, the future reader of the code sees an unexplained value and may "clean it up" to what seems canonical, re-introducing the bug. Marker also enables `grep -rn "@fix" src/` for archaeology. bugs.md is NOT used for same-commit fixes — discipline lives in the code + commit + ADR |
+| Files under active series transformation MUST carry `@series N.M (prompt N.M.K) — <description>` marker in their JSDoc header, immediately after `@lastModified`. Forward-only: prior-migrated files are NOT back-filled. Marker is REMOVED in the series finalization prompt | Handler files in `src/bot/handlers/**` during Series 2.4; first use: `src/bot/handlers/noscut.ts` (2.4.6, removed in 2.4.7); ADR `[2026-04-23] Series 2.4 complete` | Marker provides inline context for "why is this file being touched outside a standalone bug fix". If not removed in finalization, lifetime contract is broken and future readers see stale "work in progress" annotations on closed work. Forward-only: back-filling misrepresents closed work as in-progress |
+| Prompt-based commits MUST follow Conventional Commits format: subject ≤72 chars + blank line + body. Compound commits (primary action + secondary changes) MUST detail all changes in body, not just subject. Trailing "Series N.M progress: X/Y" line recommended for series work | Every commit produced by a Claude Code prompt; first structured example: commit `cba938b` (2.4.6); ADR `[2026-04-23] Series 2.4 complete` | Short subjects are scan-friendly in `git log --oneline`. Body captures archaeological context unavailable elsewhere — compound commits with only subject text lose half their content to future archaeology (e.g. `git bisect` on a subject saying "refactor" will not reveal an embedded bug fix). Body is the only permanent record not subject to knowledge file churn |
 
 ## UI Component Rules
 

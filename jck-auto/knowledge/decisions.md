@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-23
-  @version:     1.38
-  @lines:       ~3238
+  @version:     1.39
+  @lines:       ~3403
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,171 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-23] Series 2.4 complete — bot result-message keyboards unified via inlineKeyboards.ts helpers + new process discipline (@fix marker, @series marker, Conventional Commits, mid-series bug variant B)
+
+**Status:** Accepted
+
+**Confidence:** High — all seven prompts closed, all five migrated
+handlers verified in production (2.4.2–2.4.5 during their
+respective sessions, 2.4.6 verified 2026-04-23 by operator via
+Telegram), URL bug fix in `noscutResultButtons()` helper verified
+by site response (opens `jckauto.ru/catalog/noscut`, not 404).
+
+**Context:**
+
+Bot surface had four independent handler files each building its
+own inline keyboard literal below result messages: auction-sheet,
+encar, calculator, customs. Button text, ordering, and
+callback_data values drifted across handlers over time. An audit
+on 2026-04-21 surfaced three concrete divergences:
+- auction-sheet used "Открыть на сайте" while encar used "На сайт"
+- customs result was missing the "Рассчитать ещё" CTA that
+  calculator had
+- noscut used "Смотреть каталог" instead of a branded site button
+
+The divergence risk was reinforcement of drift over time — every
+new handler edit risked adding another inconsistent variant.
+
+**Decision:**
+
+Introduce a single source of truth at `src/bot/lib/inlineKeyboards.ts`
+with three helper functions (`siteAndRequestButtons`,
+`siteRequestAndAgainButtons`, `noscutResultButtons`). Architecture
+rule: bot result-message inline keyboards MUST be built by these
+helpers; direct literal `inline_keyboard: [...]` for result
+messages in `src/bot/handlers/**` is FORBIDDEN. Navigation and
+wizard-step keyboards (catalog paging, customs/calculator wizard)
+are OUT OF SCOPE — helpers cover only terminal result messages.
+
+Empty-result branches that use single-button keyboards retain
+their inline literals by explicit helper design (documented in
+helper JSDoc).
+
+Migrated handlers, in order:
+- 2.4.1 (commit `9639ba3`) — `inlineKeyboards.ts` created;
+  architecture rule added to `rules.md`.
+- 2.4.2 (commit `b18e117`) — `auctionSheet.ts` →
+  `siteAndRequestButtons(siteUrl)`.
+- 2.4.3 (closed 2026-04-22) — `encar.ts` →
+  `siteAndRequestButtons(siteUrl)`.
+- 2.4.4 (closed 2026-04-22) — `calculator.ts` →
+  `siteRequestAndAgainButtons(siteUrl, 'calc_again')`.
+- 2.4.5 (closed 2026-04-22, commit `6ab3f6e`) — `customs.ts` →
+  `siteRequestAndAgainButtons('https://jckauto.ru/tools/customs',
+  'cust_again')`.
+- 2.4.6 (closed 2026-04-23, commit `cba938b`) — `noscut.ts` →
+  `noscutResultButtons()`. URL bug in helper fixed in same commit
+  (variant B precedent applied).
+- 2.4.7 (THIS PROMPT) — finalization.
+
+**Side-effect bug fix (2.4.6):**
+
+During 2.4.6 diagnostic reads for noscut.ts migration, found that
+`noscutResultButtons()` helper was created 2026-04-21 with URL
+`jckauto.ru/tools/noscut` — a page that does not exist on the
+site (correct path is `/catalog/noscut`). The helper had never
+been called from production code, so no user impact. Migrating
+noscut.ts to the helper as-is would have introduced a 404
+regression. Fix co-located with migration in commit cba938b.
+`@fix 2026-04-23` marker added above the corrected URL line in
+helper for future archaeology.
+
+**New process disciplines established in 2.4.6 (formalized here):**
+
+1. `@fix YYYY-MM-DD` code marker for mid-series bug fixes. Format:
+   ```
+   // @fix YYYY-MM-DD: was <old>, correct <new>. <Why/context>.
+   //   Discovered during <prompt/work item>. ADR pending in
+   //   <series finalization prompt id>.
+   ```
+   Lives in code permanently. Grep-searchable via
+   `grep -rn "@fix" src/`. Formalized in `rules.md` in this prompt.
+
+2. `@series N.M (prompt N.M.K)` handler header marker for files
+   under active series transformation. Forward-only application —
+   only files migrated after the convention is established
+   receive the marker, prior-migrated files are NOT back-filled.
+   Marker is removed in the series finalization prompt (its
+   lifetime contract). First use: noscut.ts header in 2.4.6;
+   removed in 2.4.7 (this prompt). Formalized in `rules.md` here.
+
+3. Conventional Commits commit format: subject ≤72 chars + blank
+   line + body. Compound commits (primary + secondary changes)
+   MUST detail all changes in body. First structured commit:
+   cba938b (2.4.6). Formalized in `rules.md` here.
+
+4. Mid-series bug fix discipline (variant B formalized): bugs
+   found mid-series AND fixed in the same commit as their
+   discovery are documented via (a) commit body, (b) `@fix` code
+   marker, (c) consolidating ADR. NOT registered in `bugs.md`.
+   Registration in `bugs.md` is reserved for pre-registered bugs
+   or bugs that cannot be closed in the discovery commit.
+   Variant A (bugs pre-registered in `bugs.md`, closed in
+   dedicated prompt) remains the default for bugs discovered
+   BETWEEN work items. Formalized in `rules.md` here.
+
+**Alternatives considered:**
+
+- Single mega-prompt covering all four migrations instead of
+  series of five small prompts: rejected. Each handler has its
+  own edge cases (multi-message split in auctionSheet,
+  `cust_again` / `calc_again` callback in customs/calculator,
+  empty-result branch in noscut). Series allowed verification
+  after each step.
+- Retroactive back-fill of `@series` marker across already-
+  migrated handlers (2.4.2–2.4.5): rejected. Marker's semantics
+  are "work in progress on this file in this series". Back-fill
+  to closed work is misleading. Forward-only is the cleaner
+  contract.
+- Skip `@series` marker entirely: rejected. Marker provides
+  inline context for "why is this file being touched outside
+  a standalone bug fix" — archaeological value exceeds its
+  few-day lifetime.
+- Put new rules directly into `infrastructure.md` or another
+  topic file: rejected. `rules.md` is the canonical location for
+  cross-cutting discipline rules per the knowledge-structure
+  convention.
+
+**Consequences:**
+
+- (+) All bot result-message keyboards come from one file. Button
+  text, ordering, callback_data centralized. Future additions
+  (new handlers, new button variants) go through
+  `inlineKeyboards.ts`.
+- (+) One latent bug closed as side effect (noscut URL). The bug
+  existed since 2026-04-21 but had not surfaced because
+  `noscutResultButtons()` was never called until 2.4.6.
+- (+) Process discipline codified: `@fix`, `@series`, Conventional
+  Commits, mid-series bug variant B — all now `rules.md` entries
+  with first-use precedents in the codebase.
+- (+) `roadmap.md` Planned — Bot entries for 2.4.3, 2.4.6, 2.4.7
+  closed. Planned — Bot shrinks.
+- (−) `@series` marker is lifetime-scoped. Operators must remember
+  to remove it in series finalization. Enforced by rule (see
+  `rules.md`) but relies on discipline rather than automation.
+- (−) `@fix` marker lives in code forever. If the fixed code is
+  ever refactored, the marker should be preserved (it's
+  archaeology), but during large refactors it's at risk of
+  accidental removal. Accepted trade-off — archaeology
+  permanence is the point.
+- (−) The `/noscut` state bug (send `/noscut` without argument
+  → next plain-text message not treated as query) was
+  re-verified as still present on 2026-04-23 after the
+  migration. Out of series scope — remains in `roadmap.md` →
+  Planned — Bot as a separate work item.
+
+**Files:**
+- Code: `src/bot/lib/inlineKeyboards.ts` (created 2.4.1, URL fix
+  2.4.6), `src/bot/handlers/auctionSheet.ts` (2.4.2),
+  `src/bot/handlers/encar.ts` (2.4.3),
+  `src/bot/handlers/calculator.ts` (2.4.4),
+  `src/bot/handlers/customs.ts` (2.4.5),
+  `src/bot/handlers/noscut.ts` (2.4.6, @series removed in 2.4.7).
+- Knowledge: `knowledge/decisions.md` (this ADR),
+  `knowledge/rules.md` (architecture rule from 2.4.1 + three new
+  rules from this prompt), `knowledge/roadmap.md` (Series 2.4 →
+  Done), `knowledge/INDEX.md` (version bump).
 
 ## [2026-04-23] Cloudflare Worker tg-proxy moved to git + Placement Hints (supersedes [2026-04-20])
 

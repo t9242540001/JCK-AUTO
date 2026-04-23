@@ -15,8 +15,6 @@
  *              exception — its single-button keyboard stays inline
  *              by helper design.
  * @lastModified 2026-04-23
- * @series      2.4 (prompt 2.4.6) — migrated results-present branch
- *              reply_markup to noscutResultButtons() helper
  */
 
 import fs from 'fs';
