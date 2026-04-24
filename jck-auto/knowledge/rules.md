@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-24
-  @version:     1.21
-  @lines:       154
+  @version:     1.22
+  @lines:       155
 -->
 
 # Critical Rules
@@ -89,6 +89,7 @@
 | Cache results: rates (6h TTL), translation (24h TTL) | currencyRates.ts, encarClient.ts | Unnecessary API calls and latency |
 | Compare hashes before downloading from Drive | googleDrive.ts | Re-downloads unchanged files |
 | Text generation in content pipeline (article topics + article body) MUST use DeepSeek via `callDeepSeek` — `callQwenText` from `@/lib/dashscope` is BANNED at these call sites | `src/services/articles/topicGenerator.ts`, `src/services/articles/generator.ts`, ADR `[2026-04-24] Migrate article text generation to DeepSeek` | DashScope text-generation systematically times out from VDS on large requests. Reintroducing `callQwenText` here re-creates bug Б-12 (two-week blog outage). DashScope is still correct for image generation (`qwen-image-2.0-pro`) and image/OCR — the ban is scoped to text in the content pipeline |
+| `src/lib/cronAlert.ts` MUST be fail-open — any error (network, timeout, HTTP non-2xx, missing env) is caught, logged to stderr, and swallowed. The helper MUST NOT throw | `src/lib/cronAlert.ts`, ADR `[2026-04-24] Cron alert helper — fail-open Telegram notification via Worker` | Monitoring code that crashes the thing it monitors is worse than no monitoring. A Telegram/Worker outage combined with a fail-loud alert helper would cascade into failed crons on top of whatever problem prompted the alert in the first place. Fail-open keeps failure surfaces independent |
 
 ## Git & Prompt Rules
 
