@@ -1,8 +1,23 @@
+/**
+ * @file page.tsx
+ * @description Страница /blog — каталог всех статей блога (превью + ссылка на детальную)
+ * @runs VDS (Next.js server-side, ISR revalidate=3600)
+ * @lastModified 2026-04-24
+ */
+
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getAllPosts } from "@/lib/blog";
 import SocialFollow from "@/components/sections/SocialFollow";
+
+// @rule Blog uses ISR (not SSG, not force-dynamic). Reverting to SSG
+// makes new cron-generated articles invisible until the next deploy
+// (the exact class of problem Б-12 exposed in the article pipeline).
+// Reverting to force-dynamic causes ~37 disk reads per request with
+// no benefit given the 72h cron cadence. See ADR [2026-04-24] Blog
+// ISR migration.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: {
