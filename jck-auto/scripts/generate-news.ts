@@ -6,10 +6,12 @@
  * @input collector → processor → coverGenerator → publisher
  * @output /storage/news/YYYY-MM-DD.json + /storage/news/covers/YYYY-MM-DD.jpg
  * @rule Telegram-постинг не реализован — будет добавлен отдельным этапом
- * @lastModified 2026-04-01
+ * @lastModified 2026-04-24
  */
 
 import { join } from 'path';
+import { readdirSync, statSync } from 'fs';
+import { sendCronAlert } from '../src/lib/cronAlert';
 import { collectNews } from '../src/services/news/collector';
 import { processNews } from '../src/services/news/processor';
 import { generateCover } from '../src/lib/coverGenerator';
@@ -18,6 +20,26 @@ import type { CoverMeta } from '../src/services/news/publisher';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const STORAGE_BASE = process.env.STORAGE_PATH || '/var/www/jckauto/storage';
+
+/**
+ * @section helpers
+ * Returns mtime of the newest file in `dir` matching the predicate, or null
+ * if no such file exists or dir is unreadable.
+ */
+function newestMtime(dir: string, predicate: (name: string) => boolean): Date | null {
+  try {
+    const entries = readdirSync(dir).filter(predicate);
+    let newest: Date | null = null;
+    for (const name of entries) {
+      const stat = statSync(join(dir, name));
+      if (!stat.isFile()) continue;
+      if (!newest || stat.mtime > newest) newest = stat.mtime;
+    }
+    return newest;
+  } catch {
+    return null;
+  }
+}
 
 async function main() {
   const startTime = Date.now();
@@ -30,6 +52,32 @@ async function main() {
   }
 
   console.log(`[news-cron] Starting news pipeline for ${today}${DRY_RUN ? ' (DRY RUN)' : ''}`);
+
+  // @rule Sibling heartbeat: news cron checks that article cron is
+  // alive. Silent article failure cannot self-report — news cron is
+  // the external observer. Threshold 96h = 3-day cadence + 24h jitter
+  // buffer. See ADR [2026-04-24] Mutual heartbeat alerting.
+  {
+    const blogDir = `${process.env.PROJECT_ROOT ?? '/var/www/jckauto/app/jck-auto'}/content/blog`;
+    const blogMtime = newestMtime(blogDir, (n) => n.endsWith('.mdx'));
+    const STALE_ARTICLE_MS = 96 * 3600 * 1000;
+    if (!blogMtime || Date.now() - blogMtime.getTime() > STALE_ARTICLE_MS) {
+      const ageHours = blogMtime
+        ? ((Date.now() - blogMtime.getTime()) / 3600_000).toFixed(1)
+        : 'no MDX found';
+      const lastModStr = blogMtime ? blogMtime.toISOString() : '—';
+      console.warn(`[news-cron] WARNING: article cron appears stale (age: ${ageHours}h)`);
+      await sendCronAlert({
+        title: 'Article cron stale',
+        body:
+          `Latest article MDX: ${blogDir}\n` +
+          `Last modified: ${lastModStr}\n` +
+          `Age: ${ageHours}h (threshold: 96h)\n\n` +
+          `Check /var/log/jckauto-articles.log and cron status. News cron continues normally.`,
+        severity: 'warning',
+      });
+    }
+  }
 
   // ── Шаг 1: СБОР ──────────────────────────────────────────────────────
 
@@ -50,6 +98,14 @@ async function main() {
     }
   } catch (err) {
     console.error('[news-cron] FATAL: Collection failed:', err);
+    // @rule Alert BEFORE exit. process.exit does not await pending
+    // promises — sendCronAlert must finish (or time out) first.
+    const msg = err instanceof Error ? err.message : String(err);
+    await sendCronAlert({
+      title: 'News cron failed — Collection step',
+      body: `Step 1/4: Collecting news\n\n${msg}`,
+      severity: 'error',
+    });
     process.exit(1);
   }
 
@@ -66,6 +122,14 @@ async function main() {
     console.log(`[news-cron] Processed: 1 main + ${processed.digest.length} digest | cost: $${processed.cost.estimatedUsd}`);
   } catch (err) {
     console.error('[news-cron] FATAL: Processing failed:', err);
+    // @rule Alert BEFORE exit. process.exit does not await pending
+    // promises — sendCronAlert must finish (or time out) first.
+    const msg = err instanceof Error ? err.message : String(err);
+    await sendCronAlert({
+      title: 'News cron failed — Processing step',
+      body: `Step 2/4: Processing with DeepSeek\n\n${msg}`,
+      severity: 'error',
+    });
     process.exit(1);
   }
 
@@ -109,6 +173,14 @@ async function main() {
       console.log(`[news-cron] Published: ${result.jsonPath}`);
     } catch (err) {
       console.error('[news-cron] FATAL: Publishing failed:', err);
+      // @rule Alert BEFORE exit. process.exit does not await pending
+      // promises — sendCronAlert must finish (or time out) first.
+      const msg = err instanceof Error ? err.message : String(err);
+      await sendCronAlert({
+        title: 'News cron failed — Publishing step',
+        body: `Step 4/4: Publishing\n\n${msg}`,
+        severity: 'error',
+      });
       process.exit(1);
     }
   }
@@ -119,7 +191,15 @@ async function main() {
   console.log(`\n[news-cron] Pipeline completed in ${elapsed}s. Cover: ${coverMeta ? 'yes' : 'no'}.`);
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('[news-cron] Unhandled error:', err);
+  // @rule Alert BEFORE exit — see 2.4.
+  const msg = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error && err.stack ? err.stack.slice(0, 2000) : '';
+  await sendCronAlert({
+    title: 'News cron failed — unhandled',
+    body: stack ? `${msg}\n\nStack (first 2000 chars):\n${stack}` : msg,
+    severity: 'error',
+  });
   process.exit(1);
 });

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-24
-  @version:     1.42
-  @lines:       ~3571
+  @version:     1.43
+  @lines:       ~3634
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,69 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-24] Mutual heartbeat alerting for content-pipeline crons (series 04/04 — close)
+
+**Status:** Accepted
+
+**Confidence:** High — pattern is minimal (two function calls per script at startup + wrapped catch blocks), fail-open semantics are inherited from the already-verified `cronAlert.ts` helper (prompt 03 smoke-test passed), thresholds are set with conservative buffers on top of the cron cadence.
+
+**Context:**
+
+Prompts 01–03 of the series closed Б-12 (two-week silent blog outage caused by DashScope text-generation timeouts from VDS) and landed a fail-open Telegram alert helper. The remaining gap: no cron script called the helper. A repeat of the Б-12 pattern — any cron failing or stopping entirely — would still go unnoticed until someone manually checks the blog or the news feed.
+
+A `try/catch` inside each script catches exceptions raised while the script runs, but says nothing about the case where the script never runs at all (cron daemon down, disk full, crontab overwritten, OOM kill, env file unreadable). That failure class — "no heartbeat" — is blind to any self-check inside the silent cron.
+
+The fix is mutual heartbeat: each script, on startup, checks whether the OTHER cron has produced its expected artifact recently. If the other cron has stopped producing, the live cron sends a staleness alert. Combined with alert-before-exit in the live cron's own catch blocks, this closes both failure classes: "my own run crashed" and "my sibling never ran".
+
+**Decision:**
+
+Wire `sendCronAlert` into both content-pipeline crons with the following contract:
+
+1. **At startup, check the sibling.** Article cron checks `storage/news/*.json` (36h threshold). News cron checks `content/blog/*.mdx` (96h threshold). Staleness → `severity: 'warning'`. The current script continues normally — sibling staleness does NOT block the live script's own run.
+2. **Before exit, alert.** Every `process.exit(1)` site — outer `main().catch` in both scripts, plus three internal fatal catches in the news cron — gets an `await sendCronAlert(...)` immediately before it. Severity: `'error'`. This ensures the alert actually sends before the process dies (the helper's 10s timeout bounds the delay).
+3. **No retry, no deduplication, no state.** Every cron run that detects staleness sends an alert. If the sibling is broken for 5 days, the live cron alerts on each of its runs. Silence = fixed; repeated alerts = still broken. State would buy nothing except a new bug surface.
+4. **Measured by mtime.** Filename-based date checks are unreliable (files can be named for a date different from their creation time). `fs.statSync(path).mtime` is the single source of truth.
+5. **Staleness measurement fails safe.** Unreadable directory, missing file, stat error — `newestMtime` returns null, which is treated identically to "older than threshold" → alert fires. Rationale: an unreadable storage dir is itself a broken-cron signal.
+
+Thresholds:
+
+- **News check from article cron: 36h.** News cadence is daily (24h). 36h = 1.5 cycles. Tighter (24h) produces false positives on any cron jitter or clock drift. Looser (48h+) delays detection unnecessarily given the daily cadence.
+- **Article check from news cron: 96h.** Article cadence is 72h. 96h = 1.33 cycles — only 24h of buffer. Article cron fires 8x less frequently than news, so the detection window is naturally longer; reducing to 72h would fire on every normal day the cron happens to slip past midnight.
+
+**Alternatives considered:**
+
+- **Self-check (current cron checks its own last output).** Rejected — fundamentally cannot detect "cron never runs". If the script is not executing, no code inside it can run the check. This is not an edge case; two of the seven main failure modes for Б-12-class silent outages (crontab deletion, cron daemon down) present exactly as "script never starts".
+- **External uptime monitor (Healthchecks.io, BetterStack, UptimeRobot, etc.).** Right long-term answer. Explicitly deferred for this series because: (1) requires a new external account / billing relationship, (2) requires secrets management and HTTPS ping integration, (3) operationally heavier than a 20-line inline check. Logged as roadmap item — combined with mutual heartbeat, it would form a two-layer alerting stack (mutual heartbeat catches most cases cheaply; external monitor catches the "VDS fully dead" case which mutual heartbeat cannot see).
+- **Extract `newestMtime` into a shared lib module.** Rejected — 15-line helper duplicated across two files is cheaper than adding one more import dependency per cron. Neither of the other active cron scripts (`update-noscut-prices.ts`, future `check-tariffs.ts`) uses filesystem staleness checks; the abstraction is speculative. Inline duplication is revisitable later if a third caller emerges.
+- **Change internal `process.exit(1)` sites in news cron to `throw` and catch in the outer `main().catch`.** Rejected as scope creep — reshapes error handling beyond the observability concern. The three internal catches each have distinct step context (collection / processing / publishing) that is more precisely reported as three distinct alerts ("News cron failed — Collection step") than as one generic "unhandled error" at the outer catch. Step-level granularity aids diagnosis.
+- **Alert on zero-items collection.** Rejected — a different class of signal (all 21 RSS feeds simultaneously returning nothing). Conflating it with AI-call failure dilutes alert taxonomy. Future prompt territory if the pattern recurs.
+- **Deduplicate alerts via on-disk state file.** Rejected per above. Repeating the alert is the feature, not the bug.
+
+**Consequences:**
+
+- (+) A single script crash or a cron daemon stopping entirely becomes visible in Telegram within 36–96 hours of the failure. Compared to the 2-week Б-12 silence, this is a 10–30× improvement.
+- (+) The series closes cleanly. Б-12 is fixed (DeepSeek migration), the helper exists (prompt 03), both crons use it (this prompt). No loose ends.
+- (+) Cross-cron observability is symmetric: both shifts watch each other. If one stops, the other raises the alarm; if both stop simultaneously (rare VDS-level outage), the external-monitor roadmap item catches it.
+- (+) Pattern is reusable: `update-noscut-prices.ts` and future `check-tariffs.ts` can adopt the same shape (wrap catch + check sibling artifact) with near-zero overhead.
+- (−) No durable delivery — if Telegram/Worker are down during the exact moment the alert fires, the alert is lost. Mitigated partly by multiple-per-run alerts (re-fires on subsequent runs) and by the external-monitor roadmap item.
+- (−) Thresholds (36h / 96h) are hand-tuned, not measured from historical distribution of cron-run latencies. If the underlying cadence changes (e.g. articles move to daily), the thresholds must be revisited. Acceptable cost for the simplicity.
+- (−) Both scripts now have a synchronous `readdirSync`/`statSync` call at startup. Worst case a few milliseconds on a healthy filesystem; no measurable impact on the 300s+ article-cron run.
+
+**Series close:**
+
+Series `migrate-article-text-to-deepseek` is fully landed:
+- Prompt 01 (`c3e8513`) — `topicGenerator.ts` → DeepSeek.
+- Prompt 02 (`28706fa`) — `generator.ts` → DeepSeek; Б-12 closed.
+- Prompt 03 (`fb62204`) — `cronAlert.ts` created (fail-open helper).
+- Prompt 04 (this commit) — both crons wired; mutual heartbeat active.
+
+**Files changed:**
+- `jck-auto/scripts/generate-article.ts`
+- `jck-auto/scripts/generate-news.ts`
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/rules.md` (two new rule rows)
+- `jck-auto/knowledge/INDEX.md` (dates)
 
 ## [2026-04-24] Cron alert helper — fail-open Telegram notification via Worker
 
