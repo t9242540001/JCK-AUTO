@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-24
-  @version:     1.43
+  @version:     1.44
   @lines:       ~3634
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -19,6 +19,52 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-24] Blog ISR migration (/blog + /blog/[slug]) — unify with /news
+
+**Status:** Accepted
+
+**Confidence:** High — identical pattern is already production-deployed on `/news` since 2026-04-01 with no observed issues. The migration is a two-line change (one `export const revalidate = 3600` per file).
+
+**Context:**
+
+The article cron (migrated to DeepSeek in series 01–02, observability added in 03–04) now reliably creates `.mdx` files in `content/blog/`. But `/blog` is pure SSG: `page.tsx` has no revalidate, `[slug]/page.tsx` uses `generateStaticParams` with no revalidate either. A cron-generated MDX is invisible on the site until someone triggers a full deploy — either by pushing a trivial commit to main or by a scheduled deploy that doesn't exist.
+
+The same shape of problem was already solved elsewhere in the project: `/news` uses `export const revalidate = 3600`, refreshing every hour. Publication cadence for news (daily) and articles (every 3 days) is different, but both benefit from the same trade-off: per-request cost near-zero (serve from cache), background refresh covers the update delay, SEO is unaffected (ISR returns server-rendered HTML indistinguishable from SSG for crawlers).
+
+**Decision:**
+
+Add `export const revalidate = 3600` to `src/app/blog/page.tsx` and `src/app/blog/[slug]/page.tsx`. Keep `generateStaticParams` in the slug file — it pre-renders existing articles at build time, ISR handles newly-added ones on-demand. No other changes to rendering logic.
+
+Value 3600 = 1 hour, identical to `/news`. A new cron-generated article becomes visible to visitors and crawlers within one hour of file creation, with no deploy required. Worst-case 1/72 = ~1.4% of the 72h publication cycle is spent waiting for cache invalidation.
+
+**Alternatives considered:**
+
+- **`export const dynamic = 'force-dynamic'` (as in `/catalog`).** Rejected. Would do 37+ disk reads per request — acceptable for a catalog page that shows volatile inventory and needs real-time freshness, but wasteful for a blog list that changes every 72 hours.
+- **Shorter revalidate (60s, 300s).** Rejected. Higher background refresh frequency without meaningful benefit. A newly-created article still appears "quickly" even at 3600.
+- **Longer revalidate (86400s = 24h).** Rejected. Would leave a fresh cron-generated article invisible for up to a full day, defeating the point of the migration.
+- **Keep SSG, trigger deploy after each cron run.** Rejected. The article cron deliberately does NOT run `npm run build` or commit anything (@rule in `generate-article.ts`, enforced after the 2026-04-09 deploy outage). Wiring the cron to commit-and-push would reintroduce that risk class. ISR sidesteps the entire coupling.
+- **Move rendering to Server Action with on-demand revalidation (`revalidatePath`).** Rejected. Adds coupling between the cron script and Next.js internals, requires the cron to call an internal HTTP endpoint, introduces a new failure mode. ISR is the simpler equivalent.
+
+**Consequences:**
+
+- (+) Cron-generated articles become visible on `/blog` and `/blog/[slug]` within 1 hour of file creation, no deploy needed.
+- (+) Consistency with `/news` — the same pattern, same revalidate value, same JSDoc format in the header comment.
+- (+) Zero impact on SEO. ISR serves full server-rendered HTML.
+- (+) Near-zero cost per request: Next.js serves cached page for 99%+ of requests, disk is hit once per hour per route.
+- (−) First visitor after the revalidation window expires sees the stale page; the refresh happens in the background and the NEXT visitor sees the fresh page. This is the standard ISR trade-off, same as `/news`, not a regression for this route.
+- (−) Slight increase in build complexity: Next.js build output now includes ISR marker on blog routes. No operational impact.
+
+**Follow-up:**
+
+- Separate prompt (B) verifies that new blog MDX files are picked up by `sitemap.xml`. Without sitemap propagation, search engines may not discover fresh articles even though the page serves them.
+
+**Files changed:**
+- `jck-auto/src/app/blog/page.tsx`
+- `jck-auto/src/app/blog/[slug]/page.tsx`
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/rules.md` (one new rule row)
+- `jck-auto/knowledge/INDEX.md` (dates)
 
 ## [2026-04-24] Mutual heartbeat alerting for content-pipeline crons (series 04/04 — close)
 

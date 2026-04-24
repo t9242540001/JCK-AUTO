@@ -1,3 +1,10 @@
+/**
+ * @file page.tsx
+ * @description Детальная страница статьи блога /blog/[slug]
+ * @runs VDS (Next.js server-side, ISR revalidate=3600)
+ * @lastModified 2026-04-24
+ */
+
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -10,6 +17,13 @@ import { readCatalogJson } from "@/lib/blobStorage";
 import { mockCars } from "@/data/mockCars";
 import CarCard from "@/components/catalog/CarCard";
 import SocialFollow from "@/components/sections/SocialFollow";
+
+// @rule Blog detail pages use ISR. `generateStaticParams` pre-renders
+// known slugs at build time; unknown slugs (e.g. a fresh cron-generated
+// MDX) are rendered on-demand then cached for `revalidate` seconds.
+// Do not add `export const dynamic = 'force-dynamic'` — ISR is the
+// intentional choice (ADR [2026-04-24] Blog ISR migration).
+export const revalidate = 3600;
 
 const countryLabel: Record<string, string> = {
   china: "🇨🇳 Китай",
