@@ -10,7 +10,8 @@
  * @rule        recordBotUsage AFTER successful sendMessage only — never in catch branches
  * @rule        Cost calculation failure is non-fatal — show vehicle data without price
  * @rule        No incrementCommand call — 'encar' is not a CommandStat slot
- * @lastModified 2026-04-22
+ * @rule        Each AI enrichment arm (power, translation) MUST be wrapped in withTimeout(30s). Bare Promise.allSettled hangs the bot event loop (C-8 incident 2026-04-22).
+ * @lastModified 2026-04-25
  */
 
 import TelegramBot from 'node-telegram-bot-api';
@@ -33,6 +34,31 @@ import { siteAndRequestButtons } from '../lib/inlineKeyboards';
 const KW_TO_HP = 1.35962;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+/**
+ * Races `promise` against a fixed-ms timer. On timeout, rejects with a
+ * labeled `Error` — the original promise continues running in the
+ * background (fire-and-forget). Caller MUST attach a `.catch(() => {})`
+ * to the original promise if it can still reject after the race, to
+ * prevent UnhandledPromiseRejectionWarning. Used to bound external AI
+ * calls so a slow provider cannot hang the bot event loop indefinitely.
+ *
+ * @see ADR [2026-04-25] С-8 closed — 30s per-arm timeout on encar AI enrichment
+ */
+// @rule This is a LOCAL bound on a foreign promise — it does NOT
+// cancel the underlying work. The only thing it guarantees is that
+// THIS handler's `await` resolves within `ms`. Anything the foreign
+// promise does after that is orphan and MUST be swallowed by a noop
+// `.catch` on the original reference. See call sites below.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: timeout after ${ms}ms`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
 
 function yearToCarAge(year: number): CarAge {
   const age = new Date().getFullYear() - year;
@@ -200,22 +226,34 @@ export function registerEncarHandler(bot: TelegramBot): void {
     }
 
     // 4. AI enrichment — power + translation in parallel (non-fatal failures)
+    // @rule Each arm wrapped in withTimeout(30s) — bare Promise.allSettled
+    // without timeout caused indefinite event-loop block 2026-04-22 (С-8).
+    // See ADR [2026-04-25] С-8 closed — 30s per-arm timeout on encar AI.
+    const powerPromise = estimateEnginePower({
+      make: result.make,
+      model: result.model,
+      grade: result.grade,
+      year: result.year,
+      displacement: result.displacement,
+      fuelType: result.fuelType,
+    });
+    const translationPromise = translateEncarFields({
+      carId: carid,
+      description: result.description,
+      dealerName: result.dealerName,
+      dealerFirm: result.dealerFirm,
+      address: result.region,
+    });
+    // Fire-and-forget: if the underlying promise rejects AFTER withTimeout
+    // already rejected on timeout, these no-op handlers swallow the late
+    // rejection and prevent UnhandledPromiseRejectionWarning. Attached
+    // BEFORE Promise.allSettled so they are registered even if the race
+    // completes synchronously on the microtask queue.
+    powerPromise.catch(() => {});
+    translationPromise.catch(() => {});
     const [powerResult, translationResult] = await Promise.allSettled([
-      estimateEnginePower({
-        make: result.make,
-        model: result.model,
-        grade: result.grade,
-        year: result.year,
-        displacement: result.displacement,
-        fuelType: result.fuelType,
-      }),
-      translateEncarFields({
-        carId: carid,
-        description: result.description,
-        dealerName: result.dealerName,
-        dealerFirm: result.dealerFirm,
-        address: result.region,
-      }),
+      withTimeout(powerPromise, 30_000, 'estimateEnginePower'),
+      withTimeout(translationPromise, 30_000, 'translateEncarFields'),
     ]);
 
     // Apply translation

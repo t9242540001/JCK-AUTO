@@ -2,14 +2,14 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-24
-  @version:     1.16
+  @updated:     2026-04-25
+  @version:     1.17
   @lines:       ~333
 -->
 
 # Bugs — open issues tracker
 
-> Updated: 2026-04-19
+> Updated: 2026-04-25
 > Source of truth for open bugs. After fix → ADR in decisions.md, entry removed from this file.
 > Hypotheses listed only when diagnosis requires choosing between alternatives.
 > Related: roadmap.md (high-level status), telegram-bot.md (bot architecture), tools.md.
@@ -38,44 +38,6 @@
   /api/tools/auction-sheet) + per-endpoint nginx 200s timeout + 15MB body —
   slow cascades no longer cause "Ошибка сети", because the client polls
   a job status endpoint instead of holding an HTTP request open. С-1 closed.
-
-### С-8 — encar handler hangs indefinitely on DeepSeek translation/power timeout
-- **File:** src/bot/handlers/encar.ts
-- **Severity:** Critical — bot becomes unresponsive for the affected user
-  for the duration of the hang (observed 2026-04-22: indefinite, only
-  resolved by `pm2 delete + pm2 start`).
-- **Symptom:** User sends an encar.com link, bot replies
-  "🔍 Получаю данные с Encar...", AI enrichment partially completes (logs
-  show `[encar] estimateEnginePower: ... → N hp (...)`), then NO further
-  log lines and NO message back to the user. Other user messages to the
-  bot may also stall because the event loop is waiting on the unresolved
-  promise.
-- **Root cause:** `registerEncarHandler` runs power estimation and Korean
-  translation in parallel via
-  `await Promise.allSettled([estimateEnginePower(...), translateEncarFields(...)])`
-  with NO timeout wrapper on either call. `Promise.allSettled` returns
-  only when BOTH promises settle. When DeepSeek (used by both
-  `estimateEnginePower` and `translateEncarFields` indirectly) is slow
-  or hangs (likely cause: concurrent auction-sheet job in the shared
-  queue saturating the DeepSeek connection), the handler blocks
-  indefinitely.
-- **Discovered:** 2026-04-22 during live verification of Prompt 2.4.3.
-  Initially suspected as a regression from the inline-keyboards refactor,
-  but log analysis confirmed the hang occurs BEFORE the
-  `bot.sendMessage` call where the helper is used — the refactor is
-  innocent.
-- **Workaround:** `pm2 delete jckauto-bot && pm2 start ...` per the
-  canonical form in `infrastructure.md` PM2 Processes. Restores
-  responsiveness immediately. The user's hung request is lost — they
-  must retry.
-- **Action:** separate prompt AFTER series 2.4 completes. Wrap each
-  `Promise.allSettled` arm in `Promise.race([call(), timeout(30000)])`;
-  on timeout set `result.translationFailed = true` (or skip power
-  estimate) and continue to `formatEncarResult` + `bot.sendMessage`.
-  Do NOT change to `Promise.race` of the whole thing — that loses the
-  partial success path. Single-file fix (`src/bot/handlers/encar.ts`).
-- **Related:** the auction-sheet pipeline already has timeouts
-  (DeepSeek 180s, polling 180s) — encar handler is the outlier.
 
 ### Б-11 — mcp-gateway lost FILESYSTEM_ROOTS env after `pm2 delete all` [Closed 2026-04-22]
 - **Process:** mcp-gateway (PM2)
@@ -208,6 +170,46 @@
   and confirms both steps (topic + article body) complete via
   DeepSeek logs (`[DeepSeek] model=deepseek-chat tokens=…`).
 
+### С-8 — encar handler hangs indefinitely on DeepSeek translation/power timeout [Closed 2026-04-25]
+- **File:** src/bot/handlers/encar.ts
+- **Severity:** Critical — bot becomes unresponsive for the affected user
+  for the duration of the hang (observed 2026-04-22: indefinite, only
+  resolved by `pm2 delete + pm2 start`).
+- **Symptom:** User sends an encar.com link, bot replies
+  "🔍 Получаю данные с Encar...", AI enrichment partially completes (logs
+  show `[encar] estimateEnginePower: ... → N hp (...)`), then NO further
+  log lines and NO message back to the user. Other user messages to the
+  bot may also stall because the event loop is waiting on the unresolved
+  promise.
+- **Root cause:** `registerEncarHandler` runs power estimation and Korean
+  translation in parallel via
+  `await Promise.allSettled([estimateEnginePower(...), translateEncarFields(...)])`
+  with NO timeout wrapper on either call. `Promise.allSettled` returns
+  only when BOTH promises settle. When DeepSeek (used by both
+  `estimateEnginePower` and `translateEncarFields` indirectly) is slow
+  or hangs (likely cause: concurrent auction-sheet job in the shared
+  queue saturating the DeepSeek connection), the handler blocks
+  indefinitely.
+- **Discovered:** 2026-04-22 during live verification of Prompt 2.4.3.
+  Initially suspected as a regression from the inline-keyboards refactor,
+  but log analysis confirmed the hang occurs BEFORE the
+  `bot.sendMessage` call where the helper is used — the refactor is
+  innocent.
+- **Workaround:** `pm2 delete jckauto-bot && pm2 start ...` per the
+  canonical form in `infrastructure.md` PM2 Processes. Restores
+  responsiveness immediately. The user's hung request is lost — they
+  must retry.
+- **Action:** separate prompt AFTER series 2.4 completes. Wrap each
+  `Promise.allSettled` arm in `Promise.race([call(), timeout(30000)])`;
+  on timeout set `result.translationFailed = true` (or skip power
+  estimate) and continue to `formatEncarResult` + `bot.sendMessage`.
+  Do NOT change to `Promise.race` of the whole thing — that loses the
+  partial success path. Single-file fix (`src/bot/handlers/encar.ts`).
+- **Related:** the auction-sheet pipeline already has timeouts
+  (DeepSeek 180s, polling 180s) — encar handler is the outlier.
+- **Fix (2026-04-25):** `withTimeout` helper in `src/bot/handlers/encar.ts` bounds each arm of the AI-enrichment `Promise.allSettled` at 30s; orphaned original promises receive a `.catch(() => {})` to silence late rejections. Handler now completes within ~40s worst case. See ADR `[2026-04-25] С-8 closed — 30s per-arm timeout on encar AI enrichment`.
+- **Status:** Closed 2026-04-25.
+
 ### С-2 — cursor does not change to pointer on clickable elements
 - **Pages:** site-wide. Confirmed example: file upload button on /tools/auction-sheet
 - **Cause:** clickable elements rendered as <div> or <a> without href, missing cursor: pointer
@@ -316,6 +318,16 @@
 - **Action:** live retest on Toyota Allion handwritten sheet. If result
   card appears → close. If still fails → the old Prompt 09.3.7 plan
   (log first 500 chars of DeepSeek response on parse failure) resurfaces.
+
+### Б-14 — /news route declares ISR but renders Dynamic (declaration↔runtime drift)
+- **Files:** `src/app/news/page.tsx`, `src/app/news/[slug]/page.tsx`
+- **Symptom:** Both files have `export const revalidate = 3600;` and a JSDoc header saying `@runs VDS (Next.js server-side, ISR revalidate=3600)`. But the Next.js 16.1.6 build summary shows `/news`, `/news/[slug]`, and `/news/tag/[tag]` under the `ƒ (Dynamic)` marker with no Revalidate column — so the routes actually render dynamically per request, ignoring the declared `revalidate`.
+- **Discovered:** 2026-04-24 (build output review during prompt A — Blog ISR Migration — verification). Blog routes correctly showed `1h` in the build summary; /news did not.
+- **Impact:** None user-visible — pages work and return server-rendered HTML. Disk reads on /news happen per-request instead of per-hour. Cost is small given news JSON files are tiny (~15 KB each) and traffic is moderate. But: the author's stated intent (ISR) is not what runtime does (Dynamic). This is internal drift in our own prior work, not a misconfiguration by the operator.
+- **Hypothesis:** A transitive dynamic API inside `getNewsDaysPaginated` (likely `cookies()`, `headers()`, `unstable_noStore`, or a request-time env read) opts the route out of static/ISR behaviour. Next.js propagates dynamic-ness up the render tree, so a single dynamic call anywhere in the data path converts the whole route.
+- **Action:** NOT scheduled. Pick up when a future prompt touches `src/services/news/*` or `/news` routes. Two resolutions possible:
+  - (a) Remove whatever is forcing dynamic rendering, verify build summary flips to `1h` marker. Preferred if ISR is still the right intent.
+  - (b) Update both JSDoc headers to say "force-dynamic" and remove the misleading `revalidate` export. Preferred if dynamic rendering turns out to be the right choice on merits (e.g. if news JSON is needed fresh per request for a reason we haven't re-examined).
 
 ### Б-5 — ~10-15% car photos rejected by Telegram
 - **Symptom:** "wrong type of the web page content" via Worker, even though server returns valid JPEG

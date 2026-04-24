@@ -2,8 +2,8 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-24
-  @version:     1.44
+  @updated:     2026-04-25
+  @version:     1.45
   @lines:       ~3634
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -19,6 +19,65 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-25] С-8 closed — 30s per-arm timeout on encar AI enrichment
+
+**Status:** Accepted
+
+**Confidence:** High — pattern (`withTimeout` wrapper + no-op catch on originals) is the standard Node.js idiom for bounding foreign promises without cancellation. No library dependency, no cascade into downstream AI clients, single-file change.
+
+**Context:**
+
+The encar bot handler (`src/bot/handlers/encar.ts`) enriches vehicle data via two parallel DeepSeek calls (`estimateEnginePower`, `translateEncarFields`) wrapped in `Promise.allSettled`. Neither arm had a timeout. On 2026-04-22, one of the calls hung indefinitely — most likely because a concurrent auction-sheet job was saturating the shared DeepSeek connection — and the handler blocked forever.
+
+The block is worse than "this user waits": the bot is a single Node.js process, so an awaited promise that never settles pins the event-loop progress of `registerEncarHandler` and delays message dispatch for all other bot users until `pm2 delete + pm2 start` recovers the process. Bug tracked as С-8 in `knowledge/bugs.md`.
+
+The other bot handlers are not affected by the same pattern: auction-sheet goes through the async queue (ADR [2026-04-18]) with its own DeepSeek 180s timeout; calculator/customs/noscut do not make AI calls from the handler path.
+
+**Decision:**
+
+Introduce a local `withTimeout<T>(promise, ms, label)` helper inside `src/bot/handlers/encar.ts` — a standard Promise-race-with-timer pattern. Wrap each arm of `Promise.allSettled` in `withTimeout(arm, 30_000, label)`. Attach `.catch(() => {})` to the ORIGINAL `estimateEnginePower` / `translateEncarFields` promises (the references captured before the race) so that a late rejection arriving after the race already timed out does not escape as `UnhandledPromiseRejectionWarning`.
+
+Why 30 seconds:
+- DeepSeek typical latency for these calls is 3–8 seconds.
+- 30s = ~4x normal, generous headroom for slow-but-recovering states.
+- Handler worst-case: rate-limit (<1s) + fetchVehicle+fetchInspection (<5s) + 30s AI bound + cost calc (<3s) + sendMessage (<2s) ≈ 40s. Safely under nginx 200s and the Telegram-callback comfort window.
+
+Why LOCAL helper, not a shared util:
+- This is the only place in the codebase (confirmed by the file inventory for this prompt) where a bot handler awaits a direct AI call without going through the auction-sheet async queue. No third caller is on the near horizon.
+- The helper is 12 lines of body + JSDoc. Extracting to `src/lib/` adds an import dependency and a file to reason about per handler — not a win at N=1.
+- If a second caller emerges, the helper can be promoted to `src/lib/promiseTimeout.ts` with a separate ADR at that time.
+
+Why NOT switch to `AbortController` for true cancellation:
+- True cancellation requires threading the signal through `estimateEnginePower`, `translateEncarFields`, and the underlying DeepSeek client (`src/lib/deepseek.ts`). That is 3–4 files of change and pulls in the contract negotiation with the DeepSeek client's own retry/timeout behaviour (already 180s in some call paths).
+- Local race-with-timer gives us what we actually need here: the handler unblocks in ≤30s, the bot stays responsive, and the orphan promise dies naturally when its TCP socket eventually closes or its retry budget finishes. We accept the minor cost of a dangling fetch for correctness of the main event loop.
+
+**Alternatives considered:**
+
+- **Increase only one arm's timeout (e.g. wrap just `translateEncarFields` and leave `estimateEnginePower` unwrapped).** Rejected — the 2026-04-22 logs showed the hang occurred in the power-estimate path first. Either arm can cause the block. Both must be bounded.
+- **Replace `Promise.allSettled` with `Promise.race([allSettled, timeout])` (single outer race).** Rejected — this loses the partial-success path. If power succeeds fast and translation is slow, outer race times out before power result is captured, discarding a valid result that should be shown.
+- **Use `AbortController`.** Rejected for this prompt; see decision rationale above. Can be revisited if a wider pattern needs true cancellation.
+- **Global timeout on every bot handler (middleware).** Rejected — `node-telegram-bot-api` does not provide a hook at that layer, and bot handlers are diverse (photo upload, rate-limit wait, long-running auction-sheet poll) with different natural latencies. Per-call bounds at the AI-call site are the right granularity.
+- **Skip the orphan `.catch(() => {})` and rely on Node's default unhandled-rejection behaviour.** Rejected — Node 20 promotes unhandled rejections to hard crashes under `--unhandled-rejections=strict` (not the current flag, but it's a future risk); even under the default warning mode, `UnhandledPromiseRejectionWarning` pollutes logs and obscures real errors during incident triage.
+
+**Consequences:**
+
+- (+) Closes С-8. Bot no longer hangs on slow AI responses; user gets a response within ~40s worst case, and the handler always reaches `bot.sendMessage`.
+- (+) Event-loop block class closed for encar path specifically; other bot handlers unaffected (unchanged).
+- (+) Handler degrades gracefully: a timed-out power arm means no HP shown in the card; a timed-out translation arm means `⚠️ Перевод недоступен — данные на корейском` banner (pre-existing behaviour). Either case is a user-visible but complete response, not silence.
+- (−) A slow-but-eventually-succeeding AI call wastes its work: if translation returns at 31s after we timed out at 30s, the response is discarded. Rare; acceptable cost.
+- (−) Orphan DeepSeek calls continue running after the race; they use minor CPU/connection resources until they naturally complete or their TCP socket closes. Not significant at current traffic volumes; re-evaluate if load grows.
+- (−) `withTimeout` is duplicated if a second caller ever emerges. Explicitly accepted for now; promotion path documented.
+
+**Verification (post-deploy, operator):**
+Send the bot a valid encar.com link (e.g. a current listing URL). Expected: a result card appears within ~40s worst-case, not indefinite silence. If a future hang happens (DeepSeek actually slow), the user gets either a card with "⚠️ Перевод недоступен" or a card without power figure, but always gets a card.
+
+**Files changed:**
+- `jck-auto/src/bot/handlers/encar.ts`
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/rules.md` (one new row in Bot Rate Limiting Rules)
+- `jck-auto/knowledge/bugs.md` (С-8 marked closed; new /news drift entry)
+- `jck-auto/knowledge/INDEX.md` (dates)
 
 ## [2026-04-24] Blog ISR migration (/blog + /blog/[slug]) — unify with /news
 
