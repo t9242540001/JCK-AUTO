@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-24
-  @version:     1.41
-  @lines:       ~3519
+  @version:     1.42
+  @lines:       ~3571
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,58 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-24] Cron alert helper — fail-open Telegram notification via Worker
+
+**Status:** Accepted
+
+**Confidence:** High — implementation is a thin `fetch` wrapper; failure modes are fully enumerated and all are fail-open; transport already proven by bot code that uses the same Cloudflare Worker path.
+
+**Context:**
+
+Two weeks of silent blog outage (Б-12, closed in prompt 02) exposed a broader problem than the DashScope timeout itself: no one was notified when the article cron started failing. Logs are on VDS, not monitored. The only operator feedback loop is "someone eventually notices the blog has no new posts" — a 2-week feedback loop for a pipeline that should produce a post every 3 days.
+
+The content pipeline actually has two cron shifts — news (daily, 07:00 MSK) and articles (every 3 days, 09:00 MSK) — and three more are planned or active (noscut prices weekly; tariff monitoring in roadmap; future health checks). All of them need the same kind of signal: "this cron broke, and here is what broke".
+
+A top-level `try/catch` inside each script is necessary but not sufficient. It catches exceptions raised after the script is executing, but says nothing about the case where the script never runs at all (cron daemon down, disk full, crontab overwritten, OOM kill, env file unreadable). That class of failure — "no heartbeat" — is caught by mutual stale-checking across crons, which prompt 04 implements. Both patterns need a shared low-level alerting helper. This ADR is about creating that helper cleanly, once.
+
+**Decision:**
+
+Create `src/lib/cronAlert.ts` with one exported function:
+`sendCronAlert({ title, body, severity?: 'info'|'warning'|'error' }): Promise<void>`.
+
+Core behavioural contract:
+1. **Fail-open.** Any failure of the alert itself — network, timeout, missing env, non-2xx Telegram response — is caught, logged to stderr, and swallowed. The helper never throws. Callers can call it bare, without their own try/catch. Rationale: the helper exists to report OTHER failures; if it starts crashing cron scripts on its own bad day, it becomes the problem it was meant to solve.
+2. **Worker-only transport.** Telegram API calls go through `TELEGRAM_API_BASE_URL` (Cloudflare Worker `tg-proxy`). Direct `api.telegram.org` is banned project-wide per existing rule. This choice is not re-litigated here.
+3. **Late env read.** Env vars are read at call time, not at module import, so the helper is robust to dotenv-loading order changes in downstream scripts.
+4. **Explicit severity mapping.** `info`/`warning`/`error` map to `🟢`/`🟡`/`🔴`. Default is `error` because the overwhelming use case is "something broke".
+5. **Recipient resolution.** `process.env.ALERTS_TELEGRAM_ID` (new optional var), falling back to the first numeric id parsed from existing `ADMIN_TELEGRAM_IDS`. If both are missing, alert is skipped with a warning log — not a crash.
+
+No retry logic. One POST, 10-second timeout, done. If Telegram is down, a retry inside the same cron run will not help; we rely on future cron runs + external uptime monitoring (roadmap) for durable delivery.
+
+**Alternatives considered:**
+
+- **Fail-loud (throw on alert failure).** Rejected — the classic pitfall of monitoring code. Monitoring should never be able to crash the thing it is monitoring. If the helper throws, a DeepSeek outage plus a simultaneously flaky Worker could cascade into a failed cron that would otherwise have partially completed and left diagnostics. Fail-open keeps failure surfaces independent.
+- **`node-telegram-bot-api` dependency.** Rejected — 200+ KB library for `sendMessage`. `fetch` with 10 lines of JSON handling is sufficient. Avoids tying cron helper to the bot's library version upgrades.
+- **Retry (2 attempts with backoff).** Rejected — see "No retry logic" above. A one-shot attempt is the right complexity for a best-effort notifier. Durable delivery is out of scope; Healthchecks.io or similar belongs in a future roadmap item.
+- **Put the helper directly inside each cron script.** Rejected — three crons today, two more planned; six copies of the same fetch logic is exactly the drift that the "Principle of Common Mechanics" rule in rules.md exists to prevent.
+- **`parse_mode: 'Markdown'` instead of `'HTML'`.** Rejected — Telegram's Markdown parser is strict about unbalanced `_` and `*` characters, which appear often in error stack traces, file paths, and DeepSeek API error messages. `HTML` requires escaping only three characters (`&`, `<`, `>`) and handles everything else literally, making it robust against arbitrary `body` content from failing crons.
+- **Global `AbortSignal.timeout(10_000)` (newer Node API) instead of manual `AbortController`.** Rejected — Node 20 supports both, but manual `AbortController` is the pattern already used in `src/lib/deepseek.ts` and `src/lib/dashscope.ts`. Consistency > micro-improvement.
+
+**Consequences:**
+
+- (+) Single place to change Telegram alert format, transport, or recipient resolution. Future crons get observability for free with one import.
+- (+) Fail-open contract means prompt 04 can call `sendCronAlert(...)` without wrapping it in its own try/catch, keeping wiring sites small.
+- (+) Contract (`sendCronAlert({ title, body, severity })`) is documented at call signature level; future changes require explicit ADR revision, not drift.
+- (−) No durable delivery — a one-shot alert during a brief Telegram/Worker outage is lost. Accepted for this iteration. Roadmap item: external uptime monitor (Healthchecks.io / BetterStack) as a redundant channel.
+- (−) New optional env var `ALERTS_TELEGRAM_ID` — when not set, alerts go to the first admin id from `ADMIN_TELEGRAM_IDS`. Operator should set it explicitly on VDS when a separate alerts channel is desired (e.g. a dedicated alerts-only Telegram chat).
+- (−) Alert failures log to stderr but do not escalate. If alerts stop working entirely, the only signal is absence of expected messages. Accepted — external uptime monitor above is the intended mitigation.
+
+**Files changed:**
+- `jck-auto/src/lib/cronAlert.ts` (new file)
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/rules.md` (one new rule row)
+- `jck-auto/knowledge/INDEX.md` (dates)
 
 ## [2026-04-24] Migrate article text generation to DeepSeek — step 2/2 (generator) — closes Б-12
 
