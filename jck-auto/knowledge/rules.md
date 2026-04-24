@@ -2,8 +2,8 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-24
-  @version:     1.24
+  @updated:     2026-04-25
+  @version:     1.25
   @lines:       157
 -->
 
@@ -58,6 +58,7 @@
 | file_size check in auctionSheet.ts uses bot.getFile() result, NOT msg.photo[N].file_size | auctionSheet.ts | msg.photo[N].file_size is unreliable — oversized files pass check |
 | botStats increment calls are void — never await them | All bot handlers | TypeScript error if awaited (functions return void, not Promise) |
 | botStats increment calls go in success paths only — never in catch/error branches | All bot handlers | Failed commands counted as successful in /stats |
+| External AI calls inside bot handlers MUST be wrapped in a per-call timeout (30s default) — unwrapped `await` or `Promise.allSettled` without timeout can hang the bot event loop, blocking message dispatch for ALL users | `src/bot/handlers/encar.ts` (withTimeout helper + Promise.allSettled arms), ADR `[2026-04-25] С-8 closed — 30s per-arm timeout on encar AI enrichment` | С-8 incident 2026-04-22: encar handler hung indefinitely because `Promise.allSettled([estimateEnginePower, translateEncarFields])` had no per-arm timeout. Only `pm2 delete + pm2 start` recovered. Handlers that route AI through the auction-sheet async queue already have their own timeout; this rule covers direct AI calls from handler code |
 
 ## Code Standards
 
