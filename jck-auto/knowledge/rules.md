@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-24
-  @version:     1.22
-  @lines:       155
+  @version:     1.23
+  @lines:       157
 -->
 
 # Critical Rules
@@ -90,6 +90,8 @@
 | Compare hashes before downloading from Drive | googleDrive.ts | Re-downloads unchanged files |
 | Text generation in content pipeline (article topics + article body) MUST use DeepSeek via `callDeepSeek` — `callQwenText` from `@/lib/dashscope` is BANNED at these call sites | `src/services/articles/topicGenerator.ts`, `src/services/articles/generator.ts`, ADR `[2026-04-24] Migrate article text generation to DeepSeek` | DashScope text-generation systematically times out from VDS on large requests. Reintroducing `callQwenText` here re-creates bug Б-12 (two-week blog outage). DashScope is still correct for image generation (`qwen-image-2.0-pro`) and image/OCR — the ban is scoped to text in the content pipeline |
 | `src/lib/cronAlert.ts` MUST be fail-open — any error (network, timeout, HTTP non-2xx, missing env) is caught, logged to stderr, and swallowed. The helper MUST NOT throw | `src/lib/cronAlert.ts`, ADR `[2026-04-24] Cron alert helper — fail-open Telegram notification via Worker` | Monitoring code that crashes the thing it monitors is worse than no monitoring. A Telegram/Worker outage combined with a fail-loud alert helper would cascade into failed crons on top of whatever problem prompted the alert in the first place. Fail-open keeps failure surfaces independent |
+| Cron scripts in `scripts/*.ts` MUST call `sendCronAlert` before `process.exit(1)` at every fatal exit site — silent crash without a Telegram signal is FORBIDDEN | `scripts/generate-article.ts`, `scripts/generate-news.ts`, ADR `[2026-04-24] Mutual heartbeat alerting for content-pipeline crons` | The Б-12 precedent: a silent crash produces no signal for weeks. Wiring the alert at every exit site (outer `main().catch` plus internal fatal catches) ensures the alert actually sends before the process dies. The `await` is mandatory — `process.exit` does not flush pending promises |
+| Cron scripts SHOULD check staleness of the SIBLING cron's output artifact at startup — "check the other one, not yourself". A self-check inside a silent cron cannot fire | `scripts/generate-article.ts` (checks `storage/news/*.json`, 36h threshold), `scripts/generate-news.ts` (checks `content/blog/*.mdx`, 96h threshold), ADR `[2026-04-24] Mutual heartbeat alerting for content-pipeline crons` | Self-staleness check is blind to "cron never runs" class of failures (daemon down, crontab deleted, OOM before first log line). Sibling check moves the observation point outside the failing process. Staleness alert is `warning` severity — the live cron continues normally |
 
 ## Git & Prompt Rules
 

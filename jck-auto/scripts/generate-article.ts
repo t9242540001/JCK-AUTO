@@ -5,10 +5,12 @@
  * @triggers cron | manual: npx tsx -r dotenv/config scripts/generate-article.ts dotenv_config_path=.env.local
  * @input topicGenerator → generator → coverGenerator → articlePublisher
  * @output content/blog/{slug}.mdx + public/images/blog/{slug}.jpg
- * @lastModified 2026-04-15
+ * @lastModified 2026-04-24
  */
 
 import { join } from 'path';
+import { readdirSync, statSync } from 'fs';
+import { sendCronAlert } from '../src/lib/cronAlert';
 import { generateTopic, addToPublishedLog } from '../src/services/articles/topicGenerator';
 import { generateArticle } from '../src/services/articles/generator';
 import { publishArticle } from '../src/services/articles/articlePublisher';
@@ -16,6 +18,26 @@ import { generateCover } from '../src/lib/coverGenerator';
 import { getAllInternalLinks } from '../src/lib/crossLinker';
 
 const PROJECT_ROOT = process.env.PROJECT_ROOT || '/var/www/jckauto/app/jck-auto';
+
+/**
+ * @section helpers
+ * Returns mtime of the newest file in `dir` matching the predicate, or null
+ * if no such file exists or dir is unreadable.
+ */
+function newestMtime(dir: string, predicate: (name: string) => boolean): Date | null {
+  try {
+    const entries = readdirSync(dir).filter(predicate);
+    let newest: Date | null = null;
+    for (const name of entries) {
+      const stat = statSync(join(dir, name));
+      if (!stat.isFile()) continue;
+      if (!newest || stat.mtime > newest) newest = stat.mtime;
+    }
+    return newest;
+  } catch {
+    return null;
+  }
+}
 
 async function main() {
   const startTime = Date.now();
@@ -26,6 +48,32 @@ async function main() {
   }
 
   console.log('[Article] Запуск генератора статей...');
+
+  // @rule Sibling heartbeat: article cron checks that news cron is
+  // alive. Silent news failure cannot self-report — articles cron is
+  // the external observer. Threshold 36h = daily cadence + 50% jitter
+  // buffer. See ADR [2026-04-24] Mutual heartbeat alerting.
+  {
+    const newsDir = `${process.env.STORAGE_PATH ?? '/var/www/jckauto/storage'}/news`;
+    const newsMtime = newestMtime(newsDir, (n) => n.endsWith('.json'));
+    const STALE_NEWS_MS = 36 * 3600 * 1000;
+    if (!newsMtime || Date.now() - newsMtime.getTime() > STALE_NEWS_MS) {
+      const ageHours = newsMtime
+        ? ((Date.now() - newsMtime.getTime()) / 3600_000).toFixed(1)
+        : 'no JSON found';
+      const lastModStr = newsMtime ? newsMtime.toISOString() : '—';
+      console.warn(`[Article] WARNING: news cron appears stale (age: ${ageHours}h)`);
+      await sendCronAlert({
+        title: 'News cron stale',
+        body:
+          `Latest news JSON: ${newsDir}\n` +
+          `Last modified: ${lastModStr}\n` +
+          `Age: ${ageHours}h (threshold: 36h)\n\n` +
+          `Check /var/log/jckauto-news.log and cron status. Article cron continues normally.`,
+        severity: 'warning',
+      });
+    }
+  }
 
   // Шаг 1: AI анализирует новости и генерирует тему
   console.log('[Article] Анализ новостей за 3 дня...');
@@ -104,7 +152,16 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('[Article] Unhandled error:', err);
+  // @rule Alert BEFORE exit. process.exit does not await pending
+  // promises — sendCronAlert must finish (or time out) first.
+  const msg = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error && err.stack ? err.stack.slice(0, 2000) : '';
+  await sendCronAlert({
+    title: 'Article cron failed',
+    body: stack ? `${msg}\n\nStack (first 2000 chars):\n${stack}` : msg,
+    severity: 'error',
+  });
   process.exit(1);
 });
