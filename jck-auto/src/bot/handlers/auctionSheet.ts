@@ -232,7 +232,11 @@ export function registerAuctionSheetHandler(bot: TelegramBot): void {
       return;
     }
 
-    await bot.sendMessage(chatId, '🔍 Анализирую аукционный лист...');
+    const progressMessage = await bot.sendMessage(
+      chatId,
+      '🔍 Анализирую аукционный лист... обычно занимает 20–60 секунд',
+    );
+    const progressMessageId = progressMessage.message_id;
 
     // 5. Download via Worker URL — NEVER api.telegram.org
     let rawBuffer: Buffer;
@@ -300,13 +304,68 @@ export function registerAuctionSheetHandler(bot: TelegramBot): void {
     //       the same process, effectively free. Do NOT widen without reason.
     // @rule Hard timeout is 180s (3 minutes). Pipeline typically completes
     //       in 30-90s; 180s leaves headroom for queue position + processing.
+
+    // ─── PROGRESS INDICATOR ───────────────────────────────────────────────────────
+
+    // Self-updating progress indicator: edits the "Analyzing..." message
+    // at fixed elapsed-time thresholds so the user sees motion. Texts are
+    // motivational, not literally tied to pipeline stages — the bot has
+    // no insight into which AI step is currently running.
+    //
+    // @rule Edits MUST guard against firing twice for the same threshold —
+    //       Telegram throws "message is not modified" otherwise. The
+    //       lastFiredThreshold cursor below ensures monotonic progression.
+    //
+    // @rule Final result/error messages from the polling loop body are
+    //       SEPARATE messages, NOT edits of the progress message. Keep
+    //       this distinction — editing the progress message into the
+    //       final result would lose the inline keyboard.
+
+    interface ProgressThreshold {
+      elapsedMs: number;
+      text: string;
+    }
+
+    const PROGRESS_THRESHOLDS: ProgressThreshold[] = [
+      { elapsedMs: 30_000, text: '🔍 Распознаю текст и таблицы...' },
+      { elapsedMs: 60_000, text: '🔍 Извлекаю смысл и перевожу...' },
+      { elapsedMs: 90_000, text: '⏳ Анализ занимает дольше обычного. Подождите ещё немного...' },
+    ];
+
     const POLL_INTERVAL_MS = 1000;
     const HARD_TIMEOUT_MS = 180_000;
     const startedAt = Date.now();
 
     let finalSnapshot: ReturnType<typeof auctionSheetQueue.getStatus> = null;
+    let lastFiredThresholdIndex = -1;
     while (Date.now() - startedAt < HARD_TIMEOUT_MS) {
       await new Promise<void>((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+      const elapsed = Date.now() - startedAt;
+      // Find the highest threshold index whose elapsedMs has been crossed.
+      let targetIndex = lastFiredThresholdIndex;
+      for (let i = lastFiredThresholdIndex + 1; i < PROGRESS_THRESHOLDS.length; i++) {
+        if (elapsed >= PROGRESS_THRESHOLDS[i].elapsedMs) {
+          targetIndex = i;
+        } else {
+          break;
+        }
+      }
+      if (targetIndex > lastFiredThresholdIndex) {
+        try {
+          await bot.editMessageText(PROGRESS_THRESHOLDS[targetIndex].text, {
+            chat_id: chatId,
+            message_id: progressMessageId,
+          });
+        } catch (editErr) {
+          // Non-fatal — log and continue. Common cause: "message is not modified"
+          // if the same threshold fires twice (shouldn't happen due to cursor),
+          // or rate limit (should not happen at <1 edit/30s).
+          console.warn('[auctionSheet] progress edit failed:', editErr instanceof Error ? editErr.message : editErr);
+        }
+        lastFiredThresholdIndex = targetIndex;
+      }
+
       const snapshot = auctionSheetQueue.getStatus(jobId);
       if (snapshot === null) {
         // Job TTL-expired or lost — should not happen within 180s, but guard anyway.
