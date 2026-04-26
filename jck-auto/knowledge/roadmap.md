@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-26
-  @version:     1.20
+  @version:     1.21
   @lines:       266
 -->
 
@@ -18,8 +18,8 @@
 
 ### 2026-04-26 — Переход на систему стандартов v2.0
 
-- **Сделано:** системная инструкция и контекстный файл проекта в claude.ai заменены на v2.0; добавлена секция Recent Activity, архивирован исторический хвост Done в `roadmap-archive-1.md`; создан `virtual-team.md` (постоянные участники, два режима, ростер 10 специалистов).
-- **Прервались на:** созданы Recent Activity и `virtual-team.md`; осталось закрепить миграцию в `decisions.md` и финализировать `INDEX.md` | **Следующий шаг:** Промпт 3 — ADR `2026-04-26 — Переход на систему стандартов v2.0` в `decisions.md`, финал `INDEX.md`.
+- **Сделано:** системная инструкция и контекстный файл проекта в claude.ai заменены на v2.0; добавлена секция Recent Activity, архивирован исторический хвост Done в `roadmap-archive-1.md`; создан `virtual-team.md` (постоянные участники, два режима, ростер 10 специалистов); миграция зафиксирована ADR `[2026-04-26] Переход на систему стандартов v2.0` в `decisions.md`.
+- **Прервались на:** ADR в `decisions.md` записан, `INDEX.md` финализирован — осталось закрепить поведенческий стандарт на стороне Claude Code | **Следующий шаг:** Промпт 4 — блок `## Execution Discipline` (5 Карпати-правил) в `app/jck-auto/CLAUDE.md` между `## Critical Rules` и `## Knowledge Base`.
 - **Контекст:** серия из 4 промптов (1 — этот, 2 — virtual-team/rules, 3 — ADR в decisions.md + финал INDEX.md, 4 — Execution Discipline в CLAUDE.md).
 - **Ссылки:** план серии — в чате стратегического партнёра; ADR будет добавлен в Промпте 3.
 
