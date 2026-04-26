@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-25
-  @version:     1.18
+  @version:     1.19
   @lines:       ~333
 -->
 
@@ -218,6 +218,7 @@
 - **Action:** read current request.ts → if no validation, add: reject application without phone
   OR fallback to (name + telegram username)
 - **Fix (2026-04-25):** introduced `normalizePhone`/`hasValidPhone` helpers in `src/bot/handlers/request.ts`; applied at four entry points (handleRequestCommand truthy check, bot.on("contact") Telegram payload, bot.on("message") manual digits, post-savePhone getUser lookup). 10–15 digit format. EP-4 silent-exit replaced with user-visible "/start" recovery + console.error breadcrumb. Half 1 of 2 — submit-without-phone fallback follows in a separate prompt.
+- **Fix half 2 (2026-04-25):** added "📝 Без телефона (через Telegram)" button on the phone-prompt screen. Tapping submits a lead identified by `@username`, marked with `⚠️ Заявка без телефона` banner and `📨 Связь: @username (без телефона)` line in the operator group. Refuses cleanly when `msg.from.username` is absent. Race-skip added to `bot.on("message")` for the new button text. `finishRequest` gained an optional `{ withoutPhone?: boolean }` parameter; existing call sites unchanged. See ADR `[2026-04-25] Б-6/2 — submit-without-phone fallback`.
 - **Status:** Closed 2026-04-25.
 - **Related ADR:** `[2026-04-25] Б-6 closed — phone validation single source of truth (lead flow, half 1 of 2)`.
 
@@ -339,6 +340,14 @@
 - **Action:** NOT scheduled. Pick up when a future prompt touches `src/services/news/*` or `/news` routes. Two resolutions possible:
   - (a) Remove whatever is forcing dynamic rendering, verify build summary flips to `1h` marker. Preferred if ISR is still the right intent.
   - (b) Update both JSDoc headers to say "force-dynamic" and remove the misleading `revalidate` export. Preferred if dynamic rendering turns out to be the right choice on merits (e.g. if news JSON is needed fresh per request for a reason we haven't re-examined).
+
+### Б-15 — Lead audit log (future work, recorded per operator note 2026-04-25)
+- **Files:** `src/bot/handlers/request.ts`, planned `/var/log/jckauto-leads.log`
+- **Symptom:** Currently, a lead that fails to deliver to the operator group (Telegram API error, rate-limit, network drop) logs only to stderr via the existing `console.error("Failed to send lead to group:", err)`. The user still sees `✅ Заявка принята`, but the operator never receives anything. There is also no audit trail of submitted leads outside the group chat — if the group is purged or a message is deleted, the lead history is lost.
+- **Reported:** 2026-04-25 by Vasily during Б-6 series — "лучше записывать логи заявок пользователей в будущем, чтобы ничего не терялось".
+- **Impact:** No user-visible regression today, but: (a) silent failures of lead delivery exist as a class, (b) no recoverability if the operator group history is lost, (c) no analytics surface for measuring lead conversion or volume.
+- **Hypothesis:** A simple append-only log to `/var/log/jckauto-leads.log` — one JSON-line per lead attempt, including timestamp, telegram_user_id, username, phone (normalised) or null, source, success/failure, error message if any. Independent of the group-chat delivery path. Rotates via existing `logrotate.conf` setup if matched.
+- **Action:** NOT scheduled. When picked up: separate prompt, single file (`request.ts`) + one log path setup. Likely small scope: introduce `appendLeadLog(entry)` helper in `request.ts` (or `src/lib/leadLog.ts` if a second caller emerges, e.g., the website lead form). Call it from `finishRequest` BEFORE `sendMessage` so a delivery failure still gets logged. Add `bugs.md` entry on close.
 
 ### Б-5 — ~10-15% car photos rejected by Telegram
 - **Symptom:** "wrong type of the web page content" via Worker, even though server returns valid JPEG

@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-25
-  @version:     1.26
+  @version:     1.27
   @lines:       157
 -->
 
@@ -60,6 +60,7 @@
 | botStats increment calls go in success paths only — never in catch/error branches | All bot handlers | Failed commands counted as successful in /stats |
 | External AI calls inside bot handlers MUST be wrapped in a per-call timeout (30s default) — unwrapped `await` or `Promise.allSettled` without timeout can hang the bot event loop, blocking message dispatch for ALL users | `src/bot/handlers/encar.ts` (withTimeout helper + Promise.allSettled arms), ADR `[2026-04-25] С-8 closed — 30s per-arm timeout on encar AI enrichment` | С-8 incident 2026-04-22: encar handler hung indefinitely because `Promise.allSettled([estimateEnginePower, translateEncarFields])` had no per-arm timeout. Only `pm2 delete + pm2 start` recovered. Handlers that route AI through the auction-sheet async queue already have their own timeout; this rule covers direct AI calls from handler code |
 | Phone validity in bot lead flow MUST be checked via `normalizePhone`/`hasValidPhone` helpers in `src/bot/handlers/request.ts` — bare truthy checks on `user.phone` and ad-hoc digit-counts in entry-point handlers are the regression pattern that produced Б-6 | `src/bot/handlers/request.ts` (helpers + four entry points: `handleRequestCommand`, `bot.on("contact")`, `bot.on("message")`, post-`savePhone` `getUser` lookup), ADR `[2026-04-25] Б-6 closed — phone validation single source of truth` | Б-6 incident (March 2026, @danitsov case): legacy garbage in `users.json` (`" "`, `"+7"`, `""`) and unverified Telegram contact payloads reached operator group as `Телефон: не указан` or with malformed values. Lead-flow phone validity is now a single source of truth — adding any new code path that compares `user.phone` directly is a Б-6 regression |
+| Submit-without-phone fallback in `request.ts` MUST require `msg.from.username` — without it, refuse the lead and explain how to set @username. NEVER send a without-phone lead with `Связь: не указан` because the operator has no way to contact the user | `src/bot/handlers/request.ts` (the `bot.onText(/📝 Без телефона/)` handler), ADR `[2026-04-25] Б-6/2 — submit-without-phone fallback (lead flow, half 2 of 2)` | The whole point of the without-phone path is that contact happens via @username. A lead with no phone AND no username is undeliverable — the operator would receive it but have no channel. The refusal message points the user at Telegram username settings and re-offers the phone path |
 
 ## Code Standards
 

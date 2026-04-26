@@ -12,6 +12,7 @@
  *              registered. See Б-9 in knowledge/bugs.md and the
  *              2026-04-21 ADR in knowledge/decisions.md.
  * @rule        Phone validity is checked via normalizePhone()/hasValidPhone() — NEVER bare truthy on user.phone (Б-6 incident: legacy "+7" / " " / "" garbage reached operator group). See ADR [2026-04-25] Б-6 closed.
+ * @rule        Submit-without-phone fallback requires Telegram @username — without it, no completion path. See ADR [2026-04-25] Б-6/2 — submit-without-phone fallback.
  * @lastModified 2026-04-25
  */
 import TelegramBot from "node-telegram-bot-api";
@@ -52,19 +53,40 @@ function hasValidPhone(user: BotUser): boolean {
 export const pendingSource = new Map<number, string>();
 export const pendingPhone = new Set<number>();
 
-function finishRequest(bot: TelegramBot, groupChatId: string, user: BotUser, source?: string) {
+function finishRequest(
+  bot: TelegramBot,
+  groupChatId: string,
+  user: BotUser,
+  source?: string,
+  options?: { withoutPhone?: boolean },
+) {
   const username = user.username ? `@${user.username}` : "не указан";
+  const withoutPhone = options?.withoutPhone === true;
 
-  const text = [
-    "\u{1F697} Новая заявка!",
-    "",
-    `\u{1F464} Имя: ${user.firstName}${user.lastName ? ` ${user.lastName}` : ""}`,
-    `\u{1F4E8} Username: ${username}`,
-    `\u{1F4F1} Телефон: ${user.phone || "не указан"}`,
-    `\u{1F517} Источник: ${source || "Telegram-бот (прямая заявка)"}`,
-    "",
-    "Источник: Telegram-бот",
-  ].join("\n");
+  // @rule When withoutPhone is true, the contact-line is REPLACED (not
+  // augmented) — the manager must see at a glance that no phone is
+  // available. The "⚠️ Заявка без телефона" banner goes at the very
+  // top so it's visible in group-chat preview snippets too. See ADR
+  // [2026-04-25] Б-6/2 — submit-without-phone fallback.
+  const lines: string[] = [];
+  if (withoutPhone) {
+    lines.push("\u26A0\uFE0F Заявка без телефона");
+    lines.push("");
+  }
+  lines.push("\u{1F697} Новая заявка!");
+  lines.push("");
+  lines.push(`\u{1F464} Имя: ${user.firstName}${user.lastName ? ` ${user.lastName}` : ""}`);
+  lines.push(`\u{1F4E8} Username: ${username}`);
+  if (withoutPhone) {
+    lines.push(`\u{1F4E8} Связь: ${username} (без телефона)`);
+  } else {
+    lines.push(`\u{1F4F1} Телефон: ${user.phone || "не указан"}`);
+  }
+  lines.push(`\u{1F517} Источник: ${source || "Telegram-бот (прямая заявка)"}`);
+  lines.push("");
+  lines.push("Источник: Telegram-бот");
+
+  const text = lines.join("\n");
 
   bot.sendMessage(groupChatId, text).catch((err) => {
     console.error("Failed to send lead to group:", err);
@@ -99,11 +121,12 @@ export async function handleRequestCommand(bot: TelegramBot, chatId: number, gro
   pendingPhone.add(chatId);
   bot.sendMessage(
     chatId,
-    `${user.firstName}, чтобы менеджер связался с вами — поделитесь номером телефона:`,
+    `${user.firstName}, чтобы менеджер связался с вами — поделитесь номером телефона. Или нажмите «📝 Без телефона», если хотите общаться через Telegram:`,
     {
       reply_markup: {
         keyboard: [
           [{ text: "\u{1F4F1} Поделиться номером", request_contact: true }],
+          [{ text: "\u{1F4DD} Без телефона (через Telegram)" }],
           [{ text: "\u2B05\uFE0F Отмена" }],
         ],
         resize_keyboard: true,
@@ -161,8 +184,12 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
     const chatId = msg.chat.id;
     if (!pendingPhone.has(chatId)) return;
 
-    // Skip the cancel button — handled by its own onText listener below.
+    // Skip cancel and without-phone buttons — both are handled by their
+    // own onText listeners below. Without this skip, the message-handler
+    // would race against the onText listener and reject the button text
+    // as "this is not a phone" before the listener fires.
     if (msg.text.startsWith("\u2B05\uFE0F")) return;
+    if (msg.text.startsWith("\u{1F4DD}")) return;
 
     const normalized = normalizePhone(msg.text);
     if (!normalized) {
@@ -211,5 +238,51 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
         persistent: true,
       },
     });
+  });
+
+  bot.onText(/\u{1F4DD} Без телефона/u, async (msg) => {
+    if (!msg.from) return;
+    const chatId = msg.chat.id;
+
+    // @rule Without-phone path REQUIRES @username on Telegram. If the
+    // user has none, the operator group has no way to contact them
+    // (they explicitly opted out of providing a phone). Refuse cleanly
+    // with instructions, do NOT send a lead with "Связь: не указан".
+    // See ADR [2026-04-25] Б-6/2 — submit-without-phone fallback.
+    if (!msg.from.username) {
+      bot.sendMessage(
+        chatId,
+        "Чтобы оставить заявку без номера, у вас должен быть установлен @username в настройках Telegram — иначе мы не сможем с вами связаться.\n\nУстановите @username в настройках Telegram → Edit Profile → Username, затем попробуйте снова. Или нажмите «📱 Поделиться номером», чтобы оставить заявку с телефоном.",
+      );
+      return;
+    }
+
+    await ensureUsersLoaded();
+    const user = getUser(msg.from.id);
+    if (!user) {
+      // Same recovery pattern as the message-handler EP-4 fix in Б-6/1.
+      console.error("[request] without-phone tap but getUser returned undefined", { telegramUserId: msg.from.id });
+      bot.sendMessage(
+        chatId,
+        "Что-то пошло не так. Пожалуйста, нажмите /start и попробуйте снова.",
+      );
+      return;
+    }
+
+    pendingPhone.delete(chatId);
+    const source = pendingSource.get(chatId) || "Telegram-бот (прямая заявка)";
+    pendingSource.delete(chatId);
+    finishRequest(bot, groupChatId, user, source, { withoutPhone: true });
+    bot.sendMessage(
+      chatId,
+      "✅ Заявка принята! Менеджер свяжется с вами в Telegram.",
+      {
+        reply_markup: {
+          keyboard: [[{ text: "\u{1F3E0} Главное меню" }]],
+          resize_keyboard: true,
+          persistent: true,
+        },
+      },
+    );
   });
 }
