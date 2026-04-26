@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-25
-  @version:     1.17
+  @version:     1.18
   @lines:       ~333
 -->
 
@@ -210,6 +210,17 @@
 - **Fix (2026-04-25):** `withTimeout` helper in `src/bot/handlers/encar.ts` bounds each arm of the AI-enrichment `Promise.allSettled` at 30s; orphaned original promises receive a `.catch(() => {})` to silence late rejections. Handler now completes within ~40s worst case. See ADR `[2026-04-25] С-8 closed — 30s per-arm timeout on encar AI enrichment`.
 - **Status:** Closed 2026-04-25.
 
+### Б-6 — bot applications can be sent without phone [Closed 2026-04-25]
+- **File:** src/bot/handlers/request.ts
+- **Symptom:** applications arrive with "Телефон: не указан" if user types text
+  instead of pressing "Поделиться контактом" button
+- **First reported:** March 2026 (case @danitsov)
+- **Action:** read current request.ts → if no validation, add: reject application without phone
+  OR fallback to (name + telegram username)
+- **Fix (2026-04-25):** introduced `normalizePhone`/`hasValidPhone` helpers in `src/bot/handlers/request.ts`; applied at four entry points (handleRequestCommand truthy check, bot.on("contact") Telegram payload, bot.on("message") manual digits, post-savePhone getUser lookup). 10–15 digit format. EP-4 silent-exit replaced with user-visible "/start" recovery + console.error breadcrumb. Half 1 of 2 — submit-without-phone fallback follows in a separate prompt.
+- **Status:** Closed 2026-04-25.
+- **Related ADR:** `[2026-04-25] Б-6 closed — phone validation single source of truth (lead flow, half 1 of 2)`.
+
 ### С-2 — cursor does not change to pointer on clickable elements
 - **Pages:** site-wide. Confirmed example: file upload button on /tools/auction-sheet
 - **Cause:** clickable elements rendered as <div> or <a> without href, missing cursor: pointer
@@ -336,10 +347,3 @@
 - **Action:** confirm with Vasily if still actual. If yes — investigate file_id caching
   (POST sendPhoto once, save returned file_id, reuse).
 
-### Б-6 — bot applications can be sent without phone
-- **File:** src/bot/handlers/request.ts
-- **Symptom:** applications arrive with "Телефон: не указан" if user types text
-  instead of pressing "Поделиться контактом" button
-- **First reported:** March 2026 (case @danitsov)
-- **Action:** read current request.ts → if no validation, add: reject application without phone
-  OR fallback to (name + telegram username)

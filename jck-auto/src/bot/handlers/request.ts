@@ -11,10 +11,43 @@
  *              "Нажмите /start" fallback even though they are
  *              registered. See Б-9 in knowledge/bugs.md and the
  *              2026-04-21 ADR in knowledge/decisions.md.
- * @lastModified 2026-04-21
+ * @rule        Phone validity is checked via normalizePhone()/hasValidPhone() — NEVER bare truthy on user.phone (Б-6 incident: legacy "+7" / " " / "" garbage reached operator group). See ADR [2026-04-25] Б-6 closed.
+ * @lastModified 2026-04-25
  */
 import TelegramBot from "node-telegram-bot-api";
 import { ensureUsersLoaded, getUser, savePhone, type BotUser } from "../store/users";
+
+/**
+ * Normalises a phone-like input into a 10–15 digit string (E.164 range,
+ * country code optional). Returns `null` for any input that fails the
+ * structural check — including `null`, `undefined`, empty/whitespace
+ * strings, strings whose digit-count is outside [10, 15], and strings
+ * that contain no digits at all. Does NOT verify the number is real or
+ * reachable; that requires a third-party lookup (Twilio, Numverify) and
+ * is intentionally out of scope.
+ *
+ * @see ADR [2026-04-25] Б-6 closed — phone validation single source of truth
+ */
+// @rule This is the SINGLE truth source for phone validity in the bot
+// lead flow. Every entry point (handleRequestCommand truthy check,
+// bot.on("contact") Telegram payload, bot.on("message") manual digits,
+// future "submit without phone" fallback) MUST go through this helper.
+// Adding any new code path that compares `user.phone` directly is a
+// regression of Б-6.
+function normalizePhone(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 10 || digits.length > 15) return null;
+  return digits;
+}
+
+/**
+ * Convenience wrapper: returns `true` iff `user.phone` passes
+ * `normalizePhone`. Use this in place of bare `if (user.phone)` checks.
+ */
+function hasValidPhone(user: BotUser): boolean {
+  return normalizePhone(user.phone) !== null;
+}
 
 export const pendingSource = new Map<number, string>();
 export const pendingPhone = new Set<number>();
@@ -48,7 +81,7 @@ export async function handleRequestCommand(bot: TelegramBot, chatId: number, gro
   }
 
   // If phone is already known — finish immediately
-  if (user.phone) {
+  if (hasValidPhone(user)) {
     const carName = pendingSource.get(chatId);
     pendingSource.delete(chatId);
     finishRequest(bot, groupChatId, user, carName);
@@ -93,8 +126,19 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
     if (!msg.contact || !msg.from) return;
     const chatId = msg.chat.id;
     pendingPhone.delete(chatId);
-    const phone = msg.contact.phone_number;
-    await savePhone(msg.from.id, phone);
+    const normalized = normalizePhone(msg.contact.phone_number);
+    if (!normalized) {
+      // @rule Telegram clients have been observed returning empty or
+      // malformed phone_number in shared-contact payloads. Reject and
+      // re-prompt rather than saving garbage. See ADR [2026-04-25].
+      pendingPhone.add(chatId);
+      bot.sendMessage(
+        chatId,
+        "Не удалось прочитать номер. Пожалуйста, введите его в формате +7 999 123 45 67 или нажмите «📱 Поделиться номером» ещё раз.",
+      );
+      return;
+    }
+    await savePhone(msg.from.id, normalized);
 
     const user = getUser(msg.from.id);
     if (!user) return;
@@ -116,16 +160,35 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
     if (!msg.text || !msg.from) return;
     const chatId = msg.chat.id;
     if (!pendingPhone.has(chatId)) return;
-    // Проверить что текст похож на номер телефона (7+ цифр)
-    const digits = msg.text.replace(/\D/g, "");
-    if (digits.length < 7) {
-      bot.sendMessage(chatId, "Пожалуйста, нажмите кнопку «📱 Поделиться номером».");
+
+    // Skip the cancel button — handled by its own onText listener below.
+    if (msg.text.startsWith("\u2B05\uFE0F")) return;
+
+    const normalized = normalizePhone(msg.text);
+    if (!normalized) {
+      bot.sendMessage(
+        chatId,
+        "Это не похоже на телефон. Введите номер в формате +7 999 123 45 67 или нажмите «📱 Поделиться номером».",
+      );
       return;
     }
+
     pendingPhone.delete(chatId);
-    await savePhone(msg.from.id, digits);
+    await savePhone(msg.from.id, normalized);
     const user = getUser(msg.from.id);
-    if (!user) return;
+    if (!user) {
+      // @rule Silent exit here previously lost the lead without trace
+      // (Б-6 EP-4). User saw the previous "введите номер" hint and then
+      // nothing. Tell them the session is broken and re-route to /start
+      // so they can recover instead of waiting for a reply that never
+      // comes. See ADR [2026-04-25] Б-6 closed.
+      console.error("[request] phone saved but getUser returned undefined", { telegramUserId: msg.from.id });
+      bot.sendMessage(
+        chatId,
+        "Что-то пошло не так. Пожалуйста, нажмите /start и попробуйте снова.",
+      );
+      return;
+    }
     const source = pendingSource.get(chatId) || "Telegram-бот (прямая заявка)";
     pendingSource.delete(chatId);
     finishRequest(bot, groupChatId, user, source);
