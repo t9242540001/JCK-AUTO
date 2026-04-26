@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-26
-  @version:     1.19
+  @version:     1.20
   @lines:       266
 -->
 
@@ -18,8 +18,8 @@
 
 ### 2026-04-26 — Переход на систему стандартов v2.0
 
-- **Сделано:** системная инструкция и контекстный файл проекта в claude.ai заменены на v2.0 (триаж T1/T2/T3, Карпати-правила, output discipline, ритуал старта); добавлена секция Recent Activity и архивирован исторический хвост Done в roadmap-archive-1.md.
-- **Прервались на:** нужна синхронизация остального knowledge с v2.0 | **Следующий шаг:** Промпт 2 — virtual-team.md (постоянные участники + два режима) и rules.md (проверка на дублирование с STANDARDS).
+- **Сделано:** системная инструкция и контекстный файл проекта в claude.ai заменены на v2.0; добавлена секция Recent Activity, архивирован исторический хвост Done в `roadmap-archive-1.md`; создан `virtual-team.md` (постоянные участники, два режима, ростер 10 специалистов).
+- **Прервались на:** созданы Recent Activity и `virtual-team.md`; осталось закрепить миграцию в `decisions.md` и финализировать `INDEX.md` | **Следующий шаг:** Промпт 3 — ADR `2026-04-26 — Переход на систему стандартов v2.0` в `decisions.md`, финал `INDEX.md`.
 - **Контекст:** серия из 4 промптов (1 — этот, 2 — virtual-team/rules, 3 — ADR в decisions.md + финал INDEX.md, 4 — Execution Discipline в CLAUDE.md).
 - **Ссылки:** план серии — в чате стратегического партнёра; ADR будет добавлен в Промпте 3.
 
