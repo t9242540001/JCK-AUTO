@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-25
-  @version:     1.27
+  @version:     1.28
   @lines:       157
 -->
 
@@ -61,6 +61,7 @@
 | External AI calls inside bot handlers MUST be wrapped in a per-call timeout (30s default) — unwrapped `await` or `Promise.allSettled` without timeout can hang the bot event loop, blocking message dispatch for ALL users | `src/bot/handlers/encar.ts` (withTimeout helper + Promise.allSettled arms), ADR `[2026-04-25] С-8 closed — 30s per-arm timeout on encar AI enrichment` | С-8 incident 2026-04-22: encar handler hung indefinitely because `Promise.allSettled([estimateEnginePower, translateEncarFields])` had no per-arm timeout. Only `pm2 delete + pm2 start` recovered. Handlers that route AI through the auction-sheet async queue already have their own timeout; this rule covers direct AI calls from handler code |
 | Phone validity in bot lead flow MUST be checked via `normalizePhone`/`hasValidPhone` helpers in `src/bot/handlers/request.ts` — bare truthy checks on `user.phone` and ad-hoc digit-counts in entry-point handlers are the regression pattern that produced Б-6 | `src/bot/handlers/request.ts` (helpers + four entry points: `handleRequestCommand`, `bot.on("contact")`, `bot.on("message")`, post-`savePhone` `getUser` lookup), ADR `[2026-04-25] Б-6 closed — phone validation single source of truth` | Б-6 incident (March 2026, @danitsov case): legacy garbage in `users.json` (`" "`, `"+7"`, `""`) and unverified Telegram contact payloads reached operator group as `Телефон: не указан` or with malformed values. Lead-flow phone validity is now a single source of truth — adding any new code path that compares `user.phone` directly is a Б-6 regression |
 | Submit-without-phone fallback in `request.ts` MUST require `msg.from.username` — without it, refuse the lead and explain how to set @username. NEVER send a without-phone lead with `Связь: не указан` because the operator has no way to contact the user | `src/bot/handlers/request.ts` (the `bot.onText(/📝 Без телефона/)` handler), ADR `[2026-04-25] Б-6/2 — submit-without-phone fallback (lead flow, half 2 of 2)` | The whole point of the without-phone path is that contact happens via @username. A lead with no phone AND no username is undeliverable — the operator would receive it but have no channel. The refusal message points the user at Telegram username settings and re-offers the phone path |
+| Every lead attempt in `finishRequest` MUST be persisted via `appendLeadLog()` BEFORE `bot.sendMessage` to the operator group — the audit log is the single source of truth for "this lead existed", independent of Telegram delivery success | `src/bot/handlers/request.ts` (`appendLeadLog` helper writing JSON-line to `${STORAGE_PATH}/leads/leads.log`), ADR `[2026-04-25] Б-15 closed — lead audit log` | Б-15: Telegram delivery failures (rate-limit, network drop, deleted group) used to lose leads silently — user saw `✅ Заявка принята`, operator received nothing, no recovery path. Pre-send append-only log records every lead irrespective of delivery outcome. Helper is fail-open (FS errors swallowed to stderr) — never crash the bot for monitoring code |
 
 ## Code Standards
 

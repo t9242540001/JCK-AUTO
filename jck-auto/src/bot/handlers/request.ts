@@ -13,9 +13,12 @@
  *              2026-04-21 ADR in knowledge/decisions.md.
  * @rule        Phone validity is checked via normalizePhone()/hasValidPhone() — NEVER bare truthy on user.phone (Б-6 incident: legacy "+7" / " " / "" garbage reached operator group). See ADR [2026-04-25] Б-6 closed.
  * @rule        Submit-without-phone fallback requires Telegram @username — without it, no completion path. See ADR [2026-04-25] Б-6/2 — submit-without-phone fallback.
+ * @rule        Every lead attempt MUST be persisted via appendLeadLog() BEFORE bot.sendMessage to the operator group — silent delivery failures (Telegram rate-limit, network drop) used to lose leads without trace. See ADR [2026-04-25] Б-15 closed — lead audit log.
  * @lastModified 2026-04-25
  */
 import TelegramBot from "node-telegram-bot-api";
+import { appendFileSync, existsSync, mkdirSync } from "fs";
+import { dirname, join } from "path";
 import { ensureUsersLoaded, getUser, savePhone, type BotUser } from "../store/users";
 
 /**
@@ -48,6 +51,44 @@ function normalizePhone(raw: string | undefined | null): string | null {
  */
 function hasValidPhone(user: BotUser): boolean {
   return normalizePhone(user.phone) !== null;
+}
+
+const STORAGE_PATH = process.env.STORAGE_PATH || "/var/www/jckauto/storage";
+const LEADS_LOG_PATH = join(STORAGE_PATH, "leads", "leads.log");
+
+interface LeadLogEntry {
+  telegramUserId: number;
+  username: string | null;
+  firstName: string;
+  lastName: string | null;
+  phone: string | null;
+  source: string;
+  withoutPhone: boolean;
+}
+
+/**
+ * Append-only audit trail of every lead attempt — one JSON line per
+ * call. Persisted at `${STORAGE_PATH}/leads/leads.log` (default
+ * `/var/www/jckauto/storage/leads/leads.log`). Independent of the
+ * group-chat delivery path: written BEFORE `bot.sendMessage`, so a
+ * Telegram-side delivery failure (rate-limit, network drop, group
+ * deleted) is still recorded.
+ *
+ * @see ADR [2026-04-25] Б-15 closed — lead audit log
+ */
+// @rule Fail-open. Any FS error (missing dir, EACCES, EROFS, disk
+// full) is caught, logged to stderr, and swallowed — the bot
+// continues. Monitoring code that crashes the thing it monitors
+// is worse than no monitoring (same rationale as cronAlert.ts).
+function appendLeadLog(entry: LeadLogEntry): void {
+  try {
+    const dir = dirname(LEADS_LOG_PATH);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const line = JSON.stringify({ timestamp: new Date().toISOString(), ...entry }) + "\n";
+    appendFileSync(LEADS_LOG_PATH, line, "utf-8");
+  } catch (err) {
+    console.error("[request] appendLeadLog failed (swallowed):", err instanceof Error ? err.message : err);
+  }
 }
 
 export const pendingSource = new Map<number, string>();
@@ -87,6 +128,19 @@ function finishRequest(
   lines.push("Источник: Telegram-бот");
 
   const text = lines.join("\n");
+
+  // @rule Audit log goes BEFORE sendMessage — the lead attempt is
+  // recorded even if Telegram delivery fails. See ADR [2026-04-25]
+  // Б-15 closed — lead audit log.
+  appendLeadLog({
+    telegramUserId: user.id,
+    username: user.username ?? null,
+    firstName: user.firstName,
+    lastName: user.lastName ?? null,
+    phone: withoutPhone ? null : (user.phone ?? null),
+    source: source || "Telegram-бот (прямая заявка)",
+    withoutPhone,
+  });
 
   bot.sendMessage(groupChatId, text).catch((err) => {
     console.error("Failed to send lead to group:", err);

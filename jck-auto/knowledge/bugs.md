@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-25
-  @version:     1.19
+  @version:     1.20
   @lines:       ~333
 -->
 
@@ -222,6 +222,15 @@
 - **Status:** Closed 2026-04-25.
 - **Related ADR:** `[2026-04-25] Б-6 closed — phone validation single source of truth (lead flow, half 1 of 2)`.
 
+### Б-15 — Lead audit log [Closed 2026-04-25]
+- **Files:** `src/bot/handlers/request.ts`, `${STORAGE_PATH}/leads/leads.log` (default `/var/www/jckauto/storage/leads/leads.log`)
+- **Symptom:** Lead delivery failures (Telegram API error, rate-limit, network drop) logged only to stderr; user saw `✅ Заявка принята` while operator received nothing. No audit trail outside the group chat — group purge / message deletion lost lead history. No analytics surface.
+- **Reported:** 2026-04-25 by Vasily during Б-6 series — "лучше записывать логи заявок пользователей в будущем, чтобы ничего не терялось".
+- **Fix (2026-04-25):** added module-private `appendLeadLog(entry)` helper to `src/bot/handlers/request.ts`. Called from `finishRequest` BEFORE `bot.sendMessage`, so a delivery failure still records the lead. Path follows project `STORAGE_PATH` convention: `${STORAGE_PATH}/leads/leads.log`. Format: one JSON line per attempt with `{ timestamp, telegramUserId, username, firstName, lastName, phone, source, withoutPhone }`. Auto-creates `${STORAGE_PATH}/leads/` on first write. Fail-open: any FS error caught, logged to stderr, swallowed — bot continues.
+- **Status:** Closed 2026-04-25.
+- **Related ADR:** `[2026-04-25] Б-15 closed — lead audit log (append-only JSON-line file)`.
+- **Operational note:** if the bot runs under a different `STORAGE_PATH` than the default, set the env var in `ecosystem.config.js`. `logrotate.conf` should add the new path if not already covered.
+
 ### С-2 — cursor does not change to pointer on clickable elements
 - **Pages:** site-wide. Confirmed example: file upload button on /tools/auction-sheet
 - **Cause:** clickable elements rendered as <div> or <a> without href, missing cursor: pointer
@@ -340,14 +349,6 @@
 - **Action:** NOT scheduled. Pick up when a future prompt touches `src/services/news/*` or `/news` routes. Two resolutions possible:
   - (a) Remove whatever is forcing dynamic rendering, verify build summary flips to `1h` marker. Preferred if ISR is still the right intent.
   - (b) Update both JSDoc headers to say "force-dynamic" and remove the misleading `revalidate` export. Preferred if dynamic rendering turns out to be the right choice on merits (e.g. if news JSON is needed fresh per request for a reason we haven't re-examined).
-
-### Б-15 — Lead audit log (future work, recorded per operator note 2026-04-25)
-- **Files:** `src/bot/handlers/request.ts`, planned `/var/log/jckauto-leads.log`
-- **Symptom:** Currently, a lead that fails to deliver to the operator group (Telegram API error, rate-limit, network drop) logs only to stderr via the existing `console.error("Failed to send lead to group:", err)`. The user still sees `✅ Заявка принята`, but the operator never receives anything. There is also no audit trail of submitted leads outside the group chat — if the group is purged or a message is deleted, the lead history is lost.
-- **Reported:** 2026-04-25 by Vasily during Б-6 series — "лучше записывать логи заявок пользователей в будущем, чтобы ничего не терялось".
-- **Impact:** No user-visible regression today, but: (a) silent failures of lead delivery exist as a class, (b) no recoverability if the operator group history is lost, (c) no analytics surface for measuring lead conversion or volume.
-- **Hypothesis:** A simple append-only log to `/var/log/jckauto-leads.log` — one JSON-line per lead attempt, including timestamp, telegram_user_id, username, phone (normalised) or null, source, success/failure, error message if any. Independent of the group-chat delivery path. Rotates via existing `logrotate.conf` setup if matched.
-- **Action:** NOT scheduled. When picked up: separate prompt, single file (`request.ts`) + one log path setup. Likely small scope: introduce `appendLeadLog(entry)` helper in `request.ts` (or `src/lib/leadLog.ts` if a second caller emerges, e.g., the website lead form). Call it from `finishRequest` BEFORE `sendMessage` so a delivery failure still gets logged. Add `bugs.md` entry on close.
 
 ### Б-5 — ~10-15% car photos rejected by Telegram
 - **Symptom:** "wrong type of the web page content" via Worker, even though server returns valid JPEG

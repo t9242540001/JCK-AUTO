@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-25
-  @version:     1.47
+  @version:     1.48
   @lines:       ~3634
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -19,6 +19,63 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-25] Б-15 closed — lead audit log (append-only JSON-line file)
+
+**Status:** Accepted
+
+**Confidence:** High — minimal surface (one helper + one call site), fail-open semantics inherited from the cronAlert.ts precedent, no library dependency, no behaviour change for the happy path.
+
+**Context:**
+
+Б-15 was recorded earlier today (commit `2926f96`, Б-6/2 close) per Vasily's session note: "лучше записывать логи заявок пользователей в будущем, чтобы ничего не терялось". The concrete gaps the entry described:
+- A lead that fails to deliver to the operator group (Telegram API error, rate-limit, network drop) logs only to stderr via `console.error("Failed to send lead to group:", err)`. The user still sees `✅ Заявка принята`, but the operator never receives anything.
+- No audit trail of submitted leads outside the group chat — if the group is purged or a message deleted, the lead history is lost.
+- No analytics surface for measuring lead conversion or volume.
+
+The `bugs.md` entry sketched the resolution: append-only JSON-line file, called from `finishRequest` BEFORE `sendMessage` so a delivery failure still gets logged. Path: `/var/log/jckauto-leads.log` was the original suggestion, but the codebase already has a strong `STORAGE_PATH` convention (services/articles, services/news, fileIdCache, etc. all root under `process.env.STORAGE_PATH || '/var/www/jckauto/storage'`). Aligning with that convention reduces operational surprise — the operator already knows where storage lives, and `logrotate` configuration already covers it.
+
+**Decision:**
+
+Add a module-private `appendLeadLog(entry)` helper to `src/bot/handlers/request.ts`. Path: `${STORAGE_PATH}/leads/leads.log`, with `STORAGE_PATH` env-var override matching the project-wide convention. Format: one JSON line per lead attempt with `{ timestamp, telegramUserId, username, firstName, lastName, phone, source, withoutPhone }`.
+
+Call from `finishRequest` immediately BEFORE `bot.sendMessage`. The lead is recorded even if Telegram delivery fails — closing the silent-loss gap.
+
+Fail-open semantics: any FS error (missing parent dir, EACCES, EROFS, disk full) is caught, logged to stderr with `[request] appendLeadLog failed (swallowed):`, and the bot proceeds normally. Same rationale as cronAlert.ts: monitoring code that crashes the thing it monitors is worse than no monitoring.
+
+Directory auto-creation: on first write, if `${STORAGE_PATH}/leads/` does not exist, the helper creates it via `mkdirSync({ recursive: true })`. No operator deploy step required.
+
+**Alternatives considered:**
+
+- **Path `/var/log/jckauto-leads.log` per the original `bugs.md` sketch.** Rejected — the `/var/log/jckauto-*.log` convention is for cron output (`jckauto-noscut-watchdog.log`, `jckauto-news.log`, etc.) where systemd/cron write directly. Bot-process writes are stylistically grouped under `STORAGE_PATH` (the bot already writes `users.json`, `bot-stats.json`, `file-id-cache.json` there). Consistency wins.
+- **Two log entries per lead — one pre-send `attempting`, one post-send `delivered` or `failed`.** Rejected for this iteration — doubles log volume for marginal value. The pre-send entry already proves the lead existed; the existing `console.error` on send failure surfaces the delivery problem in PM2 logs. If post-send delivery audit becomes a real requirement (e.g., for SLA reporting), promote later.
+- **Promote helper to `src/lib/leadLog.ts` immediately.** Rejected — single caller (`request.ts`); no second caller in sight (the website lead form goes through `/api/lead`, a separate path with its own observability). If a second caller emerges, promotion path is the same as `withTimeout` in encar.ts (С-8) and `normalizePhone` in request.ts (Б-6/1).
+- **Use `fs.promises.appendFile` (async) instead of `appendFileSync`.** Rejected — `finishRequest` is currently synchronous in shape (`bot.sendMessage` returns a promise but is fire-and-forget for the caller's perspective). Switching to async append would either require awaiting the FS write (delaying the visible reply to the user) or fire-and-forget the FS promise (losing error visibility). Sync write is fast (single line, append mode, OS page cache) and the caller is already inside an async event handler — the millisecond cost is invisible.
+- **JSON-array file (read existing → push → write back).** Rejected — concurrent writes would race; bot is single-process today but the pattern is fragile. Append-only JSON-line scales to multi-process and is the standard pattern (matches systemd-journal, jsonl, ndjson).
+- **Audit log only for without-phone leads.** Rejected — the original Vasily note was "ничего не терялось" (nothing should be lost), not specifically without-phone. All leads benefit from the audit trail.
+
+**Consequences:**
+
+- (+) Closes Б-15. Every lead attempt now has a persistent record at `${STORAGE_PATH}/leads/leads.log` independent of group-chat delivery.
+- (+) Operator can recover lead history from the file if the group chat is purged or messages are deleted.
+- (+) Foundation for future analytics (lead volume, source distribution, without-phone share, conversion rate) — no schema change needed, just `jq` over the file.
+- (+) Fail-open: storage outage does not stop the bot. The audit trail is best-effort by design.
+- (−) Disk usage grows append-only. Mitigated by the existing `logrotate.conf` infrastructure (the `bugs.md` entry noted this); operator should add a rotation rule for `${STORAGE_PATH}/leads/leads.log` if not already covered. Current lead volume (~5/day) is negligible — months before manual attention is needed.
+- (−) The `STORAGE_PATH` env var is not set in `ecosystem.config.js` for `jckauto-bot` (verified during this prompt — only `mcp-gateway` declares env there). Default `/var/www/jckauto/storage` is correct on the VDS, so this works out of the box. If the bot is deployed somewhere else (containerised, alternate VDS), `STORAGE_PATH` should be set.
+- (−) Minor sync FS write per lead. ~5 leads/day × 1 disk write = no measurable impact.
+
+**Verification (post-deploy, operator):**
+
+After auto-merge and deploy, send a test lead through the bot. Check `/var/www/jckauto/storage/leads/leads.log` — a JSON line should appear within seconds, containing `timestamp`, `telegramUserId`, `username`, `firstName`, `phone` (or null for without-phone leads), `source`, and `withoutPhone: false` (or true). Validate with `jq -r '.username + " | " + (.phone // "no-phone")' < /var/www/jckauto/storage/leads/leads.log`.
+
+If the file does not appear: check `pm2 logs jckauto-bot --err | grep appendLeadLog` for the swallowed FS-error message; likely cause is `EACCES` on the storage dir, fixable with `chown jckauto:jckauto /var/www/jckauto/storage/leads/`.
+
+**Files changed:**
+- `jck-auto/src/bot/handlers/request.ts`
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/rules.md` (one new row)
+- `jck-auto/knowledge/bugs.md` (Б-15 closed; moved Verify status → Important)
+- `jck-auto/knowledge/INDEX.md` (dates)
 
 ## [2026-04-25] Б-6/2 — submit-without-phone fallback (lead flow, half 2 of 2)
 
