@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-25
-  @version:     1.46
+  @version:     1.47
   @lines:       ~3634
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -19,6 +19,67 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-25] Б-6/2 — submit-without-phone fallback (lead flow, half 2 of 2)
+
+**Status:** Accepted
+
+**Confidence:** High — the change is additive (new button, new handler, optional `finishRequest` parameter); existing call sites are unchanged; rollback is mechanical.
+
+**Context:**
+
+Б-6/1 closed the phone-validation regression class (commit `86e5627`): garbage values are no longer accepted, all four entry points use a single normalisation helper, the silent-exit path was replaced with a user-visible recovery. But Б-6/1 deliberately left out the case of a user who simply does not want — or cannot — share a phone number.
+
+Today, such a user faces an unsolvable loop: tap "Оставить заявку" → see the phone prompt → type "не хочу" → bot rejects with `Это не похоже на телефон…` → tap cancel → start over → same prompt. Their only option is to abandon the lead. We lose the lead silently, and the user perceives the bot as broken.
+
+Some users have a genuine reason not to share a phone: privacy preferences, foreign clients without a routable Russian number, business buyers using a sales rep's account. We can complete the lead through Telegram messaging using the user's `@username`. The operator can write the user in DM; if no DM, they can reach via the username from the group thread. This requires NO new infrastructure.
+
+**Decision:**
+
+Add a third button "📝 Без телефона (через Telegram)" to the phone-prompt reply-keyboard. Tapping it submits a lead with the `withoutPhone: true` flag, which causes `finishRequest` to:
+1. Prepend a `⚠️ Заявка без телефона` banner at the very top of the operator-group message.
+2. Replace the standard `📱 Телефон: …` line with `📨 Связь: @<username> (без телефона)`.
+
+If the user has no `@username` set on Telegram, the handler refuses cleanly: it explains that without-phone leads require `@username`, points the user at the relevant Telegram setting, and offers the phone path as an alternative. No lead is sent.
+
+The new handler reuses the same flow shape as the existing cancel handler and contact-success path: `ensureUsersLoaded` → `getUser` → state cleanup → `finishRequest` → confirmation. No new state, no new persistence.
+
+The `finishRequest` signature gains an optional `options?: { withoutPhone?: boolean }` parameter. Existing three call sites (in `handleRequestCommand`, `bot.on("contact")`, `bot.on("message")`) do not pass the parameter; they continue to render leads in the original format byte-for-byte.
+
+A race-skip for the new button text is added to `bot.on("message")` — without it, the message-handler would process the button-text as a candidate phone (because `pendingPhone` is still armed when the user taps the button) and reject it with "Это не похоже на телефон" before the dedicated `onText` listener could fire. Same pattern as the cancel-button skip added in Б-6/1.
+
+**Alternatives considered:**
+
+- **Allow lead submission without `@username` (just first/last name + Telegram user-id link).** Rejected — the operator group has no built-in way to deep-link a user-id into a writable conversation. They would manually search for the user, often unsuccessfully. The `@username` requirement is a hard contact-channel requirement, not bureaucracy.
+- **Inline keyboard (`callback_query`) instead of reply-keyboard button.** Rejected — the phone-prompt screen already uses reply-keyboard (request_contact, cancel). Mixing inline and reply on the same screen is visually awkward and changes the user's input mode mid-flow. Three reply-keyboard rows is the consistent pattern.
+- **Implicit fallback — auto-submit without phone after N rejections.** Rejected — invisible behaviour. The user wouldn't know what happened. Explicit button keeps user agency.
+- **Different visual marker for without-phone leads (e.g., grey colour, separate group chat).** Rejected — Telegram doesn't support per-message styling beyond Markdown/HTML, and a separate chat fragments operator workflow. The "⚠️ Заявка без телефона" banner at message-top is the strongest signal available within the platform.
+- **Combine Б-6/1 and Б-6/2 into a single prompt.** Rejected per the half-1/half-2 split decided in the prior session — separate rollback windows, clearer review surface.
+
+**Consequences:**
+
+- (+) Closes Б-6 fully — no more user paths in the lead flow result in silent loss or silent loop.
+- (+) Operator gets a clearly distinguished signal in the group chat — `⚠️ Заявка без телефона` is impossible to miss.
+- (+) Backwards-compatible — existing `finishRequest` callers unchanged; lead text format for normal phone-leads is byte-identical to pre-edit.
+- (+) Captures Vasily's session-note about lead-audit-logging as a future-work entry in `bugs.md` — the requirement is recorded, not implemented (separate prompt later).
+- (−) Users without `@username` (rare) still cannot submit without a phone. Cannot be fixed at the bot layer alone — Telegram does not let bots message users who have not started a chat AND have no public username unless the user starts the conversation. Documented in the refusal message; user can either set username or share phone.
+- (−) Operator workflow now must check the banner — without-phone leads need to be answered via Telegram DM, not phone call. Mitigated by the prominent banner. May warrant a brief operator runbook update separately; not in scope for this prompt.
+- (−) Lead-audit-log is not yet implemented. Until it is, a lead that fails to deliver to the operator group (network error, Telegram rate-limit) is logged only to stderr via the existing `console.error("Failed to send lead to group:", err)`. The user still sees "✅ Заявка принята" but the operator never receives anything. Tracked in `bugs.md` as future-work entry, separate prompt.
+
+**Series close:**
+
+Б-6 fully closed:
+- Half 1 (`86e5627`): phone validation single source of truth.
+- Half 2 (this commit): submit-without-phone fallback.
+
+Lead-audit-log: future-work entry added to `bugs.md`. Separate prompt.
+
+**Files changed:**
+- `jck-auto/src/bot/handlers/request.ts`
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/rules.md` (one new row)
+- `jck-auto/knowledge/bugs.md` (Б-6 fully closed banner; Lead-audit-log future-work entry)
+- `jck-auto/knowledge/INDEX.md` (dates)
 
 ## [2026-04-25] Б-6 closed — phone validation single source of truth (lead flow, half 1 of 2)
 
