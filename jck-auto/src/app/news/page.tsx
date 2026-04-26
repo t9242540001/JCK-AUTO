@@ -1,8 +1,8 @@
 /**
  * @file page.tsx
  * @description Страница /news — каталог всех новостей (компактные карточки-превью)
- * @runs VDS (Next.js server-side, ISR revalidate=3600)
- * @lastModified 2026-04-01
+ * @runs VDS (Next.js server-side, Dynamic per-request — searchParams pagination overrides ISR)
+ * @lastModified 2026-04-25
  */
 
 import type { Metadata } from 'next';
@@ -13,6 +13,13 @@ import NewsDayCard from '@/components/news/NewsDayCard';
 import LeadFormTrigger from '@/components/LeadFormTrigger';
 import SocialFollow from '@/components/sections/SocialFollow';
 
+// @rule Reading `searchParams` (page pagination) is a Dynamic API in
+// Next.js 16 — it forces per-request rendering and OVERRIDES the
+// `revalidate` export below. The export is kept as documentation of
+// intent (cache pages where possible) but at runtime this route is
+// Dynamic. To make /news truly ISR, pagination would need to move to
+// a path-based form like `/news/page/N`. See ADR [2026-04-25] Б-14
+// closed — /news ISR drift documented.
 export const revalidate = 3600;
 
 export const metadata: Metadata = {

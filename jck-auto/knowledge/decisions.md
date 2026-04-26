@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-25
-  @version:     1.48
+  @version:     1.49
   @lines:       ~3634
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -19,6 +19,66 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-25] Б-14 closed — /news rendering mode reconciled with code shape
+
+**Status:** Accepted
+
+**Confidence:** High — the diagnosis is clear from the Next.js docs (any access to `searchParams` is a Dynamic API that overrides `revalidate`), one of the three /news routes legitimately benefits from `generateStaticParams`, the other two cannot be ISR with the current pagination shape. Changes are small and surgical.
+
+**Context:**
+
+Б-14 was logged 2026-04-24 during Blog ISR migration verification: the build summary showed `/news`, `/news/[slug]`, and `/news/tag/[tag]` all under the `ƒ (Dynamic)` marker despite each file declaring `export const revalidate = 3600` and a JSDoc header advertising "ISR revalidate=3600". Declaration ↔ runtime drift.
+
+Root-cause diagnosis (this prompt):
+- `/news/page.tsx` uses `searchParams: Promise<{ page?: string }>` for pagination (`?page=2`). Reading `searchParams` is a Dynamic API in Next.js 16; it forces per-request rendering and silently overrides any `revalidate` export on the route.
+- `/news/tag/[tag]/page.tsx` reads BOTH `params` (tag) and `searchParams` (page). Same searchParams override applies.
+- `/news/[slug]/page.tsx` does NOT use `searchParams` and only reads `params.slug`. It is forced to Dynamic for a different reason: a route with dynamic segments and NO `generateStaticParams` opts out of static rendering by Next.js 16 default. `revalidate` alone is not sufficient — without `generateStaticParams`, there's no build-time enumeration to base ISR on.
+
+The two failure modes are different and need different fixes.
+
+**Decision:**
+
+Three surgical changes:
+
+1. **`/news/[slug]/page.tsx`** — add `generateStaticParams()` reading from `getAllNewsDays()` (the existing function in `services/news/reader.ts`). Pre-renders all known slugs at build time; `dynamicParams: true` (Next.js default) means new slugs are still rendered on-demand with the existing `revalidate = 3600` window. Build summary flips this route from `ƒ (Dynamic)` to `● (SSG)` with ISR fallback. This matches the pattern applied to `/blog/[slug]` in the Blog ISR migration prompt earlier this session.
+
+2. **`/news/page.tsx`** — keep `revalidate = 3600` as documentation of intent, but add an inline `@rule` comment explicitly noting that `searchParams` access overrides the export at runtime. JSDoc `@runs` annotation updated from `ISR revalidate=3600` to `Dynamic per-request — searchParams pagination overrides ISR`. This eliminates documentation drift without changing observable behaviour.
+
+3. **`/news/tag/[tag]/page.tsx`** — same treatment as `/news/page.tsx`. Same root cause, same fix shape.
+
+The build summary after this prompt shows `/news/[slug]` as `●` (correct ISR) and `/news`, `/news/tag/[tag]` as `ƒ` (correct Dynamic — searchParams).
+
+**Alternatives considered:**
+
+- **Refactor pagination on `/news` and `/news/tag/[tag]` to path-based form `/news/page/[page]` and `/news/tag/[tag]/page/[page]`.** Rejected for this prompt — would actually flip both routes to ISR, but it's a real product change (URL shape, sitemap, internal linking, possibly SEO impact on existing crawled URLs). Significant scope, bigger blast radius. Logged as a possible future move; for Б-14 the goal was to reconcile declaration with reality, not rewrite the routing.
+- **Remove the `revalidate = 3600` exports from `/news/page.tsx` and `/news/tag/[tag]/page.tsx` since they're silently ignored.** Rejected — the export documents intent. If pagination ever changes to a non-`searchParams` shape, the export becomes effective with zero code change. Removing it would destroy that latent intent.
+- **Skip `/news/[slug]` and only fix the JSDoc/comment drift on the other two.** Rejected — `/news/[slug]` is the case where the user-perceived problem is real (new news articles take a deploy to be discoverable, same Б-12 class as Blog ISR). Fixing `/news/[slug]` for free while we're touching the route is the right thing.
+- **Switch to `force-static` + manual revalidation API call from the news cron.** Rejected — adds coupling between cron and Next.js internals (HTTP endpoint to `revalidatePath`), introduces a new failure mode. The `generateStaticParams` + `revalidate` shape is the simpler, library-supported equivalent.
+
+**Consequences:**
+
+- (+) Closes Б-14. The build summary now matches the JSDoc and comment claims for each /news route.
+- (+) `/news/[slug]` is now actually ISR — newly-generated news articles become visible within 1 hour of file creation, no deploy needed. Same UX guarantee as `/blog/[slug]`.
+- (+) `/news` and `/news/tag/[tag]` rendering is now honestly documented as Dynamic. Future readers see the comment explaining searchParams override and don't waste time wondering why their `revalidate` change has no effect.
+- (+) No URL changes, no SEO impact, no behaviour changes for users.
+- (−) `/news` and `/news/tag/[tag]` still do per-request disk reads (negligible — JSON files are <15 KB, traffic is moderate). If load grows, the path-based pagination refactor is a known follow-up.
+- (−) `getAllNewsDays()` reads the news directory at build time. On the build runner, that directory may be empty (news content lives on the VDS, not in the repo). `generateStaticParams` returns `[]` in that case, and Next.js falls back to fully on-demand ISR with `dynamicParams: true`. The first visitor to a fresh slug pays the on-demand render cost; subsequent visitors hit cache for `revalidate` seconds. This is the standard ISR-without-prebuild profile and is intentional — same as `/blog/[slug]` if blog MDX files are not in the build runner's checkout.
+
+**Verification (this prompt):**
+
+`npm run build` summary after the changes shows:
+- `● /news/[slug]` — SSG with generateStaticParams (was `ƒ`).
+- `ƒ /news` — Dynamic (correctly documented; was misleadingly under "ISR" in JSDoc).
+- `ƒ /news/tag/[tag]` — Dynamic (same).
+
+**Files changed:**
+- `jck-auto/src/app/news/page.tsx` (JSDoc + inline comment, no behaviour change)
+- `jck-auto/src/app/news/[slug]/page.tsx` (generateStaticParams added, JSDoc bump)
+- `jck-auto/src/app/news/tag/[tag]/page.tsx` (JSDoc + inline comment, no behaviour change)
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/bugs.md` (Б-14 marked closed)
+- `jck-auto/knowledge/INDEX.md` (dates)
 
 ## [2026-04-25] Б-15 closed — lead audit log (append-only JSON-line file)
 

@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-25
-  @version:     1.20
+  @version:     1.21
   @lines:       ~333
 -->
 
@@ -340,15 +340,19 @@
   card appears → close. If still fails → the old Prompt 09.3.7 plan
   (log first 500 chars of DeepSeek response on parse failure) resurfaces.
 
-### Б-14 — /news route declares ISR but renders Dynamic (declaration↔runtime drift)
-- **Files:** `src/app/news/page.tsx`, `src/app/news/[slug]/page.tsx`
-- **Symptom:** Both files have `export const revalidate = 3600;` and a JSDoc header saying `@runs VDS (Next.js server-side, ISR revalidate=3600)`. But the Next.js 16.1.6 build summary shows `/news`, `/news/[slug]`, and `/news/tag/[tag]` under the `ƒ (Dynamic)` marker with no Revalidate column — so the routes actually render dynamically per request, ignoring the declared `revalidate`.
-- **Discovered:** 2026-04-24 (build output review during prompt A — Blog ISR Migration — verification). Blog routes correctly showed `1h` in the build summary; /news did not.
-- **Impact:** None user-visible — pages work and return server-rendered HTML. Disk reads on /news happen per-request instead of per-hour. Cost is small given news JSON files are tiny (~15 KB each) and traffic is moderate. But: the author's stated intent (ISR) is not what runtime does (Dynamic). This is internal drift in our own prior work, not a misconfiguration by the operator.
-- **Hypothesis:** A transitive dynamic API inside `getNewsDaysPaginated` (likely `cookies()`, `headers()`, `unstable_noStore`, or a request-time env read) opts the route out of static/ISR behaviour. Next.js propagates dynamic-ness up the render tree, so a single dynamic call anywhere in the data path converts the whole route.
-- **Action:** NOT scheduled. Pick up when a future prompt touches `src/services/news/*` or `/news` routes. Two resolutions possible:
-  - (a) Remove whatever is forcing dynamic rendering, verify build summary flips to `1h` marker. Preferred if ISR is still the right intent.
-  - (b) Update both JSDoc headers to say "force-dynamic" and remove the misleading `revalidate` export. Preferred if dynamic rendering turns out to be the right choice on merits (e.g. if news JSON is needed fresh per request for a reason we haven't re-examined).
+### Б-14 — /news route declares ISR but renders Dynamic (declaration↔runtime drift) [Closed 2026-04-25]
+- **Files:** `src/app/news/page.tsx`, `src/app/news/[slug]/page.tsx`, `src/app/news/tag/[tag]/page.tsx`
+- **Symptom:** All three /news files had `export const revalidate = 3600;` and a JSDoc header saying `@runs ... ISR revalidate=3600`. But the Next.js 16.1.6 build summary showed every /news route under the `ƒ (Dynamic)` marker — declared ISR, actually Dynamic at runtime.
+- **Discovered:** 2026-04-24 (build output review during Blog ISR Migration verification).
+- **Root cause (2026-04-25):** Two distinct mechanisms.
+  - `/news/page.tsx` and `/news/tag/[tag]/page.tsx` use `searchParams: Promise<{ page?: string }>` for pagination. Reading `searchParams` is a Dynamic API in Next.js 16; it forces per-request rendering and silently overrides any `revalidate` export.
+  - `/news/[slug]/page.tsx` does NOT use `searchParams`, but lacked `generateStaticParams`. A route with dynamic segments and no `generateStaticParams` opts out of static/ISR rendering by default.
+- **Fix (2026-04-25):**
+  - Added `generateStaticParams()` to `/news/[slug]/page.tsx` reading slugs from `getAllNewsDays()`. Build summary flipped this route from `ƒ (Dynamic)` to `● (SSG)` with on-demand ISR for new slugs (matches `/blog/[slug]`).
+  - Updated JSDoc and added inline `@rule` comments on `/news/page.tsx` and `/news/tag/[tag]/page.tsx` documenting that `searchParams` access overrides `revalidate` at runtime. The export is kept as documentation of intent (it would become effective if pagination ever moves to a path-based form).
+- **Status:** Closed 2026-04-25.
+- **Related ADR:** `[2026-04-25] Б-14 closed — /news rendering mode reconciled with code shape`.
+- **Out-of-scope follow-up:** moving `?page=` pagination to path-based `/news/page/[N]` would let `/news` and `/news/tag/[tag]` actually be ISR. Significant scope (URL shape, sitemap, internal links, possible SEO impact). Not currently scheduled.
 
 ### Б-5 — ~10-15% car photos rejected by Telegram
 - **Symptom:** "wrong type of the web page content" via Worker, even though server returns valid JPEG
