@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-25
-  @version:     1.45
+  @version:     1.46
   @lines:       ~3634
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -19,6 +19,68 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-25] Б-6 closed — phone validation single source of truth (lead flow, half 1 of 2)
+
+**Status:** Accepted
+
+**Confidence:** High — change is mechanical (introduce two helpers, apply in four call sites), pre/post behaviour for valid inputs is identical, only invalid inputs change handling.
+
+**Context:**
+
+Bug Б-6 was first reported in March 2026 — a real user submitted a lead via the bot that arrived in the operator group with `Телефон: не указан`. Diagnosis at the time hypothesised "user typed text instead of pressing the contact button"; subsequent code in `bot.on("message")` added an inline `digits.length < 7` check that closed THAT specific path but did not address the root pattern.
+
+Reading `src/bot/handlers/request.ts` carefully reveals four entry points to `finishRequest`, each with different and inconsistent assumptions about `user.phone` validity:
+- (EP-1) `handleRequestCommand` line ~50: `if (user.phone)` — bare truthy. Legacy garbage in `users.json` (`" "`, `"+7"`, `""`) can pass or fail unpredictably depending on the exact stored string.
+- (EP-2) `bot.on("contact")`: trusts `msg.contact.phone_number` from Telegram unconditionally. Third-party clients have shipped builds where the value is empty or malformed for shared contacts.
+- (EP-3) `bot.on("message")`: inline 7-digit minimum. Accepts `1234567` as "valid digits" though it is not a real phone.
+- (EP-4) `bot.on("message")`: `if (!user) return` after savePhone — silent exit, lead lost without trace.
+
+The pattern: every path independently re-asks "is this phone OK" with a different answer. The fix is to consolidate into one helper, apply at all four sites, and add a user-visible recovery for the silent-exit path.
+
+**Decision:**
+
+Introduce two module-private helpers in `src/bot/handlers/request.ts`:
+
+```
+function normalizePhone(raw: string | undefined | null): string | null
+function hasValidPhone(user: BotUser): boolean
+```
+
+Format: 10–15 digits (E.164 range, country code optional). This intentionally rejects empty/whitespace/short input AND accepts `1234567890` (a fake number that is structurally valid). Catching "this is a fake number" requires Twilio-style lookup and is out of scope; this fix catches structural failures only.
+
+Apply at four sites:
+- EP-1: `if (user.phone)` → `if (hasValidPhone(user))`.
+- EP-2: validate `msg.contact.phone_number` via `normalizePhone`, re-arm `pendingPhone` and re-prompt on null.
+- EP-3: replace inline `digits.length < 7` with `normalizePhone`. Rejection message clarified to suggest the +7 999... format alongside the contact button.
+- EP-4: replace silent `return` with `console.error` breadcrumb + user-visible "что-то пошло не так, нажмите /start" message.
+
+Also fix a UX collision discovered while editing the message handler: the `⬅️ Отмена` button text was being processed by the message-handler as "not a phone" before the dedicated `bot.onText(/⬅️ Отмена/)` listener could handle it (race depending on listener registration order). Add an early-return for messages starting with `⬅️` in the message-handler body.
+
+**Alternatives considered:**
+
+- **Strict 11-digit Russia-only format (must start with 7 or 8).** Rejected — the business serves international clients (Korea, Japan, China imports). A foreign client with an 8-digit local number would be rejected. 10–15 digit range covers global E.164.
+- **Promote `normalizePhone` to `src/lib/phone.ts` immediately.** Rejected for this prompt; `request.ts` is the only caller. If a second caller appears (lead form on the website, customer support panel), promotion gets its own ADR — the same pattern as `withTimeout` in encar handler (С-8 close).
+- **Add Twilio Lookup or Numverify integration to validate "is this a reachable number".** Rejected — adds a third-party API dependency, latency on every lead, billing relationship. Structural validation catches the 90% case (legacy garbage, empty Telegram payloads, abc text). Real-number verification is a separate product decision.
+- **Wrap the entire entry into a single state machine class.** Rejected — over-engineering for a four-branch flow. Two helpers + four explicit call sites is more readable and easier to audit for regressions than a state machine for a 130-line file.
+- **Combine validation + "submit without phone" fallback in one prompt.** Rejected — see "Half 1 of 2" framing. The fallback is a new user flow (new keyboard button, new lead text in the operator group, new product behaviour); folding it into the validation fix would risk a rollback losing both. Half 2 follows in the next prompt.
+
+**Consequences:**
+
+- (+) Closes Б-6: every path through `finishRequest` now requires a structurally valid phone, OR returns a user-visible recovery message. No silent failures.
+- (+) Single source of truth: future code paths that need "is this phone OK" import from one helper. New path that compares `user.phone` directly is a clear regression.
+- (+) UX collision with the cancel button is fixed as a side effect.
+- (+) Console.error breadcrumb in EP-4 means a recurrence (savePhone succeeds, getUser returns undefined) is now visible in `pm2 logs jckauto-bot --err`, not silent.
+- (−) Users with legacy garbage in `users.json` (a `" "` phone) will be re-prompted for a number on their next request — a one-time mild friction. Acceptable; the alternative is a lead arriving with garbage.
+- (−) `normalizePhone` accepts `1234567890`-style fake digits. Mitigated by the human-in-the-loop in the operator group (manager calls back; if no answer, mark dead lead).
+- (−) Half 2 (submit-without-phone fallback) is not yet wired. Until then, a user who genuinely cannot share a number has no completion path. Half 2 closes that gap.
+
+**Files changed:**
+- `jck-auto/src/bot/handlers/request.ts`
+- `jck-auto/knowledge/decisions.md` (this entry)
+- `jck-auto/knowledge/rules.md` (one new row)
+- `jck-auto/knowledge/bugs.md` (Б-6 closed)
+- `jck-auto/knowledge/INDEX.md` (dates)
 
 ## [2026-04-25] С-8 closed — 30s per-arm timeout on encar AI enrichment
 
