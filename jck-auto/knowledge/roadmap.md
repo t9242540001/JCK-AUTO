@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-26
-  @version:     1.21
-  @lines:       266
+  @version:     1.22
+  @lines:       267
 -->
 
 # Roadmap
@@ -18,13 +18,14 @@
 
 ### 2026-04-26 — Переход на систему стандартов v2.0
 
-- **Сделано:** системная инструкция и контекстный файл проекта в claude.ai заменены на v2.0; добавлена секция Recent Activity, архивирован исторический хвост Done в `roadmap-archive-1.md`; создан `virtual-team.md` (постоянные участники, два режима, ростер 10 специалистов); миграция зафиксирована ADR `[2026-04-26] Переход на систему стандартов v2.0` в `decisions.md`.
-- **Прервались на:** ADR в `decisions.md` записан, `INDEX.md` финализирован — осталось закрепить поведенческий стандарт на стороне Claude Code | **Следующий шаг:** Промпт 4 — блок `## Execution Discipline` (5 Карпати-правил) в `app/jck-auto/CLAUDE.md` между `## Critical Rules` и `## Knowledge Base`.
+- **Сделано:** серия 2026-04-26-knowledge-v2 закрыта (4/4 промптов): системная инструкция и контекстный файл проекта в claude.ai заменены на v2.0; добавлена секция Recent Activity и архивирован исторический хвост Done в `roadmap-archive-1.md`; создан `virtual-team.md`; миграция зафиксирована ADR `[2026-04-26]` в `decisions.md`; блок `## Execution Discipline` (5 Карпати-правил) добавлен в `app/jck-auto/CLAUDE.md` — теперь поведенческий стандарт действует на каждом промпте для Claude Code.
+- **Прервались на:** серия v2.0 закрыта, новая система действует на всех уровнях (Claude / Claude Code / knowledge) | **Следующий шаг:** возврат к нормальной работе по новой системе; следующая запись Recent Activity создаётся при следующей рабочей сессии.
 - **Контекст:** серия из 4 промптов (1 — этот, 2 — virtual-team/rules, 3 — ADR в decisions.md + финал INDEX.md, 4 — Execution Discipline в CLAUDE.md).
 - **Ссылки:** план серии — в чате стратегического партнёра; ADR будет добавлен в Промпте 3.
 
 ## Done
 
+- [x] **2026-04-26 — Migration to standards system v2.0 (series 2026-04-26-knowledge-v2, 4/4 prompts)** — five-layer system rolled out: (1) claude.ai system instruction + (2) STANDARDS_v2.0 contextual file replaced; (3) skills already current (`prompt-writing-standard` v3.4 with T1/T2/T3 triage, `knowledge-structure` v1.6 with Recent Activity + cross-linking); (4) `## Execution Discipline` block (5 Karpathy-style rules) added to `app/jck-auto/CLAUDE.md`; (5) memory updated via `memory_user_edits`. Knowledge changes: `roadmap.md` gained `## Recent Activity` section (commit `38f76ac`), historical Done one-liners archived to `roadmap-archive-1.md` (commit `38f76ac`), `virtual-team.md` created with permanent participants + roster of 10 (commit `d5dcd9a`), ADR `[2026-04-26] Переход на систему стандартов v2.0` recorded in `decisions.md` (commit `bf9d967`), Execution Discipline block in CLAUDE.md (this commit). See `decisions.md` ADR for context, alternatives considered, and consequences.
 - [x] **2026-04-23 — Series 2.4 complete: bot result-message keyboards unified via `inlineKeyboards.ts` helpers.** Seven prompts (2.4.1–2.4.7) migrated four terminal-result handlers (auction-sheet, encar, calculator, customs, noscut) from literal `inline_keyboard: [...]` to three shared helpers (`siteAndRequestButtons`, `siteRequestAndAgainButtons`, `noscutResultButtons`). Button text, ordering, callback_data now centralized in `src/bot/lib/inlineKeyboards.ts`. Side-effect: URL bug in `noscutResultButtons()` fixed in 2.4.6 (`catalog/noscut` instead of nonexistent `tools/noscut`, `@fix 2026-04-23` marker in code). New process discipline codified in rules.md: `@fix` code marker, `@series` header marker, Conventional Commits format, mid-series bug variant B. Commits: `9639ba3` (2.4.1), `b18e117` (2.4.2), 2.4.3 closed, 2.4.4 closed, `6ab3f6e` (2.4.5), `cba938b` (2.4.6), this commit (2.4.7). See ADR `[2026-04-23] Series 2.4 complete` for full context. Out of series scope: `/noscut` state bug (empty-argument input does not transition to "awaiting query" state) still open — remains in Planned — Bot.
 - [x] 2026-04-23: Cloudflare Worker `tg-proxy` migrated from Dashboard-only to git. Three new files: `worker/tg-proxy.js` (4-mode routing code copied verbatim), `worker/wrangler.toml` (placement pinned via `mode = "smart"` + `region = "gcp:europe-west1"`), `.github/workflows/deploy-worker.yml` (auto-deploy on push to `worker/**` via `cloudflare/wrangler-action@v3`). GitHub Secrets added: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Closes Etap 1 of Cloudflare infrastructure migration. Production-verified: `cf-placement: local-ARN` (Stockholm), 0.193s latency (better than 0.227s baseline). Supersedes ADR [2026-04-20] Smart Placement via Dashboard. See ADR [2026-04-23] for full trace of the drift incident that triggered this migration. Commits: `bdc5a611` (Infra-1), `b162b2b` (Infra-1-Fix-1).
 - [x] **2026-04-22 — Customs handler refactored to use `siteRequestAndAgainButtons` helper (Prompt 2.4.5).**
