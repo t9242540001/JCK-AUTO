@@ -1,8 +1,8 @@
 /**
  * @file page.tsx
  * @description Страница фильтрации новостей по тегу /news/tag/[tag]
- * @runs VDS (Next.js server-side, ISR revalidate=3600)
- * @lastModified 2026-04-01
+ * @runs VDS (Next.js server-side, Dynamic per-request — searchParams pagination overrides ISR)
+ * @lastModified 2026-04-25
  */
 
 import type { Metadata } from 'next';
@@ -13,6 +13,9 @@ import { getTagStyle } from '@/lib/newsTagColors';
 import { CONTACTS } from '@/lib/constants';
 import NewsDayCard from '@/components/news/NewsDayCard';
 
+// @rule Same as /news: `searchParams` (page pagination) forces Dynamic
+// rendering, overriding the `revalidate` export. Kept for intent
+// documentation. See ADR [2026-04-25] Б-14 closed — /news ISR drift.
 export const revalidate = 3600;
 
 const TAG_DESCRIPTIONS: Record<string, string> = {

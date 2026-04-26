@@ -1,8 +1,8 @@
 /**
  * @file page.tsx
  * @description Детальная страница новостей /news/YYYY-MM-DD-slug
- * @runs VDS (Next.js server-side, ISR revalidate=3600)
- * @lastModified 2026-04-01
+ * @runs VDS (Next.js server-side, ISR revalidate=3600 + generateStaticParams)
+ * @lastModified 2026-04-25
  */
 
 import type { Metadata } from 'next';
@@ -10,11 +10,20 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Send } from 'lucide-react';
-import { getNewsBySlug } from '@/services/news/reader';
+import { getNewsBySlug, getAllNewsDays } from '@/services/news/reader';
 import { getTagStyle } from '@/lib/newsTagColors';
 import { CONTACTS } from '@/lib/constants';
 
 export const revalidate = 3600;
+
+// @rule Without generateStaticParams, Next.js 16 falls back to Dynamic
+// rendering for routes with dynamic segments — `revalidate` is ignored
+// and the page is server-rendered per request. Pre-rendering known
+// slugs at build time + ISR for new slugs is the intentional shape
+// (matches /blog/[slug]). See ADR [2026-04-25] Б-14 closed.
+export function generateStaticParams() {
+  return getAllNewsDays().map((day) => ({ slug: day.slug }));
+}
 
 interface NewsSlugPageProps {
   params: Promise<{ slug: string }>;
