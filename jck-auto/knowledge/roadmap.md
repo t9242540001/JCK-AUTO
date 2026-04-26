@@ -16,6 +16,16 @@
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
 
+### 2026-04-26 — Roadmap sync: dropped 3 ложно-открытых пункта
+
+- **Сделано:** аудит реального состояния кода против Planned — Site выявил 3 пункта, давно закрытых в коде, но висевших как открытые. Перенесены в Done с реальными датами:
+  (1) `/tools/auction-sheet` honest texts — закрыто 2026-04-19;
+  (2) "Оставить заявку — перезвоним" на странице авто — закрыто 2026-02-16 через `CarSidebarActions` + `LeadFormModal`;
+  (3) картинки в первые 12 статей блога — закрыто 2026-04-19 (commit `bd23cf60`).
+- **Прервались на:** roadmap синхронизирован, дальше — работа по реальной очереди (Б-4 кнопки бота — следующий промпт).
+- **Контекст:** аудит 27 пунктов очереди вскрыл систематический drift между roadmap и кодом. Часть пунктов сделана, но не вычеркнута. Это профилактический cleanup.
+- **Ссылки:** этот промпт (sync-roadmap-2026-04-26).
+
 ### 2026-04-26 — Переход на систему стандартов v2.0
 
 - **Сделано:** серия 2026-04-26-knowledge-v2 закрыта (4/4 промптов): системная инструкция и контекстный файл проекта в claude.ai заменены на v2.0; добавлена секция Recent Activity и архивирован исторический хвост Done в `roadmap-archive-1.md`; создан `virtual-team.md`; миграция зафиксирована ADR `[2026-04-26]` в `decisions.md`; блок `## Execution Discipline` (5 Карпати-правил) добавлен в `app/jck-auto/CLAUDE.md` — теперь поведенческий стандарт действует на каждом промпте для Claude Code.
@@ -25,6 +35,9 @@
 
 ## Done
 
+- [x] **2026-04-19 — `/tools/auction-sheet` honest texts.** Заменены три обещания, расходящиеся с реальностью: «15 секунд» → «20–60 секунд» в hero/metadata/openGraph/JSON-LD; FAQ #3 «3 в день» → «3 за всё время для анонимов, 10/день через Telegram»; FAQ #5 ссылка на переименованный блок «Дополнительный текст с листа». Файл: src/app/tools/auction-sheet/page.tsx.
+- [x] **2026-04-19 — Картинки в первые 12 статей блога.** Все 12 старейших статей в `content/blog/*.mdx` имеют `image:` frontmatter, файлы лежат в `public/images/blog/`. Закрыто коммитом `bd23cf60` (Auto-merge claude/faq-heading-per-tool into main).
+- [x] **2026-02-16 — Кнопка «Оставить заявку» на странице авто.** Main CTA «Оставить заявку — перезвоним» в `CarSidebarActions` открывает `LeadFormModal` → `/api/lead` → группа менеджеров. Плюс `LeadFormTrigger` для «Узнать цену» (когда цена по запросу) и для оптовых покупателей. Plus `CarCtaActions` в финальной CTA-секции страницы. Файлы: src/components/catalog/CarSidebarActions.tsx, src/components/catalog/CarCtaActions.tsx, src/app/catalog/cars/[id]/page.tsx.
 - [x] **2026-04-26 — Migration to standards system v2.0 (series 2026-04-26-knowledge-v2, 4/4 prompts)** — five-layer system rolled out: (1) claude.ai system instruction + (2) STANDARDS_v2.0 contextual file replaced; (3) skills already current (`prompt-writing-standard` v3.4 with T1/T2/T3 triage, `knowledge-structure` v1.6 with Recent Activity + cross-linking); (4) `## Execution Discipline` block (5 Karpathy-style rules) added to `app/jck-auto/CLAUDE.md`; (5) memory updated via `memory_user_edits`. Knowledge changes: `roadmap.md` gained `## Recent Activity` section (commit `38f76ac`), historical Done one-liners archived to `roadmap-archive-1.md` (commit `38f76ac`), `virtual-team.md` created with permanent participants + roster of 10 (commit `d5dcd9a`), ADR `[2026-04-26] Переход на систему стандартов v2.0` recorded in `decisions.md` (commit `bf9d967`), Execution Discipline block in CLAUDE.md (this commit). See `decisions.md` ADR for context, alternatives considered, and consequences.
 - [x] **2026-04-23 — Series 2.4 complete: bot result-message keyboards unified via `inlineKeyboards.ts` helpers.** Seven prompts (2.4.1–2.4.7) migrated four terminal-result handlers (auction-sheet, encar, calculator, customs, noscut) from literal `inline_keyboard: [...]` to three shared helpers (`siteAndRequestButtons`, `siteRequestAndAgainButtons`, `noscutResultButtons`). Button text, ordering, callback_data now centralized in `src/bot/lib/inlineKeyboards.ts`. Side-effect: URL bug in `noscutResultButtons()` fixed in 2.4.6 (`catalog/noscut` instead of nonexistent `tools/noscut`, `@fix 2026-04-23` marker in code). New process discipline codified in rules.md: `@fix` code marker, `@series` header marker, Conventional Commits format, mid-series bug variant B. Commits: `9639ba3` (2.4.1), `b18e117` (2.4.2), 2.4.3 closed, 2.4.4 closed, `6ab3f6e` (2.4.5), `cba938b` (2.4.6), this commit (2.4.7). See ADR `[2026-04-23] Series 2.4 complete` for full context. Out of series scope: `/noscut` state bug (empty-argument input does not transition to "awaiting query" state) still open — remains in Planned — Bot.
 - [x] 2026-04-23: Cloudflare Worker `tg-proxy` migrated from Dashboard-only to git. Three new files: `worker/tg-proxy.js` (4-mode routing code copied verbatim), `worker/wrangler.toml` (placement pinned via `mode = "smart"` + `region = "gcp:europe-west1"`), `.github/workflows/deploy-worker.yml` (auto-deploy on push to `worker/**` via `cloudflare/wrangler-action@v3`). GitHub Secrets added: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Closes Etap 1 of Cloudflare infrastructure migration. Production-verified: `cf-placement: local-ARN` (Stockholm), 0.193s latency (better than 0.227s baseline). Supersedes ADR [2026-04-20] Smart Placement via Dashboard. See ADR [2026-04-23] for full trace of the drift incident that triggered this migration. Commits: `bdc5a611` (Infra-1), `b162b2b` (Infra-1-Fix-1).
@@ -179,10 +192,7 @@
 ## Planned — Site
 
 - [ ] Mobile responsiveness — full page-by-page audit
-- [ ] Add images to first 12 blog articles
 - [ ] Register in Yandex.Webmaster and Google Search Console
-- [ ] "Leave request" button on car detail page → /api/lead → managers group
-- [ ] `/tools/auction-sheet` page texts honesty fix — hero subtitle, metadata.description, openGraph.description, webAppJsonLd.description all promise "15 seconds" but the real pipeline takes 20–60 seconds (up to 2 minutes for handwritten sheets). FAQ item #3 says "3 расшифровки в день бесплатно" — incorrect, the anonymous limit is 3 LIFETIME requests (verified in rateLimiter.ts @rule ANONYMOUS); authenticated users get 10/day. FAQ item #5 references the old "Не распознано" block, renamed to "Дополнительный текст с листа" in prompt 08. Single-file fix on src/app/tools/auction-sheet/page.tsx.
 - [ ] AuctionSheetClient polling hook extraction — orchestrator is 368 lines post-series, target <200 lines requires extracting pollJob + session restore useEffect into a custom hook (useAuctionSheetJob). Deferred — accepted as out-of-scope in ADR [2026-04-18] "AuctionSheetClient split complete".
 - [ ] Site: unify CTA style across conversion surfaces. Target pattern is **inline buttons** with site link + LeadFormTrigger ("Оставить заявку"), as used on `/tools/encar` result view. Audit candidates: all `/services`-labelled pages (/tools/*), car detail pages, noscut detail pages, any other result view that currently shows a plain text link or a lone phone button. Consistency gain: users always see the same "get-in-touch" affordance regardless of which tool they use.
 
