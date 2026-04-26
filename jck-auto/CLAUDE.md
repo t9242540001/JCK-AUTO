@@ -16,6 +16,16 @@ node-telegram-bot-api, PDFKit, DashScope (Qwen), DeepSeek. Storage: JSON files o
 4. **Клиентские компоненты** — курсы через `/api/exchange-rates`, НЕ через `fetchCBRRates()`
 5. **Калькулятор** — граница 5 лет включительно, утильсбор: ОБА условия (≤160 л.с. И ≤3 л)
 
+## Execution Discipline
+
+Universal behavioral standard for every task in this project. Applies in addition to Critical Rules above.
+
+1. **Don't guess — ask.** If the task allows multiple valid implementations, stop and ask before coding.
+2. **Senior-engineer simplicity filter.** Before finalizing implementation, ask: "Would a senior engineer call this overengineered?" If yes, simplify.
+3. **Strict scope discipline.** Touch only what the task explicitly names. No improvements to adjacent code, no opportunistic refactors, no consistency fixes outside the stated scope.
+4. **Goal over steps.** When the user describes the goal, find the right algorithm yourself. When the user prescribes steps and they don't reach the goal — flag the contradiction, don't blindly follow.
+5. **Sustainable solutions.** Prefer fixes that prevent recurrence over fixes that just stop the symptom. If a quick fix and a durable fix differ — name both, recommend the durable one, let the user choose.
+
 ## Knowledge Base
 
 Полная документация проекта: **[knowledge/INDEX.md](knowledge/INDEX.md)**
