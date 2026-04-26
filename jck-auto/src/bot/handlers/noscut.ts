@@ -37,6 +37,21 @@ interface NoscutEntry {
   components: string[];
 }
 
+// ─── AWAITING-QUERY STATE ─────────────────────────────────────────────────────
+
+interface AwaitingState {
+  setAt: number; // ms epoch
+}
+
+const AWAITING_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const awaitingQuery = new Map<number, AwaitingState>();
+
+function isAwaitingValid(state: AwaitingState | undefined): state is AwaitingState {
+  if (!state) return false;
+  if (Date.now() - state.setAt > AWAITING_TTL_MS) return false;
+  return true;
+}
+
 // ─── CATALOG CACHE ────────────────────────────────────────────────────────────
 
 let catalogCache: NoscutEntry[] | null = null;
@@ -94,6 +109,7 @@ export function registerNoscutHandler(bot: TelegramBot): void {
         chatId,
         'Укажите марку или модель после команды.\n\nПримеры:\n/noscut Toyota RAV4\n/noscut Hyundai\n/noscut BMW X5',
       );
+      awaitingQuery.set(chatId, { setAt: Date.now() });
       return;
     }
 
@@ -144,6 +160,81 @@ export function registerNoscutHandler(bot: TelegramBot): void {
     });
 
     // 6. Record usage AFTER successful send
+    recordBotUsage(telegramId, 'calc');
+    incrementCommand('noscut');
+  });
+
+  bot.on('message', async (msg) => {
+    // Filter: must have text, must not be a command, must not be a photo,
+    //         must not be an encar.com URL (those are handled elsewhere).
+    if (!msg.text) return;
+    if (msg.text.startsWith('/')) return;
+    if (msg.photo) return;
+    if (msg.text.includes('encar.com')) return;
+
+    const chatId = msg.chat.id;
+    const state = awaitingQuery.get(chatId);
+    if (!isAwaitingValid(state)) {
+      // Lazy cleanup of expired state.
+      if (state) awaitingQuery.delete(chatId);
+      return;
+    }
+
+    // State is valid — consume it and run the same search path.
+    awaitingQuery.delete(chatId);
+
+    const telegramId = String(msg.from?.id ?? chatId);
+    const query = msg.text.trim();
+
+    // Empty trimmed text — silently ignore (don't re-set state, don't reply).
+    if (!query) return;
+
+    // Rate limit check (same as the slash-command path).
+    const limitCheck = checkBotLimit(telegramId, 'calc');
+    if (!limitCheck.allowed) {
+      bot.sendMessage(chatId, getBotLimitMessage(limitCheck));
+      return;
+    }
+
+    // Search.
+    let results: NoscutEntry[];
+    try {
+      results = searchNoscut(query);
+    } catch (err) {
+      console.error('[noscut] catalog read error:', err);
+      bot.sendMessage(chatId, 'Не удалось загрузить каталог. Попробуйте позже.');
+      return;
+    }
+
+    // No results.
+    if (results.length === 0) {
+      await bot.sendMessage(
+        chatId,
+        `По запросу «${query}» ноускатов не найдено.\n\nОставьте заявку — менеджер подберёт вариант вручную.`,
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: 'Оставить заявку', callback_data: 'request_start' },
+            ]],
+          },
+        },
+      );
+      recordBotUsage(telegramId, 'calc');
+      incrementCommand('noscut');
+      return;
+    }
+
+    // Send results.
+    const header = results.length === 1
+      ? `🔧 Найден 1 вариант по запросу «${query}»:\n\n`
+      : `🔧 Найдено ${results.length} вариантов по запросу «${query}»:\n\n`;
+
+    const text = header + formatResults(results);
+
+    await bot.sendMessage(chatId, text, {
+      reply_markup: noscutResultButtons(),
+    });
+
     recordBotUsage(telegramId, 'calc');
     incrementCommand('noscut');
   });
