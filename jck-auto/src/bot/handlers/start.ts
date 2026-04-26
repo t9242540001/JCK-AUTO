@@ -34,6 +34,10 @@ async function sendStartMessage(bot: TelegramBot, chatId: number, userId?: numbe
             { text: "Рассчитать стоимость", callback_data: "calc_start" },
             { text: "Каталог", callback_data: "catalog" },
           ],
+          [
+            { text: "🔍 Расшифровать аукционный лист", callback_data: "auction_info" },
+            { text: "🇰🇷 Анализ авто с Encar", callback_data: "encar_info" },
+          ],
           [{ text: "Связаться", callback_data: "contact" }],
           [{
             text: "📤 Поделиться ботом",
@@ -130,6 +134,36 @@ export function registerStartHandler(bot: TelegramBot) {
     } else if (query.data === "contact") {
       bot.answerCallbackQuery(query.id);
       handleContactCommand(bot, chatId);
+    } else if (query.data === "auction_info") {
+      bot.answerCallbackQuery(query.id);
+      bot.sendMessage(
+        chatId,
+        [
+          "🔍 *Расшифровка аукционного листа*",
+          "",
+          "Отправьте мне фотографию японского аукционного листа (USS, TAA, HAA, JU и др.) — AI распознает оценку, дефекты, комплектацию и переведёт на русский.",
+          "",
+          "Поддерживаются JPG, PNG, WebP, HEIC. Размер до 5 МБ.",
+          "",
+          "Без авторизации — 3 расшифровки за всё время. Через сайт с авторизацией Telegram — 10/день.",
+        ].join("\n"),
+        { parse_mode: "Markdown" },
+      );
+    } else if (query.data === "encar_info") {
+      bot.answerCallbackQuery(query.id);
+      bot.sendMessage(
+        chatId,
+        [
+          "🇰🇷 *Анализ авто с Encar.com*",
+          "",
+          "Отправьте ссылку на автомобиль с encar.com — я подтяну характеристики, цену, фото, состояние и рассчитаю стоимость под ключ до Владивостока.",
+          "",
+          "Пример ссылки: https://fem.encar.com/cars/detail/12345678",
+          "",
+          "5 анализов в сутки.",
+        ].join("\n"),
+        { parse_mode: "Markdown" },
+      );
     }
   });
 }
