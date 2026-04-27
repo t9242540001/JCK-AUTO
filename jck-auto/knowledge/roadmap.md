@@ -16,6 +16,14 @@
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
 
+### 2026-04-26 — С-2 закрыт + регистрация strategic init #4 (a11y миграция)
+
+- **Сделано:** site-wide cursor-pointer фикс закрыт коммитом `196ac3d`. Аудит подтвердил 0 оставшихся `<div onClick>` без cursor-pointer. Добавлено правило `@rule cursor-pointer on clickable non-button elements` в `knowledge/rules.md` (UI/UX section). С-2 в `bugs.md` помечен Closed 2026-04-26.
+- **Параллельно:** Strategic initiative #4 "Accessibility migration — clickable non-button elements to native <button>" зарегистрирована в `roadmap.md` коммитом `7d0d0e4`. Cursor-pointer закрыл видимый симптом; полная a11y-миграция (keyboard nav, screen reader semantics, focus styles) — отдельная T3-серия на будущее.
+- **Контекст:** Пара промптов 08a (registrtaion) + 08 (audit/fix). Промпт 08 в момент исполнения обнаружил, что фикс уже на месте (no-op outcome) — это дало прозрачную сверку, что задача действительно выполнена.
+- **Прервались на:** один день закрыли четыре баг-класса (С-2, Б-13/Б-9 chain через 5a, /noscut state, Б-4 кнопки), плюс несколько техдолгов. Дальше — следующая позиция в очереди (Phase 2 мониторинг тарифов, либо С-2 audit register #4, либо что укажет стратегический партнёр).
+- **Ссылки:** `196ac3d` (cursor-pointer fix), `7d0d0e4` (strategic init #4), этот промпт (close-c2-bugs-md).
+
 ### 2026-04-26 — Roadmap sync: dropped 3 ложно-открытых пункта
 
 - **Сделано:** аудит реального состояния кода против Planned — Site выявил 3 пункта, давно закрытых в коде, но висевших как открытые. Перенесены в Done с реальными датами:

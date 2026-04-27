@@ -231,11 +231,15 @@
 - **Related ADR:** `[2026-04-25] Б-15 closed — lead audit log (append-only JSON-line file)`.
 - **Operational note:** if the bot runs under a different `STORAGE_PATH` than the default, set the env var in `ecosystem.config.js`. `logrotate.conf` should add the new path if not already covered.
 
-### С-2 — cursor does not change to pointer on clickable elements
+### С-2 — cursor does not change to pointer on clickable elements [Closed 2026-04-26]
 - **Pages:** site-wide. Confirmed example: file upload button on /tools/auction-sheet
 - **Cause:** clickable elements rendered as <div> or <a> without href, missing cursor: pointer
 - **Action:** audit site-wide, ensure either <button> or Tailwind `cursor-pointer` class.
   Add to shared-mechanics.md design system: every clickable element must show pointer cursor.
+- **Fix (2026-04-26):** site-wide audit + targeted fixes in commit `196ac3d`. Five `<div onClick>` elements in `LeadFormTrigger.tsx`, `LeadFormModal.tsx`, `catalog/CarCard.tsx`, `noscut/NoscutCard.tsx`, `tools/encar/EncarClient.tsx` received `cursor-pointer` Tailwind class. Other `<div onClick>` occurrences are stopPropagation-only modal-body wrappers (not user-clickable in UX sense). Native `<button>`, `<a href>`, and `<Link>` elements left untouched (browser default cursor is correct). Verification audit on the same day confirmed 0 remaining clickable non-button elements without cursor-pointer.
+- **Prevention:** new `@rule cursor-pointer on clickable non-button elements` entry added to `knowledge/rules.md` (UI/UX section) — same commit. Captures the rule so future code with `<div onClick>` carries cursor-pointer by default.
+- **Long-term follow-up:** strategic initiative #4 registered in roadmap.md (commit `7d0d0e4`) — full a11y migration of clickable non-button elements to native `<button>` for keyboard navigation, screen-reader semantics, and focus styles. Cursor-pointer was the visible symptom; that initiative will address the underlying accessibility gap.
+- **Status:** Closed 2026-04-26.
 
 ### Б-4 — no menu buttons for auction sheet and Encar in bot
 - **File:** src/bot/handlers/start.ts
