@@ -8,6 +8,7 @@
  *               src/lib/auctionSheetQueue (auctionSheetQueue, QueueFullError),
  *               src/lib/botRateLimiter (checkBotLimit, recordBotUsage, getBotLimitMessage),
  *               src/bot/lib/inlineKeyboards (siteAndRequestButtons),
+ *               src/bot/handlers/request (pendingSource),
  *               sharp 0.34.5 (image compression),
  *               TELEGRAM_BOT_TOKEN, TELEGRAM_API_BASE_URL env vars
  * @rule        File download MUST use TELEGRAM_API_BASE_URL, never api.telegram.org
@@ -28,7 +29,7 @@
  * @rule        Result keyboard MUST be attached to the LAST chunk only,
  *              never to intermediate chunks. Use the shared helper
  *              siteAndRequestButtons from src/bot/lib/inlineKeyboards.
- * @lastModified 2026-04-21
+ * @lastModified 2026-04-27
  */
 
 import TelegramBot from 'node-telegram-bot-api';
@@ -41,6 +42,7 @@ import {
 } from '../../lib/auctionSheetService';
 import { auctionSheetQueue, QueueFullError } from '../../lib/auctionSheetQueue';
 import { siteAndRequestButtons } from '../lib/inlineKeyboards';
+import { pendingSource } from './request';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -420,6 +422,7 @@ export function registerAuctionSheetHandler(bot: TelegramBot): void {
       const text = formatAuctionResult(data);
       const chunks = splitMessage(text);
       const keyboard = siteAndRequestButtons('https://jckauto.ru/tools/auction-sheet');
+      pendingSource.set(chatId, 'Telegram-бот: расшифровка аукционного листа');
       for (let i = 0; i < chunks.length; i++) {
         const isLast = i === chunks.length - 1;
         await bot.sendMessage(
