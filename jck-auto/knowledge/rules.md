@@ -130,6 +130,17 @@
 |------|----------|-------------|
 | `<LeadFormTrigger triggerVariant>` MUST match the surrounding background: `"primary"` or `"outline"` on light/neutral bg; `"on-primary"` (white fill + primary text) on `bg-primary` (or any coloured) section. Never use `"outline"` on `bg-primary` — text-primary on bg-primary is invisible. When adding a new variant, extend the `switch` in `LeadFormTrigger.tsx` AND the `triggerVariant` union type; the `_exhaustive: never` check will break the build if a case is missed | `src/components/LeadFormTrigger.tsx`, all consumers in `/tools/*`, `/catalog/*`, `/news/*` | Invisible CTA button — users see only the secondary "Позвонить" link, lead flow collapses silently. C-3 shipped in production for weeks before being noticed |
 
+## UI/UX
+
+- **@rule cursor-pointer on clickable non-button elements.**
+  Native `<button>` and `<a href=>` get pointer-cursor from the browser
+  automatically. Any other clickable element (`<div onClick>`,
+  `<span onClick>`, `<li onClick>`, `<label>` without htmlFor, etc.) MUST
+  carry `cursor-pointer` in its className. Without it, hovering over a
+  clickable feels dead — the user can't tell what's interactive.
+  Closes С-2 (2026-04-26). Migration to native `<button>` for
+  accessibility is tracked separately as a future T3 series.
+
 ## Architecture Rules
 
 - **Auction-sheet pipeline lives in exactly one place.** The SYSTEM_PROMPT,

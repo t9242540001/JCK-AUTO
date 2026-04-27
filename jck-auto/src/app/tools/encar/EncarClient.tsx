@@ -376,7 +376,7 @@ export default function EncarClient() {
           {/* Lightbox */}
           {lightboxOpen && result.photoUrls[0] && (
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+              className="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-black/90 p-4"
               onClick={() => setLightboxOpen(false)}
               role="dialog"
               aria-modal="true"
