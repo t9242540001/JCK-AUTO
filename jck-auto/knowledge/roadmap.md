@@ -16,6 +16,25 @@
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
 
+### 2026-04-26 — Большая рабочая сессия: 11 коммитов, 8 закрытых задач
+
+- **Сделано (по коммитам, в порядке хронологии):**
+  - `a3f3fcf` — синхронизация roadmap (3 ложно-открытых пункта в Done) — отдельная Recent Activity запись ниже.
+  - `6d8d3d5` — удалён workflow `audit-vds.yml` из main (cleanup leaked-secret хвоста, force-push на feature-ветке `claude/audit-mcp-gateway-lightrag` отдельно).
+  - `502d818` — **Б-4 закрыт**: добавлены inline-кнопки `🔍 Расшифровать аукционный лист` и `🇰🇷 Анализ авто с Encar` в стартовое меню бота с инструкциями.
+  - `0a5eee4` — **/noscut state machine**: per-chat `awaitingQuery` Map с TTL 5 минут, следующее plain-text сообщение после пустого `/noscut` обрабатывается как поисковый запрос.
+  - `e8df54a` — **Промпт 2.3 (auction-sheet progress indicator)**: `editMessageText` на 30s/60s/90s thresholds, пользователь видит движение вместо тишины.
+  - `b454912` — **`await handleRequestCommand` в catalog.ts:375** (вместо запланированного `void`): callback уже async, sibling calls awaited — `await` это правильный фикс floating-promise.
+  - `f90d7e5` — **users.ts Phase 5a (sync-init internal)**: load на старте через `loadUsers()` в index.ts (паттерн `fileIdCache.loadCache`), public API сохранён async для backward compatibility, Phase 5b после 24h soak.
+  - `0a2fbd9` — **AuctionSheetClient polling hook extraction**: новый `useAuctionSheetJob` hook с discriminated-union `JobState` (6 phases), orchestrator -133 строки.
+  - `196ac3d` — **С-2 закрыт**: site-wide cursor-pointer на 5 `<div onClick>` + `@rule` в knowledge/rules.md.
+  - `7d0d0e4` — Strategic initiative #4 "A11y миграция clickable non-button → native button" зарегистрирована в roadmap.
+  - `e24bbb1` — С-2 формально закрыт в bugs.md, Recent Activity запись добавлена.
+- **Прервались на:** конец дня. На следующую сессию ждём 24h soak users.ts Phase 5a → запускаем Phase 5b. Зарегистрированы два новых бага по боту (Б-новый-A, Б-новый-B).
+- **Контекст:** утренний аудит вскрыл systematic drift roadmap vs кодом (3 ложно-открытых пункта). Сегодня же мы закрыли 8 задач, но по той же небрежности упустили обновление roadmap/bugs/decisions для каждой. Этот промпт — массовая синхронизация хвоста дня + регистрация двух новых бугов.
+- **Структурные уроки дня (зафиксированы в моей памяти):** (1) knowledge/ как источник истины — не доверять userMemories старше нескольких дней; (2) LightRAG не используется, читать через fs_read_file; (3) один промпт = одно сообщение пользователю; (4) читай реальный файл перед каждым промптом; (5) "отложить серией позже" = сразу регистрировать в roadmap.
+- **Ссылки:** все 11 коммитов в main; этот промпт — sync-knowledge-2026-04-26-evening.
+
 ### 2026-04-26 — С-2 закрыт + регистрация strategic init #4 (a11y миграция)
 
 - **Сделано:** site-wide cursor-pointer фикс закрыт коммитом `196ac3d`. Аудит подтвердил 0 оставшихся `<div onClick>` без cursor-pointer. Добавлено правило `@rule cursor-pointer on clickable non-button elements` в `knowledge/rules.md` (UI/UX section). С-2 в `bugs.md` помечен Closed 2026-04-26.
@@ -43,6 +62,14 @@
 
 ## Done
 
+- [x] **2026-04-26 — `0a2fbd9` AuctionSheetClient polling hook extraction.** Новый hook `src/app/tools/auction-sheet/useAuctionSheetJob.ts` (~335 строк) владеет polling lifecycle: AbortController, recursive setTimeout, exponential backoff (2/4/8/16/32, cap 60s), localStorage/sessionStorage ownership protocol, processing-stage rotation, session restore. Возвращает discriminated union `JobState` с 6 фазами (idle/queued/processing/done/failed/lost). Orchestrator (`AuctionSheetClient.tsx`) сократился с 436 до 303 строк, реагирует на phase changes одним useEffect со switch'ем — exhaustiveness check от TypeScript. Wire protocol byte-identical (POST /api/tools/auction-sheet, GET /api/tools/auction-sheet/job/{id} каждые 2s). Pure refactor, no behavioral change. См. ADR `[2026-04-26] useAuctionSheetJob discriminated-union pattern`.
+- [x] **2026-04-26 — `f90d7e5` users.ts Phase 5a (sync-init internal).** `src/bot/store/users.ts` теперь загружает `users.json` через `fs.readFileSync` на старте бота (вызов `loadUsers()` в `src/bot/index.ts` рядом с `loadCache()`). Public API сохранён async для backward compatibility — saveUser, savePhone, getAllUsers, getUsersStats, ensureUsersLoaded остаются async. `getUser` остаётся sync БЕЗ defensive guard — это canary для init-order regressions. Phase 5b (honest sync API + удаление `await` в 11 call sites) запланирована после 24+ часов production soak. Корень класса Б-9 структурно закрыт: race condition между sync getUser и async loadUsers больше не возникает. См. ADR `[2026-04-26] users.ts sync-init two-phase refactor`.
+- [x] **2026-04-26 — `b454912` `await handleRequestCommand` в catalog.ts:375.** Было: floating promise `handleRequestCommand(bot, chatId, groupChatId)` внутри `bot.on("callback_query", async (query) => {...})`. Стало: `await handleRequestCommand(...)`. Roadmap пункт упоминал `void prefix` как фикс — диагностика реального файла показала, что callback async, sibling calls (sendCarCard, editCarCard) awaited, и handleRequestCommand имеет нетривиальные side-effects (savePhone, lead-log, group message), которые нужно завершить до возврата из callback. `await` — корректный фикс класса бага, `void` лишь подавил бы lint warning без устранения race condition.
+- [x] **2026-04-26 — `e8df54a` auction-sheet progress indicator (Промпт 2.3).** Сообщение «🔍 Анализирую аукционный лист... обычно занимает 20–60 секунд» теперь самообновляется через `editMessageText` на трёх thresholds: 30s «Распознаю текст и таблицы...», 60s «Извлекаю смысл и перевожу...», 90s «⏳ Анализ занимает дольше обычного. Подождите ещё немного...». Тексты motivational, не привязаны к реальным стадиям пайплайна (бот polls очередь, не имеет introspection). `lastFiredThresholdIndex` cursor предотвращает повторные edits. Edit failures non-fatal (caught and logged). Final result/error сообщения остаются SEPARATE messages чтобы сохранить inline keyboard.
+- [x] **2026-04-26 — `0a5eee4` /noscut state machine.** Per-chat in-memory Map `awaitingQuery` с TTL 5 минут (паттерн из `calculator.ts`). После пустого `/noscut` бот ставит state, следующее plain-text сообщение в окне обрабатывается как поисковый запрос. Filter guards: `!msg.text`, `startsWith('/')`, `msg.photo`, `includes('encar.com')` — защита от хайджека сообщений идущих в auctionSheet/encar handlers. Lazy cleanup expired states. Дублирование rate-limit + search + format кода со slash-command branch — намеренно (DRY-extract запланирован follow-up'ом).
+- [x] **2026-04-26 — `502d818` Б-4 закрыт: кнопки auction-sheet и encar в start menu бота.** Добавлены два inline-кнопки в стартовую клавиатуру `src/bot/handlers/start.ts`: `🔍 Расшифровать аукционный лист` (callback `auction_info`) и `🇰🇷 Анализ авто с Encar` (callback `encar_info`). Обе кнопки шлют instruction-сообщение, объясняющее как использовать фичу (отправить фото / отправить ссылку). Не вызывают команды напрямую, потому что underlying handlers триггерятся через `bot.on('message')` с photo/url-pattern, не через slash-команды. Финальная структура клавиатуры: [Calc][Catalog] / [Auction][Encar] / [Связаться] / [📤 Поделиться].
+- [x] **2026-04-26 — `196ac3d` site-wide cursor-pointer fix (С-2).** Audit + fix: 5 `<div onClick>` элементов в `LeadFormTrigger.tsx`, `LeadFormModal.tsx`, `catalog/CarCard.tsx`, `noscut/NoscutCard.tsx`, `tools/encar/EncarClient.tsx` получили `cursor-pointer` Tailwind класс. Прочие `<div onClick>` — stopPropagation-only modal-body wrappers (не user-clickable). Native `<button>`, `<a href>`, `<Link>` оставлены — браузер сам ставит pointer. Audit подтвердил 0 оставшихся gaps. Добавлен `@rule cursor-pointer on clickable non-button elements` в `knowledge/rules.md` (UI/UX section). Длинная a11y-миграция — Strategic initiative #4.
+- [x] **2026-04-26 — `6d8d3d5` cleanup audit-vds.yml workflow.** One-shot workflow для read-only обхода `/opt/ai-knowledge-system/` удалён из main. Параллельно force-push reset feature-ветки `claude/audit-mcp-gateway-lightrag` на merge-base убрал commit `bf3a458` с незаредактированным `LIGHTRAG_API_KEY` из reachable git refs. GitHub commit cache держит коммит ~90 дней (нормальная GC), затем недоступен. Ключ деактивирован; cleanup — гигиена, не security incident.
 - [x] **2026-04-19 — `/tools/auction-sheet` honest texts.** Заменены три обещания, расходящиеся с реальностью: «15 секунд» → «20–60 секунд» в hero/metadata/openGraph/JSON-LD; FAQ #3 «3 в день» → «3 за всё время для анонимов, 10/день через Telegram»; FAQ #5 ссылка на переименованный блок «Дополнительный текст с листа». Файл: src/app/tools/auction-sheet/page.tsx.
 - [x] **2026-04-19 — Картинки в первые 12 статей блога.** Все 12 старейших статей в `content/blog/*.mdx` имеют `image:` frontmatter, файлы лежат в `public/images/blog/`. Закрыто коммитом `bd23cf60` (Auto-merge claude/faq-heading-per-tool into main).
 - [x] **2026-02-16 — Кнопка «Оставить заявку» на странице авто.** Main CTA «Оставить заявку — перезвоним» в `CarSidebarActions` открывает `LeadFormModal` → `/api/lead` → группа менеджеров. Плюс `LeadFormTrigger` для «Узнать цену» (когда цена по запросу) и для оптовых покупателей. Plus `CarCtaActions` в финальной CTA-секции страницы. Файлы: src/components/catalog/CarSidebarActions.tsx, src/components/catalog/CarCtaActions.tsx, src/app/catalog/cars/[id]/page.tsx.
@@ -201,20 +228,14 @@
 
 - [ ] Mobile responsiveness — full page-by-page audit
 - [ ] Register in Yandex.Webmaster and Google Search Console
-- [ ] AuctionSheetClient polling hook extraction — orchestrator is 368 lines post-series, target <200 lines requires extracting pollJob + session restore useEffect into a custom hook (useAuctionSheetJob). Deferred — accepted as out-of-scope in ADR [2026-04-18] "AuctionSheetClient split complete".
 - [ ] Site: unify CTA style across conversion surfaces. Target pattern is **inline buttons** with site link + LeadFormTrigger ("Оставить заявку"), as used on `/tools/encar` result view. Audit candidates: all `/services`-labelled pages (/tools/*), car detail pages, noscut detail pages, any other result view that currently shows a plain text link or a lone phone button. Consistency gain: users always see the same "get-in-touch" affordance regardless of which tool they use.
 
 ## Planned — Bot
 
-- [ ] **Prompt 2.3 — Bot progress indicator for auction-sheet.**
-  `editMessageText` the "🔍 Анализирую…" message once at ~45s with
-  "Занимает дольше обычного, ещё около минуты…". On final success —
-  replace with full report; on error — replace with error + site link.
 - [ ] Auto-post new cars to channel t.me/jckauto_import_koreya
 - [ ] AI consultant (Claude API + knowledge base)
 - [ ] Bot: add PDF download for auction-sheet and encar results, matching the website's PDF export. Goal: feature parity between bot and site. Investigate whether existing PDF generator (from `/api/tools/*/pdf` routes) can be reused server-side and streamed to Telegram.
 - [ ] Bot: clarify queue and rate-limit semantics for auction-sheet and encar in the bot — currently unclear whether the bot enforces the same async queue / 2-minute cooldown contract as the website, or whether it bypasses them. If bypassed, system overload is possible under concurrent bot+site traffic. Audit and, if needed, route bot calls through the same queue + rate-limiter layer used by `/api/tools/*`.
-- [ ] Bot: `/noscut` command — after the user sends `/noscut` without an argument, the next plain-text message (e.g. `Hyundai`) is not recognized as the query. User must resend with `/noscut Hyundai` explicitly. Fix: set a per-user "awaiting noscut query" state in bot storage after empty `/noscut`, then treat the next plain message as the noscut query.
 
 ## Planned — Infrastructure
 
@@ -231,18 +252,9 @@
 > Quality-of-life follow-ups discovered during the 2026-04-21 work session.
 > None blocking, all worth doing before the next major refactor.
 
-- [ ] **Refactor `src/bot/store/users.ts` to sync-init style.** The 2026-04-21
-  fix for Б-9 (`ensureUsersLoaded()` lazy-await) is the minimal patch — it
-  closes the user-visible regression but leaves the async-load class of races
-  in place. Long-term direction is to load users synchronously at module
-  import time, the same pattern used by `src/bot/store/botStats.ts`. Removes
-  the entire race class, no lazy-await needed at any call site. See
-  `bugs.md` Б-9 long-term follow-up for the original analysis.
-- [ ] **Add `void` prefix to `handleRequestCommand` invocation in
-  `src/bot/handlers/catalog.ts:375`.** Currently a floating promise — works
-  behaviourally but stylistically inconsistent with `request.ts:89` which
-  uses `void` explicitly. One-line fix; make sure any noscut/customs
-  handlers that call request through callback_query use the same pattern.
+- [ ] **users.ts Phase 5b — honest sync API.** Phase 5a (закрыта 2026-04-26 коммитом `f90d7e5`) перевела внутренности `src/bot/store/users.ts` на sync-init, но сохранила async-сигнатуры для backward compatibility. Phase 5b: убрать `async` с `saveUser`/`savePhone`/`getAllUsers`/`getUsersStats`, удалить `await` в 11 call sites (start.ts:65/71/116, request.ts:151/152/218/220/258/259/314/315, admin.ts:6/63/90), пометить `ensureUsersLoaded` `@deprecated`, удалить два вызова в request.ts. Запускать ПОСЛЕ 24+ часов успешной работы 5a в production (signal: bot reliably loads users on start, no `[users]` errors in pm2 logs, no missing-user fallbacks reported).
+- [ ] **TS hygiene cleanup.** За 5 промптов 2026-04-26 накопилось 7 pre-existing TS errors (`npx tsc --noEmit`): `persistent: true` × 6 в `request.ts`/`start.ts` (поле reply-keyboard, не известное типам node-telegram-bot-api), `isolatedModules` × 1 в `botRateLimiter.ts:147` (требует `export type` для type re-exports). Build проходит благодаря `ignoreBuildErrors: true` в `next.config.ts`. Один промпт: расширить типы node-telegram-bot-api через module augmentation для `persistent: true` (или `// @ts-expect-error` с комментарием), исправить isolatedModules через `export type`. Не блокер, но раздражает в каждой сессии Claude Code.
+- [ ] **DRY noscut.ts: extract slash + plain-text branches into shared function.** Сейчас две ветки (slash-command в `bot.onText(/\/noscut(.*)/)` и plain-text после пустого `/noscut` в новом `bot.on('message')`) дублируют rate-limit check + searchNoscut call + format + send. ~80 строк дубликата. Извлечь в `runNoscutSearch(bot, chatId, telegramId, query)` который вызывается из обоих мест. Низкий приоритет — рефактор после ещё одной модификации (правило тройки: после третьего повторения).
 
 ## Strategic initiatives
 
