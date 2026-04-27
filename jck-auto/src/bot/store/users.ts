@@ -3,14 +3,17 @@
  * @description In-memory user store, persisted to /var/www/jckauto/storage/users.json.
  *              Loaded synchronously at bot startup via loadUsers().
  * @rule        loadUsers() MUST be called from src/bot/index.ts BEFORE
- *              registering any handler. Do NOT add lazy-load fallbacks
- *              inside getUser/saveUser/etc — sync init is a contract,
- *              not a hint. See ADR [2026-04-26] users.ts sync-init.
- * @rule        Public functions keep async signatures for backward
- *              compatibility (Phase 5a). They internally do sync work
- *              and return resolved Promises. Phase 5b will convert to
- *              honest sync signatures and remove `await` at call sites.
- * @lastModified 2026-04-26
+ *              registering any handler. Public API is sync — there
+ *              are no lazy-load fallbacks inside the store
+ *              functions. If the bot starts up without calling
+ *              loadUsers(), getUser() returns undefined for every
+ *              user. This is intentional: a hard failure surfaces
+ *              init-order regressions immediately, instead of
+ *              hiding them behind an async race. See ADR
+ *              [2026-04-26] users.ts sync-init two-phase refactor +
+ *              ADR [2026-04-27] users.ts Phase 5b — honest sync
+ *              API completed.
+ * @lastModified 2026-04-27
  */
 
 import * as fs from "fs";
@@ -70,19 +73,6 @@ export function loadUsers(): number {
 }
 
 /**
- * Public idempotent helper for backward compatibility with the
- * pre-5a API. Returns immediately after loadUsers (already done at
- * startup). Phase 5b will mark this @deprecated and remove call sites.
- *
- * @rule This wrapper exists ONLY for Phase 5a backward compatibility.
- *       Do NOT add new callers. Future code should rely on the
- *       startup loadUsers() contract.
- */
-export async function ensureUsersLoaded(): Promise<void> {
-  if (!loaded) loadUsers();
-}
-
-/**
  * Persist current in-memory user map to disk. Sync — uses
  * fs.writeFileSync. Mirrors fileIdCache.saveCache() pattern.
  */
@@ -95,13 +85,12 @@ function persistUsers(): void {
   }
 }
 
-export async function saveUser(from: {
+export function saveUser(from: {
   id: number;
   first_name: string;
   last_name?: string;
   username?: string;
-}): Promise<BotUser> {
-  if (!loaded) loadUsers();
+}): BotUser {
   const now = new Date().toISOString();
   const existing = users.get(from.id);
   const user: BotUser = {
@@ -118,8 +107,7 @@ export async function saveUser(from: {
   return user;
 }
 
-export async function savePhone(userId: number, phone: string): Promise<void> {
-  if (!loaded) loadUsers();
+export function savePhone(userId: number, phone: string): void {
   const user = users.get(userId);
   if (user) {
     user.phone = phone;
@@ -131,18 +119,16 @@ export function getUser(userId: number): BotUser | undefined {
   return users.get(userId);
 }
 
-export async function getAllUsers(): Promise<BotUser[]> {
-  if (!loaded) loadUsers();
+export function getAllUsers(): BotUser[] {
   return Array.from(users.values());
 }
 
-export async function getUsersStats(): Promise<{
+export function getUsersStats(): {
   total: number;
   withPhone: number;
   today: number;
   thisWeek: number;
-}> {
-  if (!loaded) loadUsers();
+} {
   const all = Array.from(users.values());
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

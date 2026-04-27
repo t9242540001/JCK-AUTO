@@ -2,9 +2,9 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
-  @updated:     2026-04-26
-  @version:     1.22
-  @lines:       267
+  @updated:     2026-04-27
+  @version:     1.23
+  @lines:       323
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-27 — Серия Phase 5b закрыта (4 промпта): users.ts honest sync API
+
+- **Сделано:** четыре последовательных промпта закрыли серию Phase 5b. (1) `fdcd08c` — `start.ts`: убраны три `await` перед `saveUser`. (2) `bab3fce` — `request.ts`: удалены два вызова `await ensureUsersLoaded()`, сняты два `await` перед `savePhone`, удалён импорт `ensureUsersLoaded`, переписан шапочный `@rule` (lazy-load → sync-init контракт). (3) `4425d41` — `admin.ts`: сняты три `await` перед `getUsersStats`/`getAllUsers`, добавлена минимальная JSDoc-шапка (отсутствовала). (4) этот коммит — `users.ts`: `saveUser`/`savePhone`/`getAllUsers`/`getUsersStats` стали честно sync (ушёл `async`, ушли lazy-load fallbacks `if (!loaded) loadUsers()`), `ensureUsersLoaded` удалён целиком, шапка переписана. Knowledge: ADR `[2026-04-27]` записан в `decisions.md`, INDEX.md обновлён.
+- **Прервались на:** серия Phase 5b закрыта полностью | **Следующий шаг:** возврат к нормальной очереди задач (Phase 2 мониторинг тарифов, Phase 5 финализация SEO/mobile/sitemap, регенерация bot token, открытые баги Б-5/Б-6/Б-7/Б-8, С-8 encar handler timeout).
+- **Контекст:** Phase 5a (commit `f90d7e5`, 2026-04-26) перевела внутренности `users.ts` на sync-init с сохранением async-сигнатур для backward compatibility. После 24+ часов чистого production soak (uptime > 24h, restart_time = null, ноль `[users]` ошибок в stderr, `[bot] users loaded: 50` подтверждён в startup logs) запущена Phase 5b. Серия из 4 промптов под one-task-one-prompt дисциплиной — каждый промпт оставлял repo в build-зелёном состоянии.
+- **Структурные уроки серии:** (1) AC-grep'ы должны использовать anchored patterns + фильтр на JSDoc — naive grep на имени функции ловит её упоминание в комментариях; (2) line numbers в промптах быстро устаревают после правок — использовать якорные подстроки вместо номеров строк; (3) проверка mерджа в main делается чтением файла на VDS через MCP, не запросом команды у пользователя; (4) deprecated-флаг для функции, у которой ноль внешних потребителей — техдолг, не backward compat (обоснованно удалена `ensureUsersLoaded` целиком).
+- **Ссылки:** четыре коммита серии — `fdcd08c`, `bab3fce`, `4425d41`, этот коммит. ADR `[2026-04-27] users.ts Phase 5b — honest sync API completed` в `decisions.md`.
 
 ### 2026-04-26 — Большая рабочая сессия: 11 коммитов, 8 закрытых задач
 
@@ -62,6 +70,7 @@
 
 ## Done
 
+- [x] **2026-04-27 — Серия Phase 5b закрыта: users.ts honest sync API.** Четыре последовательных промпта (`fdcd08c` start.ts → `bab3fce` request.ts → `4425d41` admin.ts → этот коммит users.ts + knowledge). Public API `saveUser`/`savePhone`/`getAllUsers`/`getUsersStats` теперь честно sync, без `async`-обёрток и без lazy-load fallbacks. `ensureUsersLoaded` удалена целиком. `await` снят со всех 8 production call sites (3 в start.ts, 2 в request.ts, 3 в admin.ts), две строки `await ensureUsersLoaded()` в request.ts удалены вместе с импортом. JSDoc-шапка users.ts переписана: единственный `@rule` фиксирует sync-init как контракт, не подсказку — lazy-load fallbacks физически отсутствуют, попытка вернуть их сломает компиляцию. Класс Б-9 (lazy-load race) структурно закрыт: ранее было «не используется», теперь «не существует». Серия запущена после 24+ часов чистого production soak Phase 5a. См. ADR `[2026-04-27] users.ts Phase 5b — honest sync API completed`.
 - [x] **2026-04-26 — `0a2fbd9` AuctionSheetClient polling hook extraction.** Новый hook `src/app/tools/auction-sheet/useAuctionSheetJob.ts` (~335 строк) владеет polling lifecycle: AbortController, recursive setTimeout, exponential backoff (2/4/8/16/32, cap 60s), localStorage/sessionStorage ownership protocol, processing-stage rotation, session restore. Возвращает discriminated union `JobState` с 6 фазами (idle/queued/processing/done/failed/lost). Orchestrator (`AuctionSheetClient.tsx`) сократился с 436 до 303 строк, реагирует на phase changes одним useEffect со switch'ем — exhaustiveness check от TypeScript. Wire protocol byte-identical (POST /api/tools/auction-sheet, GET /api/tools/auction-sheet/job/{id} каждые 2s). Pure refactor, no behavioral change. См. ADR `[2026-04-26] useAuctionSheetJob discriminated-union pattern`.
 - [x] **2026-04-26 — `f90d7e5` users.ts Phase 5a (sync-init internal).** `src/bot/store/users.ts` теперь загружает `users.json` через `fs.readFileSync` на старте бота (вызов `loadUsers()` в `src/bot/index.ts` рядом с `loadCache()`). Public API сохранён async для backward compatibility — saveUser, savePhone, getAllUsers, getUsersStats, ensureUsersLoaded остаются async. `getUser` остаётся sync БЕЗ defensive guard — это canary для init-order regressions. Phase 5b (honest sync API + удаление `await` в 11 call sites) запланирована после 24+ часов production soak. Корень класса Б-9 структурно закрыт: race condition между sync getUser и async loadUsers больше не возникает. См. ADR `[2026-04-26] users.ts sync-init two-phase refactor`.
 - [x] **2026-04-26 — `b454912` `await handleRequestCommand` в catalog.ts:375.** Было: floating promise `handleRequestCommand(bot, chatId, groupChatId)` внутри `bot.on("callback_query", async (query) => {...})`. Стало: `await handleRequestCommand(...)`. Roadmap пункт упоминал `void prefix` как фикс — диагностика реального файла показала, что callback async, sibling calls (sendCarCard, editCarCard) awaited, и handleRequestCommand имеет нетривиальные side-effects (savePhone, lead-log, group message), которые нужно завершить до возврата из callback. `await` — корректный фикс класса бага, `void` лишь подавил бы lint warning без устранения race condition.
@@ -252,9 +261,9 @@
 > Quality-of-life follow-ups discovered during the 2026-04-21 work session.
 > None blocking, all worth doing before the next major refactor.
 
-- [ ] **users.ts Phase 5b — honest sync API.** Phase 5a (закрыта 2026-04-26 коммитом `f90d7e5`) перевела внутренности `src/bot/store/users.ts` на sync-init, но сохранила async-сигнатуры для backward compatibility. Phase 5b: убрать `async` с `saveUser`/`savePhone`/`getAllUsers`/`getUsersStats`, удалить `await` в 11 call sites (start.ts:65/71/116, request.ts:151/152/218/220/258/259/314/315, admin.ts:6/63/90), пометить `ensureUsersLoaded` `@deprecated`, удалить два вызова в request.ts. Запускать ПОСЛЕ 24+ часов успешной работы 5a в production (signal: bot reliably loads users on start, no `[users]` errors in pm2 logs, no missing-user fallbacks reported).
 - [ ] **TS hygiene cleanup.** За 5 промптов 2026-04-26 накопилось 7 pre-existing TS errors (`npx tsc --noEmit`): `persistent: true` × 6 в `request.ts`/`start.ts` (поле reply-keyboard, не известное типам node-telegram-bot-api), `isolatedModules` × 1 в `botRateLimiter.ts:147` (требует `export type` для type re-exports). Build проходит благодаря `ignoreBuildErrors: true` в `next.config.ts`. Один промпт: расширить типы node-telegram-bot-api через module augmentation для `persistent: true` (или `// @ts-expect-error` с комментарием), исправить isolatedModules через `export type`. Не блокер, но раздражает в каждой сессии Claude Code.
 - [ ] **DRY noscut.ts: extract slash + plain-text branches into shared function.** Сейчас две ветки (slash-command в `bot.onText(/\/noscut(.*)/)` и plain-text после пустого `/noscut` в новом `bot.on('message')`) дублируют rate-limit check + searchNoscut call + format + send. ~80 строк дубликата. Извлечь в `runNoscutSearch(bot, chatId, telegramId, query)` который вызывается из обоих мест. Низкий приоритет — рефактор после ещё одной модификации (правило тройки: после третьего повторения).
+- [ ] **admin.ts hygiene.** Файл `src/bot/handlers/admin.ts` превышает 100 строк (117 после добавления JSDoc), что по `code-markup-standard` требует region-комментов. Также между top-level декларациями (`import` блок и `async function sendStats`, closing brace `sendStats` и `export function registerAdminHandler`) отсутствуют пустые строки. Найдено out-of-scope в промпте 03 серии Phase 5b. Один промпт: добавить 4 region-маркера (stats text formatter, /stats command + reply-keyboard, admin_export callback, /broadcast) и две пустые строки между декларациями. Чисто косметика, без поведенческих изменений.
 
 ## Strategic initiatives
 
