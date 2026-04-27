@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-26
-  @version:     1.50
-  @lines:       4036
+  @updated:     2026-04-27
+  @version:     1.51
+  @lines:       4218
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,51 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-27] users.ts Phase 5b — honest sync API completed
+
+**Status:** Accepted
+
+**Confidence:** High — все четыре canary-условия Phase 5a выполнены до запуска Phase 5b: bot uptime > 24 часов без рестартов (`pm_uptime` в `pm2 jlist` на момент запуска серии), `restart_time: null`, ноль `[users]`/users.json/init-order ошибок в `pm2 logs jckauto-bot --err --lines 2000`, `[bot] users loaded: N` подтверждён в startup logs. Серия из 4 промптов запущена после явной проверки этих условий.
+
+**Context:**
+
+ADR `[2026-04-26] users.ts sync-init two-phase refactor` принял решение разделить рефакторинг на две фазы. Phase 5a (commit `f90d7e5`, 2026-04-26) перевела внутренности `src/bot/store/users.ts` на sync (`fs.readFileSync` / `fs.writeFileSync` / `loadUsers()` в `src/bot/index.ts` перед регистрацией handlers), сохранив async-сигнатуры публичного API ради нулевого риска для call sites. Phase 5b ждала 24-часового soak в production, чтобы убедиться, что новый init pattern не вызвал init-order regressions (sync `getUser` без defensive guard был оставлен как canary).
+
+**Decision:**
+
+Phase 5b реализована серией из 4 промптов (one-task-one-prompt дисциплина по skill `prompt-writing-standard`) под общим ограничением «build всегда зелёный между коммитами»:
+
+- **Промпт 01** (`fdcd08c`, `start.ts`): сняты три `await` перед `saveUser(msg.from)` в трёх handlers.
+- **Промпт 02** (`bab3fce`, `request.ts`): удалены две строки `await ensureUsersLoaded()` (lazy-load guards стали no-op после Phase 5a), сняты два `await` перед `savePhone`, удалён импорт `ensureUsersLoaded` из строки импорта, переписан шапочный `@rule` с lazy-load дисциплины на sync-init контракт.
+- **Промпт 03** (`4425d41`, `admin.ts`): сняты три `await` перед `getUsersStats`/`getAllUsers`. Параллельно добавлена минимальная JSDoc-шапка (отсутствовала вопреки code-markup-standard).
+- **Промпт 04** (этот коммит, `users.ts` + knowledge): public API функции `saveUser`/`savePhone`/`getAllUsers`/`getUsersStats` стали честно sync — `async` снято, `Promise<…>` return types развёрнуты в их непосредственный тип, lazy-load fallbacks `if (!loaded) loadUsers()` удалены из тел всех четырёх функций. `ensureUsersLoaded` удалён целиком (не помечен `@deprecated`, как первоначально планировал ADR `[2026-04-26]`): функция имела ноль внешних потребителей после промпта 02, оставление deprecated было бы созданием техдолга. JSDoc-шапка переписана — единственный `@rule` декларирует sync-init как контракт.
+
+Two-phase решение из ADR `[2026-04-26]` реализовано полностью; этот ADR закрывает серию.
+
+**Alternatives considered:**
+
+- **Один большой промпт на все 4 файла + knowledge.** Отвергнуто: нарушение one-task-one-prompt из skill; промежуточные коммиты невозможны → откат сложнее, ревью сложнее.
+- **Помечать `ensureUsersLoaded` `@deprecated` (как планировал ADR `[2026-04-26]`).** Отвергнуто: после промпта 02 у функции ноль внешних потребителей в repo. Оставление deprecated = техдолг, который никто никогда не закроет. Удаление целиком — sustainable solution из Карпати-правила #5.
+- **Knowledge updates в каждом из 4 промптов.** Отвергнуто: создаёт окно, в котором knowledge говорит «Phase 5b закрыта» при половине-мигрированном коде. Атомарное обновление в финальном промпте — design серии.
+
+**Consequences:**
+
+- (+) Класс Б-9 (lazy-load race) **структурно** закрыт. Раньше: «не используется» (ensureUsersLoaded существовал, но никем не звался). Теперь: «не существует» (физически нет такой функции в коде).
+- (+) Любая попытка добавить `await` на `saveUser`/`savePhone`/`getAllUsers`/`getUsersStats` в новом call site больше не маскируется TypeScript'ом — `await sync_function()` валиден семантически, но новые сигнатуры явно говорят «это не async», что замечается в ревью.
+- (+) Любая попытка вернуть lazy-load fallback внутрь функций ловится на компиляции (`loadUsers()` теперь зовётся только из `index.ts` — добавление вызова внутри `saveUser` будет странной строкой, требующей объяснения в ревью).
+- (+) Шапка `users.ts` теперь honest: фиксирует контракт, не описывает «что планируем сделать».
+- (−) `ensureUsersLoaded` навсегда исчез из API. Если когда-то понадобится lazy-load helper для иной цели (например, on-demand reload), его придётся восстановить с другим именем + ADR. Принимаемая стоимость за чистоту контракта сейчас.
+
+**Files changed:**
+
+- `src/bot/store/users.ts` (этот коммит).
+- `src/bot/handlers/start.ts` (`fdcd08c`).
+- `src/bot/handlers/request.ts` (`bab3fce`).
+- `src/bot/handlers/admin.ts` (`4425d41`).
+- `knowledge/roadmap.md`, `knowledge/decisions.md`, `knowledge/INDEX.md` (этот коммит).
+
+**Reference:** Series of 4 commits between 2026-04-27 morning and afternoon (see `git log --since="2026-04-27" --until="2026-04-28" --grep="Phase 5b"` for the full sequence). Closes the Phase 5b plan from ADR `[2026-04-26] users.ts sync-init two-phase refactor`.
 
 ## [2026-04-26] Переход на систему стандартов v2.0 (триаж T1/T2/T3, Карпати-правила, Recent Activity, virtual-team.md)
 
