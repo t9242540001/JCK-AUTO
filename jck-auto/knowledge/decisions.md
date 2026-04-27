@@ -77,6 +77,143 @@
 - Prompt 3 (this commit): `knowledge/decisions.md`, `knowledge/INDEX.md`, `knowledge/roadmap.md`.
 - Prompt 4 (pending — separate prompt): `app/jck-auto/CLAUDE.md`, `knowledge/roadmap.md`, `knowledge/INDEX.md`.
 
+## [2026-04-26] One prompt = one user message — process rule
+
+**Status:** Accepted
+
+**Confidence:** High — изменение организационное, наблюдается одно конкретное проявление, митигация очевидна.
+
+**Context:**
+
+Стратегический партнёр 2026-04-26 произвёл два атомарных промпта (08a — регистрация strategic init #4; 08 — cursor-pointer фикс) и отправил их одним сообщением оператору. Оператор запустил 08a в Claude Code; Claude Code, видя оба промпта в сообщении, выполнил их последовательно в одной сессии — закоммитил cursor-pointer фикс как `196ac3d` ещё до того как оператор вернулся подтвердить выполнение только 08a.
+
+Когда оператор (после reboot компьютера) запустил промпт 08 отдельно, Claude Code отрапортовал «no-op outcome» — работа уже на remote. Стратегический партнёр обнаружил это только на стадии отчёта.
+
+**Decision:**
+
+Стратегический партнёр ОБЯЗАН выпускать ровно один промпт в одном сообщении пользователю. Даже если два промпта независимы по scope (разные файлы, нет конфликта) — они идут в отдельных сообщениях с явной точкой синхронизации между ними.
+
+**Alternatives considered:**
+
+- **Оставить bundling по 2–3 промпта в одном сообщении когда задачи независимы.** Отвергнуто: bundling уничтожает точку синхронизации между партнёром и оператором. Партнёр не может верифицировать промежуточное состояние репозитория и может выпустить следующее сообщение на устаревшей картине, что и произошло 2026-04-26.
+- **Выпускать bundle, но требовать от оператора подтверждение после каждого промпта в bundle.** Отвергнуто: операционная нагрузка перекладывается на оператора, что нарушает принцип минимальной когнитивной нагрузки. Bundle также сохраняет визуальный риск (Claude Code может выполнить весь bundle как одну сессию).
+
+**Why one-per-message wins:**
+
+1. **Точка синхронизации.** Когда два промпта в одном сообщении, оператор может запустить их как одно целое (одна сессия Claude Code, видящая оба). Партнёр теряет возможность верифицировать промежуточное состояние.
+2. **Drift prevention.** Без точки синхронизации следующее сообщение партнёра может быть составлено на устаревшей картине repo state. На 2026-04-26 это произвело частичный loop: партнёр выпустил промпт 08 повторно, считая что он не запускался.
+3. **Атомарный контекст для Claude Code.** Каждый промпт — самодостаточный TASK + CONTEXT + ACTIONS + AC + REGRESSION SHIELD. Bundling удваивает визуальную поверхность и ослабляет контракт на каждый item.
+
+**Consequences:**
+
+- (+) Гарантированная точка синхронизации между партнёром и оператором: каждый промпт = одна верификация состояния.
+- (+) Drift prevention: партнёр не может составить следующее сообщение на устаревшей картине repo, потому что вынужден ждать отчёта по предыдущему.
+- (+) Каждый промпт сохраняет полный атомарный контракт без размывания.
+- (−) Слегка медленнее throughput когда работа действительно независима и параллелизуема. Принимаемая стоимость за гарантию синхронизации.
+
+**Files changed:**
+
+- No code changed.
+- `knowledge/decisions.md` (this ADR).
+
+**Reference:** Memory edit #27 (стратегический партнёр). Incident: 08a + 08 bundling on 2026-04-26.
+
+## [2026-04-26] useAuctionSheetJob discriminated-union pattern for async job state
+
+**Status:** Accepted
+
+**Confidence:** High — refactor чистый (no behavioral change), wire protocol byte-identical, паттерн discriminated union стандартен в индустрии.
+
+**Context:**
+
+`src/app/tools/auction-sheet/AuctionSheetClient.tsx` orchestrator вырос до 436 строк, в основном polling lifecycle (refs, AbortController, recursive setTimeout, localStorage/sessionStorage cross-tab ownership protocol, processing-stage rotation, session restore on mount). Три useEffect chain'а, три ref'а, ~70 строк recursive `pollJob`. Mixed UI rendering с async-job state machine.
+
+**Decision:**
+
+Извлечь polling lifecycle в выделенный React hook `useAuctionSheetJob` в новом файле `src/app/tools/auction-sheet/useAuctionSheetJob.ts`. Hook возвращает discriminated-union `JobState` (добавлен в `auctionSheetTypes.ts`):
+
+```typescript
+export type JobState =
+  | { phase: "idle" }
+  | { phase: "queued";     jobId: string; position: number; etaSec: number }
+  | { phase: "processing"; jobId: string; stage: number }
+  | { phase: "done";       jobId: string; result: AuctionResult; meta: ApiResponse["meta"] }
+  | { phase: "failed";     jobId: string | null; error: ApiError }
+  | { phase: "lost";       jobId: string | null };
+```
+
+Orchestrator реагирует на phase changes через единственный `useEffect` с exhaustive `switch (job.state.phase)`. TypeScript ловит missing-case на этапе компиляции.
+
+**Alternatives considered:**
+
+- **Variant A: callbacks-параметры** (`useAuctionSheetJob({ onDone, onFailed, onProgress, ... })`). Отвергнуто: 5 callbacks сигнализируют leaky abstraction; callbacks нуждаются в стабильных reference'ах (useCallback wrappers в orchestrator) — fragile coupling.
+- **Variant C: useEffect chain'ы на нескольких outputs hook'а.** Отвергнуто: та же форма что B но без exhaustiveness check от discriminated union.
+
+**Why B (discriminated union) wins:**
+
+1. Future-proof: новая фаза = новый union member, не новый callback. Добавление 7-й фазы заставляет каждого consumer'а её обработать (TS error).
+2. Industry standard: `react-query`, `swr`, `xstate` все используют этот паттерн. Если когда-то мигрируем на одну из библиотек, расстояние короткое.
+3. Testable: hook возвращает plain data, тесты не нуждаются в callback mocks.
+4. Clean contract: hook владеет lifecycle, orchestrator владеет UI — без скрытого coupling.
+
+**Consequences:**
+
+- (+) Orchestrator сократился с 436 до 303 строк, business logic чище.
+- (+) Polling lifecycle тестируем независимо.
+- (+) Wire protocol byte-identical (POST /api/tools/auction-sheet, GET /api/tools/auction-sheet/job/{id} каждые 2s) — нет регрессии.
+- (−) Orchestrator получает useEffect с `[job.state]` deps. Reactive chain risk если orchestrator setState каким-то образом модифицирует `job.state` (cycle). На практике невозможно — `job.state` originates внутри hook, не зависит от orchestrator state — но дисциплина важна.
+
+**Files changed:**
+
+- `src/app/tools/auction-sheet/useAuctionSheetJob.ts` (new, 335 lines).
+- `src/app/tools/auction-sheet/auctionSheetTypes.ts` (+30 lines for JobState).
+- `src/app/tools/auction-sheet/AuctionSheetClient.tsx` (436 → 303 lines).
+
+**Reference:** Commit `0a2fbd9`.
+
+## [2026-04-26] users.ts sync-init two-phase refactor
+
+**Status:** Accepted (Phase 5a complete; Phase 5b pending 24h soak)
+
+**Confidence:** High — паттерн sync-init уже использован в `fileIdCache.ts` (proof of pattern), Phase 5a touched только 2 файла, public API сигнатуры сохранены — нулевая риска для call sites.
+
+**Context:**
+
+`src/bot/store/users.ts` имел async-load архитектуру (lazy `loadUsers()` через `ensureUsersLoaded()`), которая производила класс багов — Б-9 наиболее свежий — где sync `getUser()` возвращал `undefined` потому что `ensureUsersLoaded()` ещё не resolved. Фикс 2026-04-21 (`ensureUsersLoaded()` lazy-await внутри handlers) закрыл user-visible симптом Б-9, но оставил race класс архитектурно живым: каждый новый call site `getUser` должен помнить вызвать `ensureUsersLoaded` first.
+
+**Decision:**
+
+Refactor в две фазы:
+
+- **Phase 5a (этой сессии):** Сменить ВНУТРЕННЮЮ реализацию на sync (`fs.readFileSync` / `fs.writeFileSync`). Public API сигнатуры остаются async для backward compatibility. `loadUsers()` становится canonical startup call из `src/bot/index.ts` (рядом с `loadCache()`). Все call sites продолжают работать без модификаций.
+- **Phase 5b (после 24h soak):** Конвертировать public API в честный sync. Убрать `async` с `saveUser`/`savePhone`/`getAllUsers`/`getUsersStats`. Удалить `await` в 11 call sites в `start.ts` / `request.ts` / `admin.ts`. Пометить `ensureUsersLoaded` `@deprecated`, удалить два вызова в `request.ts`.
+
+**Alternatives considered:**
+
+- **Single big-bang refactor.** Отвергнуто: затронул бы 5 файлов и 11 call sites одновременно. Если что-то регрессирует на production deploy (init order, file permission, race), rollback шире и сложнее.
+- **Только Phase 5a без планов на 5b.** Отвергнуто: оставит async-сигнатуры которые внутри делают sync работу — TypeScript не ловит mismatch (return `T` from `Promise<T>` — валидно). Honest signatures должны прийти, чтобы call sites могли убрать ненужный `await`.
+
+**Why two phases:**
+
+Atomicity vs. risk:
+- Single big-bang touched бы 5 файлов и 11 call sites одновременно. Если что-то регрессирует на production deploy, rollback шире.
+- Two-phase делает Phase 5a малым (2 файла только — `users.ts` + `index.ts`) и reversible. Production гоняет новый init pattern 24+ часа; если что-то не так, всплывает до того как более инвазивная Phase 5b затронет call sites.
+
+**Consequences:**
+
+- (+) Корень класса Б-9 структурно закрыт: race condition между sync getUser и async loadUsers больше не возникает, даже если call site забывает `ensureUsersLoaded()`.
+- (+) Phase 5a атомарна и reversible — 2 файла, не затрагивает call sites.
+- (+) Reference pattern `fileIdCache.ts` уже доказан в production — sync init at startup, sync read/write everywhere.
+- (−) Phase 5a оставляет async-сигнатуры что внутри делают sync работу — TypeScript не ловит mismatch (return `T` from `Promise<T>` валидно). Honest signatures должны ждать 5b.
+- (−) Если Phase 5b не запустится из-за приоритета других задач, async-фасад останется навсегда как технический долг.
+
+**Files changed (Phase 5a):**
+
+- `src/bot/store/users.ts` (sync-init internals).
+- `src/bot/index.ts` (`loadUsers()` startup call рядом с `loadCache()`).
+
+**Reference:** Commit `f90d7e5` (Phase 5a). Phase 5b в `roadmap.md` → Planned — Technical debt. Closes Б-9 корень класса. Б-9 long-term follow-up в `bugs.md` обновлён ссылкой на этот ADR.
+
 ## [2026-04-25] Б-14 closed — /news rendering mode reconciled with code shape
 
 **Status:** Accepted

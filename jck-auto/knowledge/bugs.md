@@ -241,10 +241,12 @@
 - **Long-term follow-up:** strategic initiative #4 registered in roadmap.md (commit `7d0d0e4`) — full a11y migration of clickable non-button elements to native `<button>` for keyboard navigation, screen-reader semantics, and focus styles. Cursor-pointer was the visible symptom; that initiative will address the underlying accessibility gap.
 - **Status:** Closed 2026-04-26.
 
-### Б-4 — no menu buttons for auction sheet and Encar in bot
+### Б-4 — no menu buttons for auction sheet and Encar in bot [Closed 2026-04-26]
 - **File:** src/bot/handlers/start.ts
 - **Symptom:** features exist but users do not know how to invoke them
 - **Action:** add 2 inline buttons to start menu + callback handlers with usage instruction
+- **Fix (2026-04-26):** добавлены два inline-кнопки в стартовую клавиатуру (`src/bot/handlers/start.ts`): `🔍 Расшифровать аукционный лист` (callback `auction_info`) и `🇰🇷 Анализ авто с Encar` (callback `encar_info`). Обе кнопки шлют instruction-сообщение объясняющее как использовать фичу. Финальная структура клавиатуры: [Calc][Catalog] / [Auction][Encar] / [Связаться] / [📤 Поделиться]. Коммит `502d818`.
+- **Status:** Closed 2026-04-26.
 
 ### Б-7 — middleware-manifest ENOENT / 720+ PM2 restarts
 - **File:** /var/www/jckauto/app/jck-auto/.next/server/middleware-manifest.json
@@ -290,6 +292,7 @@
 - **Long-term follow-up:** Consider rewriting users.ts in the
   synchronous-load-at-import style used by `botStats.ts` — removes
   the race class entirely. Deferred; not blocking.
+  **Update 2026-04-26:** Phase 5a выполнен коммитом `f90d7e5` — `users.ts` теперь load на старте через sync `fs.readFileSync`. Async public API сохранён для backward compatibility (Phase 5b после 24h soak). Корень класса бугов структурно закрыт: race условие более невозможно даже если call site забывает `ensureUsersLoaded()`. Phase 5b — see roadmap.md → Planned — Technical debt.
 
 ### Б-8 — capture-deploy-log.yml registration verification pending
 - **File:** .github/workflows/capture-deploy-log.yml
@@ -311,6 +314,46 @@
   appears on VDS.
 - **Action:** next session — check all three indicators. If still
   unregistered → rename workflow file (fallback plan).
+
+### Б-новый-A — Two inconsistent bot menus
+
+- **Symptom:** Бот показывает два разных меню одновременно с разным набором сервисов:
+  (1) **Inline-keyboard** в /start-сообщении содержит [Рассчитать стоимость, Каталог, Расшифровать аукцион, Анализ авто с Encar, Связаться, Поделиться ботом].
+  (2) **BotFather command list** (нативное «Меню» в Telegram UI, кнопка слева от поля ввода) содержит [/start, /calc, /customs, /catalog, /noscut].
+  Расхождения: в inline-меню НЕТ `/customs` (калькулятор таможни) и `/noscut` (поиск ноускатов). В command list НЕТ аукционного листа и Encar (потому что они триггерятся через `bot.on('message')`, не через slash-команды).
+- **Impact:** Пользователь видит два разных набора функций в зависимости от того, на что нажал. Часть сервисов (`/customs`, `/noscut`) недоступна через основное inline-меню; часть (auction, encar) недоступна через командное меню. Пользователь не получает полной картины возможностей бота.
+- **Discovered:** 2026-04-26 by Vasily (скриншот в чате стратегического партнёра).
+- **Root cause hypothesis:** Inline-меню формируется в `src/bot/handlers/start.ts` (обновлено сегодня в Б-4). BotFather command list — отдельная конфигурация на стороне Telegram через `bot.setMyCommands()` или вручную через @BotFather, не попадает в git. Два источника не синхронизированы.
+- **Action:** TBD при реализации. Обсудить дизайн меню (см. варианты ниже), затем серия промптов на синхронизацию. Кандидаты решений:
+  (a) 6 сервисов в inline (3×2) + полный command list (`/calc /customs /catalog /noscut`);
+  (b) Самые востребованные (Calc, Catalog, Auction, Encar) в inline (2×2) + полный command list со всеми + кнопка «Все возможности» открывает второе сообщение;
+  (c) Что-то третье.
+  Дополнительно: зафиксировать BotFather command list в коде (например, скрипт `scripts/sync-bot-commands.ts` который вызывает `bot.setMyCommands([...])` при деплое), чтобы избежать дрейфа в будущем.
+- **Status:** Open.
+
+### Б-новый-B — Lead from bot has no source-tool tag
+
+- **Symptom:** Заявки с бота приходят с одинаковой меткой `🔗 Источник: Telegram-бот (прямая заявка)` независимо от того, через какой инструмент пользователь дошёл до заявки (после /noscut, после /catalog, после auction-sheet, после encar). Менеджеры не понимают контекст обращения.
+- **Example real lead (2026-04-26, after noscut search):**
+  ```
+  🚗 Новая заявка!
+  👤 Имя: Василий Франц
+  📨 Username: @FrantsVY
+  📱 Телефон: 892425404343
+  🔗 Источник: Telegram-бот (прямая заявка)
+  Источник: Telegram-бот
+  ```
+  (Заявка пришла после поиска ноуската, но об этом нигде не сказано.)
+- **Expected:** Источник-инструмент должен передаваться в текст заявки. Например, как с сайта приходит:
+  ```
+  🔗 Источник: https://jckauto.ru/catalog/cars/kia-k3-2021-15l-stylish-edition
+  Источник: Telegram-бот
+  ```
+- **Cosmetic sub-issue:** дубликат строки «Источник» в выводе (`🔗 Источник: Telegram-бот (прямая заявка)` + `Источник: Telegram-бот`). Похоже на legacy-форматирование. Исправить вместе с основным фиксом.
+- **Discovered:** 2026-04-26 by Vasily (real lead from production).
+- **Root cause hypothesis:** В `src/bot/handlers/request.ts` функция `handleRequestCommand(bot, chatId, groupChatId)` не получает контекст «откуда вызвана». Инструменты, которые её вызывают через callback_query (catalog, noscut, после auction-sheet, после encar) знают свой контекст, но не передают его дальше. Формирование текста заявки имеет hardcoded «Telegram-бот (прямая заявка)».
+- **Action:** TBD при реализации. Кандидат: расширить `handleRequestCommand(bot, chatId, groupChatId, source?)` где `source` — структурированная строка типа `noscut:hyundai-elantra-2020` / `catalog:kia-k3-2021-15l-stylish-edition` / `auction-sheet:result` / `encar:result-{carId}` / `direct`. Для catalog/noscut — включать конкретный slug/id. Для auction/encar — только тип инструмента (URL-конкретики нет). Все call sites обновить (catalog.ts:375, noscut.ts, auctionSheet.ts, encar.ts, и default `/start` flow). Формат заявки: использовать source как `🔗 Источник` line вместо текущего hardcoded значения, дубликат-строку убрать.
+- **Status:** Open.
 
 ## Verify status (potentially stale)
 
