@@ -7,7 +7,7 @@
  * @rule        Rate label: "Ориентировочный курс", never "Курс ЦБ РФ"
  * @rule        All callback_data use "cust_" prefix — never "calc_"
  * @rule        checkBotLimit BEFORE any API call; recordBotUsage AFTER successful send
- * @lastModified 2026-04-22
+ * @lastModified 2026-04-27
  */
 
 import TelegramBot from "node-telegram-bot-api";
@@ -16,6 +16,7 @@ import { fetchCBRRates, COUNTRY_CURRENCY } from "../../lib/currencyRates";
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from "../../lib/botRateLimiter";
 import { incrementCommand } from "../store/botStats";
 import { siteRequestAndAgainButtons } from "../lib/inlineKeyboards";
+import { pendingSource } from "./request";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -108,6 +109,7 @@ async function finishCustoms(bot: TelegramBot, chatId: number, state: CustState)
       "Расчёт ориентировочный. Реальные расходы уточняются при оформлении — ставки могут измениться.",
     );
 
+    pendingSource.set(chatId, `Telegram-бот: расчёт таможни (${curr.label})`);
     await bot.sendMessage(chatId, lines.join("\n"), {
       reply_markup: siteRequestAndAgainButtons(
         "https://jckauto.ru/tools/customs",
