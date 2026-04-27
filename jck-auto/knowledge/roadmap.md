@@ -275,3 +275,20 @@ Analytics research to identify **which services and sections can further increas
 - Where does the catalog lose users — listing vs detail vs lead form?
 
 **Status:** Idea. Requires (a) analytics integration first — the current site has no systematic analytics (Yandex.Metrika, GA, or equivalent). Depends on initiative #1 for data surface. Can also run partially on server-side access logs + bot stats.
+
+### 4. Accessibility migration — clickable non-button elements to native <button>
+
+Current site has multiple `<div onClick>`, `<span onClick>`, `<li onClick>`-style clickable elements. Adding `cursor-pointer` (closed via С-2 fix on 2026-04-26) addresses the visual hover feedback, but the underlying accessibility gaps remain:
+
+- **Keyboard navigation** — div-with-onClick is not in the natural Tab order. Power users and accessibility-tooling users cannot reach these affordances via keyboard alone.
+- **Screen reader semantics** — div-with-onClick announces as generic "clickable region", not "button". Loses role information.
+- **Focus styles** — without `tabIndex` and explicit focus-visible rules, the user can't see which element currently has focus when navigating by keyboard.
+- **Activation** — div-with-onClick reacts to mouse click, but not to Enter or Space key, which are the standard button-activation keys.
+
+**Status:** Idea. Requires discovery before the first prompt:
+- **Audit scope** — count of div-with-onClick across `src/**/*.tsx`. Categorize by component type (modal close, list item, toggle, custom dropdown, etc.).
+- **Design decision** — universal `<Clickable>` wrapper that emits a properly-attributed button vs per-case migration to native `<button>` with unstyled CSS. Trade-off: wrapper is one PR but adds a layer; per-case is many PRs but stays close to the platform.
+- **Migration order** — start with high-traffic conversion paths (LeadFormTrigger, CarSidebarActions, header/menu items) because that's where keyboard / screen-reader users are most likely to hit walls.
+- **Acceptance criteria** — automated check (eslint-plugin-jsx-a11y `click-events-have-key-events` rule + `interactive-supports-focus` rule) reports zero violations after migration. Plus manual smoke-test of Tab → Enter activation across each migrated surface.
+
+**Closes:** the long tail of UX issues in С-2 family — cursor-pointer fix is the visible symptom; this initiative addresses the root accessibility gap.
