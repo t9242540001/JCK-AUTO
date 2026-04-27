@@ -4,7 +4,8 @@
  *              Usage: /noscut Toyota RAV4 or /noscut Toyota
  *              Returns up to 5 matching entries with price and request button.
  * @dependencies src/lib/botRateLimiter, /var/www/jckauto/storage/noscut/noscut-catalog.json,
- *              src/bot/lib/inlineKeyboards (noscutResultButtons)
+ *              src/bot/lib/inlineKeyboards (noscutResultButtons),
+ *              src/bot/handlers/request (pendingSource)
  * @rule        Catalog is loaded once into module-level cache on first call — never re-read per request.
  * @rule        checkBotLimit BEFORE file read and search.
  * @rule        recordBotUsage AFTER successful sendMessage only.
@@ -14,7 +15,7 @@
  *              are FORBIDDEN. Empty-result branch is the documented
  *              exception — its single-button keyboard stays inline
  *              by helper design.
- * @lastModified 2026-04-23
+ * @lastModified 2026-04-27
  */
 
 import fs from 'fs';
@@ -22,6 +23,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from '../../lib/botRateLimiter';
 import { incrementCommand } from '../store/botStats';
 import { noscutResultButtons } from '../lib/inlineKeyboards';
+import { pendingSource } from './request';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -92,6 +94,22 @@ function formatResults(entries: NoscutEntry[]): string {
   }).join('\n\n');
 }
 
+// ─── SOURCE STRING ────────────────────────────────────────────────────────────
+
+/**
+ * Builds the `🔗 Источник:` value written into `pendingSource` before
+ * sending a result message. Truncates the user query at 50 characters
+ * (with a one-character ellipsis) to keep the operator group lead
+ * message readable, regardless of input length.
+ *
+ * @param query — original user query (already trimmed by caller).
+ * @param found — true when results were returned, false for empty-result branch.
+ */
+function buildNoscutSource(query: string, found: boolean): string {
+  const truncated = query.length > 50 ? query.slice(0, 50) + '…' : query;
+  return `Telegram-бот: ноускаты (запрос: "${truncated}"${found ? '' : ', не найдено'})`;
+}
+
 // ─── HANDLER ──────────────────────────────────────────────────────────────────
 
 /**
@@ -132,6 +150,7 @@ export function registerNoscutHandler(bot: TelegramBot): void {
 
     // 4. No results
     if (results.length === 0) {
+      pendingSource.set(chatId, buildNoscutSource(query, false));
       await bot.sendMessage(
         chatId,
         `По запросу «${query}» ноускатов не найдено.\n\nОставьте заявку — менеджер подберёт вариант вручную.`,
@@ -155,6 +174,7 @@ export function registerNoscutHandler(bot: TelegramBot): void {
 
     const text = header + formatResults(results);
 
+    pendingSource.set(chatId, buildNoscutSource(query, true));
     await bot.sendMessage(chatId, text, {
       reply_markup: noscutResultButtons(),
     });
@@ -208,6 +228,7 @@ export function registerNoscutHandler(bot: TelegramBot): void {
 
     // No results.
     if (results.length === 0) {
+      pendingSource.set(chatId, buildNoscutSource(query, false));
       await bot.sendMessage(
         chatId,
         `По запросу «${query}» ноускатов не найдено.\n\nОставьте заявку — менеджер подберёт вариант вручную.`,
@@ -231,6 +252,7 @@ export function registerNoscutHandler(bot: TelegramBot): void {
 
     const text = header + formatResults(results);
 
+    pendingSource.set(chatId, buildNoscutSource(query, true));
     await bot.sendMessage(chatId, text, {
       reply_markup: noscutResultButtons(),
     });
