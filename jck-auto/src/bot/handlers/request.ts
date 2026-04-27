@@ -3,23 +3,25 @@
  * @description Telegram bot "Оставить заявку" flow — collects phone
  *              number via reply keyboard, forwards lead to the
  *              group chat.
- * @dependencies ../store/users (ensureUsersLoaded, getUser, savePhone)
- * @rule        handleRequestCommand MUST await ensureUsersLoaded()
- *              before calling getUser — otherwise on bot restart the
- *              in-memory user map is empty and users who tap an old
- *              inline button without first typing /start hit the
- *              "Нажмите /start" fallback even though they are
- *              registered. See Б-9 in knowledge/bugs.md and the
- *              2026-04-21 ADR in knowledge/decisions.md.
+ * @dependencies ../store/users (getUser, savePhone, loadUsers via src/bot/index.ts)
+ * @rule        Handlers MUST NOT add lazy-load guards or async-await
+ *              dance around getUser/saveUser/savePhone — those
+ *              functions are sync and assume the store is ready.
+ *              The user store is loaded synchronously at bot startup
+ *              (src/bot/index.ts → loadUsers()); this is the only
+ *              correct init path. The original lazy-load pattern
+ *              (Б-9, 2026-04-21) was replaced by sync-init in
+ *              Phase 5a; Phase 5b removed the temporary async
+ *              wrappers. See ADR [2026-04-27] users.ts Phase 5b.
  * @rule        Phone validity is checked via normalizePhone()/hasValidPhone() — NEVER bare truthy on user.phone (Б-6 incident: legacy "+7" / " " / "" garbage reached operator group). See ADR [2026-04-25] Б-6 closed.
  * @rule        Submit-without-phone fallback requires Telegram @username — without it, no completion path. See ADR [2026-04-25] Б-6/2 — submit-without-phone fallback.
  * @rule        Every lead attempt MUST be persisted via appendLeadLog() BEFORE bot.sendMessage to the operator group — silent delivery failures (Telegram rate-limit, network drop) used to lose leads without trace. See ADR [2026-04-25] Б-15 closed — lead audit log.
- * @lastModified 2026-04-25
+ * @lastModified 2026-04-27
  */
 import TelegramBot from "node-telegram-bot-api";
 import { appendFileSync, existsSync, mkdirSync } from "fs";
 import { dirname, join } from "path";
-import { ensureUsersLoaded, getUser, savePhone, type BotUser } from "../store/users";
+import { getUser, savePhone, type BotUser } from "../store/users";
 
 /**
  * Normalises a phone-like input into a 10–15 digit string (E.164 range,
@@ -148,7 +150,6 @@ function finishRequest(
 }
 
 export async function handleRequestCommand(bot: TelegramBot, chatId: number, groupChatId: string): Promise<void> {
-  await ensureUsersLoaded();
   const user = getUser(chatId);
 
   if (!user) {
@@ -215,7 +216,7 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
       );
       return;
     }
-    await savePhone(msg.from.id, normalized);
+    savePhone(msg.from.id, normalized);
 
     const user = getUser(msg.from.id);
     if (!user) return;
@@ -255,7 +256,7 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
     }
 
     pendingPhone.delete(chatId);
-    await savePhone(msg.from.id, normalized);
+    savePhone(msg.from.id, normalized);
     const user = getUser(msg.from.id);
     if (!user) {
       // @rule Silent exit here previously lost the lead without trace
@@ -311,7 +312,6 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
       return;
     }
 
-    await ensureUsersLoaded();
     const user = getUser(msg.from.id);
     if (!user) {
       // Same recovery pattern as the message-handler EP-4 fix in Б-6/1.
