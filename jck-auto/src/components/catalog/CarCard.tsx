@@ -98,7 +98,7 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
         {/* Modal */}
         {isModalOpen && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+            className="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-black/50 px-4"
             onClick={() => setIsModalOpen(false)}
           >
             <div
