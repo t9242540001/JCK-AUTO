@@ -140,3 +140,33 @@ export type State =
   | "processing"
   | "result"
   | "error";
+
+/**
+ * Discriminated union representing the lifecycle of an auction-sheet
+ * decoding job, from accepting the upload through queue → processing
+ * → terminal state. Returned by the useAuctionSheetJob hook.
+ *
+ * Phases:
+ * - "idle"        — no active job. Initial state. Also reached after reset().
+ * - "queued"      — accepted by server, waiting in queue. position > 0.
+ * - "processing"  — pipeline is running on the server. position === 0.
+ *                   `stage` rotates through approximate progress steps
+ *                   (0=ocr, 1=parse, 2=overrun) based on elapsed time.
+ * - "done"        — pipeline returned a result. Terminal.
+ * - "failed"      — pipeline threw or job_not_found. Terminal.
+ * - "lost"        — orchestrator should treat as terminal failure.
+ *                   Distinct phase so orchestrator can render a network
+ *                   message instead of pipeline-failure message.
+ *
+ * Exhaustiveness: every consumer (the orchestrator's reactive useEffect)
+ * MUST handle all phases. TypeScript will flag a missing case. Adding
+ * a new phase is a deliberate edit — both this union and the consumer
+ * must be updated together.
+ */
+export type JobState =
+  | { phase: "idle" }
+  | { phase: "queued";     jobId: string; position: number; etaSec: number }
+  | { phase: "processing"; jobId: string; stage: number }
+  | { phase: "done";       jobId: string; result: AuctionResult; meta: ApiResponse["meta"] }
+  | { phase: "failed";     jobId: string | null; error: ApiError }
+  | { phase: "lost";       jobId: string | null };
