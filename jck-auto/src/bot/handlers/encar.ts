@@ -5,13 +5,14 @@
  *              Fetches vehicle data, AI power estimate + translation (parallel, non-blocking),
  *              calculates turnkey cost (non-fatal failure), and formats a summary.
  * @dependencies src/lib/encarClient, src/lib/calculator, src/lib/currencyRates,
- *               src/lib/botRateLimiter, src/bot/lib/inlineKeyboards
+ *               src/lib/botRateLimiter, src/bot/lib/inlineKeyboards,
+ *               src/bot/handlers/request (pendingSource)
  * @rule        checkBotLimit BEFORE fetchVehicle — rate check must be first
  * @rule        recordBotUsage AFTER successful sendMessage only — never in catch branches
  * @rule        Cost calculation failure is non-fatal — show vehicle data without price
  * @rule        No incrementCommand call — 'encar' is not a CommandStat slot
  * @rule        Each AI enrichment arm (power, translation) MUST be wrapped in withTimeout(30s). Bare Promise.allSettled hangs the bot event loop (C-8 incident 2026-04-22).
- * @lastModified 2026-04-25
+ * @lastModified 2026-04-27
  */
 
 import TelegramBot from 'node-telegram-bot-api';
@@ -28,6 +29,7 @@ import { calculateTotal, type CarAge, type EngineType } from '../../lib/calculat
 import { fetchCBRRates } from '../../lib/currencyRates';
 import { checkBotLimit, recordBotUsage, getBotLimitMessage } from '../../lib/botRateLimiter';
 import { siteAndRequestButtons } from '../lib/inlineKeyboards';
+import { pendingSource } from './request';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -310,6 +312,7 @@ export function registerEncarHandler(bot: TelegramBot): void {
     // 6. Format and send with action buttons
     const text = formatEncarResult(result, totalRub);
     const siteUrl = `https://jckauto.ru/tools/encar?url=${encodeURIComponent(result.sourceUrl)}`;
+    pendingSource.set(chatId, `Telegram-бот: Encar (carId=${carid})`);
 
     try {
       await bot.sendMessage(chatId, text, {
