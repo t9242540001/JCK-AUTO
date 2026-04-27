@@ -372,7 +372,7 @@ export function registerCatalogHandler(bot: TelegramBot, groupChatId: string) {
         return;
       }
       pendingSource.set(chatId, `https://jckauto.ru/catalog/cars/${carId}`);
-      handleRequestCommand(bot, chatId, groupChatId);
+      await handleRequestCommand(bot, chatId, groupChatId);
       return;
     }
   });
