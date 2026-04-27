@@ -1,9 +1,18 @@
+/**
+ * @file        admin.ts
+ * @description Admin-only Telegram bot commands — /stats with users
+ *              and bot-stats summary, "Статистика" reply keyboard
+ *              button, admin_export callback (list dump), /broadcast
+ *              text command. ADMIN_IDS gating on every entry point.
+ * @lastModified 2026-04-27
+ */
+
 import TelegramBot from "node-telegram-bot-api";
 import { getAllUsers, getUsersStats } from "../store/users";
 import { ADMIN_IDS } from "../config";
 import { getBotStats } from "../store/botStats";
 async function sendStats(bot: TelegramBot, chatId: number): Promise<void> {
-  const stats = await getUsersStats();
+  const stats = getUsersStats();
   const botStats = getBotStats();
   const text = [
     '📊 Статистика бота JCK AUTO',
@@ -60,7 +69,7 @@ export function registerAdminHandler(bot: TelegramBot) {
       await bot.answerCallbackQuery(query.id);
       const chatId = query.message.chat.id;
       try {
-        const users = await getAllUsers();
+        const users = getAllUsers();
         if (users.length === 0) {
           await bot.sendMessage(chatId, "Пользователей пока нет.");
           return;
@@ -87,7 +96,7 @@ export function registerAdminHandler(bot: TelegramBot) {
     if (!ADMIN_IDS.includes(msg.from?.id ?? 0)) return;
     if (!match) return;
     const text = match[1];
-    const users = await getAllUsers();
+    const users = getAllUsers();
     let sent = 0;
     let failed = 0;
     await bot.sendMessage(msg.chat.id, `Начинаю рассылку ${users.length} пользователям...`);
