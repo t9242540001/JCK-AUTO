@@ -2,7 +2,7 @@
  * @file        start.ts
  * @description /start command handler — welcome message, inline keyboard, deep link support.
  *              Deep link pattern: /start web_{source} — sent after Telegram Login Widget auth.
- * @lastModified 2026-04-10
+ * @lastModified 2026-04-27
  */
 
 import TelegramBot from "node-telegram-bot-api";
@@ -62,13 +62,13 @@ async function sendStartMessage(bot: TelegramBot, chatId: number, userId?: numbe
 
 export function registerStartHandler(bot: TelegramBot) {
   bot.onText(/\/start/, async (msg) => {
-    if (msg.from) await saveUser(msg.from);
+    if (msg.from) saveUser(msg.from);
     const chatId = msg.chat.id;
 
     // Deep link from jckauto.ru after Telegram Login Widget auth
     const deepLinkMatch = msg.text?.match(/^\/start web_(.+)/);
     if (deepLinkMatch) {
-      if (msg.from) await saveUser(msg.from);
+      if (msg.from) saveUser(msg.from);
       // @todo: saveUser overwrites users.json without preserving web auth fields
       //   (source, webAuthAt) written by api/auth/telegram/route.ts.
       //   Fix: update saveUser() to merge unknown fields instead of overwriting.
@@ -113,7 +113,7 @@ export function registerStartHandler(bot: TelegramBot) {
   });
 
   bot.onText(/Главное меню/, async (msg) => {
-    if (msg.from) await saveUser(msg.from);
+    if (msg.from) saveUser(msg.from);
     const chatId = msg.chat.id;
     try {
       bot.sendChatAction(chatId, "typing");
