@@ -125,9 +125,7 @@ function finishRequest(
   } else {
     lines.push(`\u{1F4F1} Телефон: ${user.phone || "не указан"}`);
   }
-  lines.push(`\u{1F517} Источник: ${source || "Telegram-бот (прямая заявка)"}`);
-  lines.push("");
-  lines.push("Источник: Telegram-бот");
+  lines.push(`\u{1F517} Источник: ${source || "Telegram-бот"}`);
 
   const text = lines.join("\n");
 
@@ -140,7 +138,7 @@ function finishRequest(
     firstName: user.firstName,
     lastName: user.lastName ?? null,
     phone: withoutPhone ? null : (user.phone ?? null),
-    source: source || "Telegram-бот (прямая заявка)",
+    source: source || "Telegram-бот",
     withoutPhone,
   });
 
@@ -271,7 +269,7 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
       );
       return;
     }
-    const source = pendingSource.get(chatId) || "Telegram-бот (прямая заявка)";
+    const source = pendingSource.get(chatId) || "Telegram-бот";
     pendingSource.delete(chatId);
     finishRequest(bot, groupChatId, user, source);
     bot.sendMessage(chatId, "✅ Заявка принята! Менеджер свяжется с вами.", {
@@ -324,7 +322,7 @@ export function registerRequestHandler(bot: TelegramBot, groupChatId: string) {
     }
 
     pendingPhone.delete(chatId);
-    const source = pendingSource.get(chatId) || "Telegram-бот (прямая заявка)";
+    const source = pendingSource.get(chatId) || "Telegram-бот";
     pendingSource.delete(chatId);
     finishRequest(bot, groupChatId, user, source, { withoutPhone: true });
     bot.sendMessage(
