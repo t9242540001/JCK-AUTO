@@ -15,7 +15,7 @@
  *              are FORBIDDEN. Empty-result branch is the documented
  *              exception — its single-button keyboard stays inline
  *              by helper design.
- * @lastModified 2026-04-27
+ * @lastModified 2026-04-28
  */
 
 import fs from 'fs';
@@ -52,6 +52,42 @@ function isAwaitingValid(state: AwaitingState | undefined): state is AwaitingSta
   if (!state) return false;
   if (Date.now() - state.setAt > AWAITING_TTL_MS) return false;
   return true;
+}
+
+// ─── INSTRUCTION + ARM STATE ──────────────────────────────────────────────────
+
+/**
+ * Sends the noscut instruction message and arms the awaiting-query state
+ * for this chat. After this call, the next plain-text message from the
+ * user (within AWAITING_TTL_MS) is consumed by the plain-text branch in
+ * `bot.on('message', ...)` below and used as the search query.
+ *
+ * Used by:
+ *   - start.ts callback `noscut_info` (the "🔧 Ноускаты" button in the main inline menu).
+ *   - noscut.ts slash-handler `/noscut` without arguments (in this file).
+ *
+ * @rule This is the ONLY way to start a noscut search from a non-argument
+ *       entry point. Sending the instruction text without arming the state
+ *       breaks the user flow — bug introduced 2026-04-27 (Б-новый-A 2/6,
+ *       commit `c9e2fed`) and fixed by introducing this helper 2026-04-28.
+ *       Do NOT inline the instruction text into a callback or slash branch
+ *       elsewhere — call this helper instead.
+ */
+export function sendNoscutInstructions(bot: TelegramBot, chatId: number): void {
+  bot.sendMessage(
+    chatId,
+    [
+      "🔧 *Поиск ноускатов*",
+      "",
+      "Отправьте марку и модель авто — я найду подходящий ноускат в наличии или подберу из доступных вариантов.",
+      "",
+      "Например: Toyota RAV4, Honda Accord, Nissan X-Trail.",
+      "",
+      "Можно также использовать команду /noscut <марка модель> для прямого поиска.",
+    ].join("\n"),
+    { parse_mode: "Markdown" },
+  );
+  awaitingQuery.set(chatId, { setAt: Date.now() });
 }
 
 // ─── CATALOG CACHE ────────────────────────────────────────────────────────────
@@ -120,14 +156,10 @@ export function registerNoscutHandler(bot: TelegramBot): void {
     const chatId = msg.chat.id;
     const telegramId = String(msg.from?.id ?? chatId);
 
-    // 1. No arguments — show usage hint
+    // 1. No arguments — show usage hint and arm state
     const query = (match?.[1] ?? '').trim();
     if (!query) {
-      bot.sendMessage(
-        chatId,
-        'Укажите марку или модель после команды.\n\nПримеры:\n/noscut Toyota RAV4\n/noscut Hyundai\n/noscut BMW X5',
-      );
-      awaitingQuery.set(chatId, { setAt: Date.now() });
+      sendNoscutInstructions(bot, chatId);
       return;
     }
 
