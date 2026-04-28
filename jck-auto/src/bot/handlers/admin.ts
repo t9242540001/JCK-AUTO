@@ -11,6 +11,9 @@ import TelegramBot from "node-telegram-bot-api";
 import { getAllUsers, getUsersStats } from "../store/users";
 import { ADMIN_IDS } from "../config";
 import { getBotStats } from "../store/botStats";
+
+// ─── STATS FORMATTER ──────────────────────────────────────────────────────────
+
 async function sendStats(bot: TelegramBot, chatId: number): Promise<void> {
   const stats = getUsersStats();
   const botStats = getBotStats();
@@ -42,6 +45,9 @@ async function sendStats(bot: TelegramBot, chatId: number): Promise<void> {
     },
   });
 }
+
+// ─── HANDLERS ─────────────────────────────────────────────────────────────────
+
 export function registerAdminHandler(bot: TelegramBot) {
   // /stats command
   bot.onText(/\/stats/, async (msg) => {
