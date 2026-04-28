@@ -2,8 +2,8 @@
   @file:        knowledge/deploy.md
   @project:     JCK AUTO
   @description: Deploy pipeline: two-slot build, self-healing, observability via runner-side log capture
-  @updated:     2026-04-14
-  @version:     1.0
+  @updated:     2026-04-28
+  @version:     1.1
   @lines:       164
 -->
 
@@ -87,17 +87,23 @@ fi
 
 **Читается через JCK AUTO Files MCP** (FILESYSTEM_ROOTS ограничен `/var/www/jckauto/` — поэтому логи и лежат там, а не в `/var/log/`).
 
-**Как устроено:** после SSH-шага `deploy.yml` выполняет ещё три step-а **на самом runner**, не в SSH-скрипте:
+**Как устроено.** Захват лога вынесен в отдельный workflow `.github/workflows/deploy-log-capture.yml`, не в `deploy.yml`. Триггер — `workflow_run` от `Deploy to VDS` с `types: [completed]`. Дополнительный триггер `workflow_dispatch:` оставлен для ручного запуска при отладке.
 
-1. **`Fetch Actions log and save to VDS`** — запускает `gh run view ${{ github.run_id }} --log` и перенаправляет вывод в `/tmp/deploy-log/YYYY-MM-DD_HHMMSS_run<id>.log`. Если `gh` не смог (например, лог ещё не финализирован) — пишется минимальный fallback-лог с run_id. Имя файла экспортируется в `$GITHUB_ENV` как `LOG_NAME` для следующих step-ов.
-2. **`Upload log to VDS`** — `appleboy/scp-action@v0.1.7` с `strip_components: 2` копирует файл в `/var/www/jckauto/deploy-logs/`.
-3. **`Update latest symlink and rotate old logs`** — обновляет `deploy-latest.log` на свежий файл и ротирует: оставляет последние 30 `.log`-файлов, исключая сам symlink через `grep -v`.
+Job `capture` имеет `if: always()` — лог сохраняется и при упавшем деплое. Три step-а:
 
-Все три step-а имеют `if: always()` — лог сохраняется даже при упавшем деплое.
+1. **`Fetch completed Actions log`** — `gh run view ${DEPLOY_RUN_ID} --log` (где `DEPLOY_RUN_ID = github.event.workflow_run.id`) пишет полный лог завершённого deploy-run в `/tmp/deploy-log/YYYY-MM-DD_HHMMSS_run<id>.log`. При сбое `gh` пишется минимальный fallback-лог с run_id (вместо exit 1, чтобы не терять симлинк). Имя файла экспортируется в `$GITHUB_ENV` как `LOG_NAME`.
 
-**Почему логирование вынесено из SSH-скрипта.** Первая попытка (коммиты `acf64e1` и `a9985c9`) делала `exec > >(tee -a "$LOG_FILE") 2>&1` внутри SSH. Не работало: `appleboy/ssh-action` с `script_stop: true` перехватывал любые промежуточные ненулевые exit-коды в подготовительных командах, включая обёрнутые в `|| true`, и прерывал скрипт до того, как bash-редирект применялся. В логе Actions не было ни одного из маркеров `[log]`/`[deploy]`/`[wrapper]`/`[build]`, хотя npm ci, next build и pm2 restart отрабатывали корректно (run 24406004473).
+2. **`Upload log to VDS`** — `appleboy/scp-action@v0.1.7` копирует файл в `/var/www/jckauto/deploy-logs/`, `strip_components: 4` убирает лишние сегменты пути.
 
-**Permissions.** На уровне workflow прописаны `contents: read, actions: read`. `actions: read` обязателен для `gh run view --log`. GitHub автоматически маскирует значения секретов в выводе (`***`), поэтому в сохранённый лог не попадают ни `VDS_SSH_KEY`, ни `VDS_HOST`, ни `GITHUB_TOKEN`.
+3. **`Update symlink and rotate old logs`** — `appleboy/ssh-action@v1.0.0` обновляет `deploy-latest.log` на свежий файл и ротирует: оставляет последние 30 `.log`-файлов, исключая сам symlink через `grep -v`.
+
+**Permissions** workflow: `contents: read, actions: read`. `actions: read` обязателен для `gh run view --log`. GitHub автоматически маскирует значения секретов в выводе (`***`), поэтому в сохранённый лог не попадают ни `VDS_SSH_KEY`, ни `VDS_HOST`, ни `GITHUB_TOKEN`.
+
+**Почему отдельный workflow, а не post-SSH step-ы в deploy.yml.** Прямой `gh run view --log` не может прочитать **свой собственный** in-progress run — возвращает ~34-байтный stub. Ждать собственного завершения изнутри run'а тоже нельзя (deadlock). `appleboy/scp-action` запускается в отдельном Docker-контейнере без доступа к `/tmp/` runner-host'а, поэтому переложить файл со scp-step'а на upload-step непросто. Отдельный workflow, дождавшийся `workflow_run: completed`, видит уже финализированный лог. Решение зафиксировано в ADR `[2026-04-15] Separate workflow for runner-side deploy log capture`.
+
+**@rule:** имя файла workflow (`deploy-log-capture.yml`) синхронизировано с комментарием `@rule` в `deploy.yml` («Log capture is handled by the separate `.github/workflows/deploy-log-capture.yml` workflow»). Переименование workflow-файла требует одновременной правки этого комментария — иначе ссылка станет битой и следующая диагностика уйдёт в ложный путь.
+
+**История регистрации (2026-04-15 → 2026-04-28).** Workflow был добавлен 2026-04-14 как `capture-deploy-log.yml`. GitHub Actions не зарегистрировал его автоматически — за 14 дней ноль реальных запусков на 750 workflow runs репо. 2026-04-28 файл переименован в `deploy-log-capture.yml`, что форсирует перерегистрацию (стандартный GitHub fallback). Подтверждение работоспособности — появление новых файлов в `/var/www/jckauto/deploy-logs/` после первого deploy-run после переименования.
 
 ## 6. Observability contract — echo-маркеры
 

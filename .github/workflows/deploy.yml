@@ -27,7 +27,7 @@ jobs:
       # (returns ~34-byte stub); `appleboy/scp-action` runs in a
       # separate Docker container without access to the runner
       # host's /tmp/. Log capture is handled by the separate
-      # `.github/workflows/capture-deploy-log.yml` workflow via
+      # `.github/workflows/deploy-log-capture.yml` workflow via
       # workflow_run trigger. See knowledge/decisions.md
       # [2026-04-15] Separate workflow for runner-side deploy log
       # capture. Reintroduction requires a new ADR.
