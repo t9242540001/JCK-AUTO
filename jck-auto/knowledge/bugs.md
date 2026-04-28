@@ -2,9 +2,9 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-27
-  @version:     1.23
-  @lines:       370
+  @updated:     2026-04-28
+  @version:     1.24
+  @lines:       403
 -->
 
 # Bugs — open issues tracker
@@ -136,6 +136,39 @@
   change`.
 
 ## Important (noticeable but workarounds exist)
+
+### Б-16 — нет автоскролла к результату на /tools/encar и /tools/auction-sheet
+- **Pages:** /tools/encar, /tools/auction-sheet
+- **Severity:** Important — анализ выполняется корректно, но
+  пользователь не понимает что он завершён. На мобильных результат
+  уходит ниже второго экрана и физически не виден без ручного скролла.
+  На десктопе симптом мягче, но hero-блок страницы остаётся в
+  верхней части viewport и продолжает занимать внимание.
+- **Symptom:** state переходит idle → loading → result, рендер
+  результата выполняется ниже формы, но `window.scrollTo` /
+  `element.scrollIntoView` не вызывается. Пользователь после клика
+  «Анализировать» видит ту же страницу что и до клика, иногда
+  пробует кликнуть кнопку повторно или закрывает страницу.
+- **Hypothesis:** ни в `EncarClient.tsx`, ни в `AuctionSheetClient.tsx`
+  (в новой архитектуре — `useAuctionSheetJob` hook + orchestrator)
+  нет вызова scrollTo/scrollIntoView при переходе в state="result"
+  или при появлении результата на DOM. Подтверждено
+  `grep -rn "scrollTo\|scrollIntoView" src/app/tools/` 2026-04-28 —
+  0 совпадений по всему дереву /tools.
+- **Discovered:** 2026-04-28 by Vasily during visual verification of
+  encar-site-photo series fix on /tools/encar.
+- **Action:** один общий fix для обоих инструментов. Минимально:
+  ref на первом блоке результата + useEffect на смену state →
+  `ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })`.
+  Желательно добавить визуальный сигнал «✓ Анализ завершён» (мини-toast
+  или короткая анимация появления карточки результата) — на мобильных
+  smooth-scroll длится ~500ms, без визуального cue пользователь может
+  не заметить движение страницы. Перед фиксом проверить также
+  /tools/calculator и /tools/customs — те же tools с тем же паттерном
+  «форма → результат», скорее всего страдают от того же класса бага.
+- **Out of scope for fix:** редизайн hero-блока, перенос результата
+  выше формы, любые изменения api-контракта инструментов. Цель —
+  только сообщить пользователю «ваш результат вот тут».
 
 ### Б-12 — Articles stopped publishing on the site since 2026-04-08 [Closed 2026-04-24]
 - **Symptom:** No new articles appearing on the site since 2026-04-08.
