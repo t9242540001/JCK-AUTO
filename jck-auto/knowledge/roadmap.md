@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-27
-  @version:     1.26
-  @lines:       343
+  @version:     1.27
+  @lines:       342
 -->
 
 # Roadmap
@@ -283,7 +283,6 @@
 - [ ] **DRY noscut.ts: extract slash + plain-text branches into shared function.** Сейчас две ветки (slash-command в `bot.onText(/\/noscut(.*)/)` и plain-text после пустого `/noscut` в новом `bot.on('message')`) дублируют rate-limit check + searchNoscut call + format + send. ~80 строк дубликата. Извлечь в `runNoscutSearch(bot, chatId, telegramId, query)` который вызывается из обоих мест. Низкий приоритет — рефактор после ещё одной модификации (правило тройки: после третьего повторения).
 - [ ] **`pendingSource` Map без TTL.** `src/bot/handlers/request.ts` экспортирует `pendingSource: Map<number, string>` без механизма expiration. Запись очищается только при оформлении lead'а через явный `pendingSource.delete(chatId)`. Если пользователь видит кнопку «Оставить заявку» (после noscut/calc/customs/auction-sheet/encar) и не нажимает её — entry остаётся в Map'е до следующего захода через тот же tool (overwrite) или до restart процесса. Theoretical memory drift при долгой uptime, но keys=chatId ограничено userbase'ом (несколько тысяч). Архитектурная неопрятность, surfaced 5 раз в out-of-scope reports серии Б-новый-B (2026-04-27). Один T2 промпт: добавить TTL 5–10 минут аналогично паттерну `awaitingQuery: Map` в `noscut.ts` (lazy cleanup при обращении + `AWAITING_TTL_MS` константа). Без поведенческих изменений в нормальных сценариях.
 - [ ] **Handler JSDoc audit — `@dependencies` field.** Convention inconsistent across `src/bot/handlers/*.ts`: некоторые файлы (`noscut.ts`, `auctionSheet.ts`, `encar.ts`, `request.ts`) имеют полноценный `@dependencies` блок в JSDoc-шапке, другие (`calculator.ts`, `customs.ts`, `start.ts`, `admin.ts`) — нет. Surfaced out-of-scope в промпте 3 серии Б-новый-B (calc/customs не получили обновление @dependencies на новый pendingSource импорт, потому что это поле отсутствовало целиком). Один T2 промпт: пройти все handler-файлы, добавить или дополнить `@dependencies` где отсутствует/неполный, зафиксировать конвенцию в `code-markup-standard` skill. Зацепка для skill-update: критерии "что включать в @dependencies" — runtime requirements (env vars, JSON files, sibling modules с side-effects) обязательно, чистые helpers — опционально.
-- [ ] **Extract auction/encar instruction texts into shared module.** Тексты instruction-message для `/auction` и `/encar` slash-команд (added in Б-новый-A 3/6 and 4/6) дублируются с callback handlers `auction_info` и `encar_info` в `src/bot/handlers/start.ts`. Один и тот же текст («Отправьте мне фотографию японского аукционного листа...» / «Отправьте ссылку на автомобиль с encar.com...») живёт в двух файлах. При изменении продуктовой копии нужно править оба места — drift-prone. Один T2 промпт: вынести оба текста в `src/bot/lib/instructionMessages.ts` как именованные константы или helper-функции (`sendAuctionInstructions(bot, chatId)`), импортировать и вызывать из обоих мест (start.ts callback + slash-handlers). Чисто refactor, без поведенческих изменений.
 
 ## Strategic initiatives
 
