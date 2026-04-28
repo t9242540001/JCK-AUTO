@@ -117,16 +117,24 @@ jobs:
 
             # Atomic symlink swap + short restart (~5-10s downtime)
             ln -sfn "$NEXT_SLOT" .next
-            echo "[build] step 6: symlink swapped, reloading PM2 from ecosystem.config.js"
+            echo "[build] step 6: symlink swapped, restarting PM2 processes"
             # Single source of truth for PM2 process definitions lives in
-            # ecosystem.config.js (cwd, script, env, max_restarts). startOrReload
-            # creates new entries and reloads existing ones with current config —
-            # this is the only place PM2 process startup is defined. Raw
-            # `pm2 start … --name X -- -c "…"` is FORBIDDEN here; see
-            # rules.md → Infrastructure Rules and ADR [2026-04-22] PM2 cwd
-            # inheritance incident. mcp-gateway is intentionally NOT in --only;
-            # it lives outside the site/bot deploy cycle.
-            pm2 startOrReload ecosystem.config.js --only jckauto,jckauto-bot
+            # ecosystem.config.js (cwd, script, env, max_restarts).
+            # `pm2 startOrReload` is the spawn path for processes that may not
+            # exist yet (first deploy after `pm2 delete`). For an already-online
+            # process it is a graceful reload that REUSES the running process —
+            # in-memory state survives, including Next.js chunks loaded from the
+            # OLD slot. After symlink swap to a new slot, jckauto must do a hard
+            # restart to drop in-memory chunks; otherwise it loops with ENOENT
+            # on .next/BUILD_ID — see ADR [2026-04-28] Б-7 closed.
+            #
+            # jckauto-bot does not read .next/, no slot dependency, startOrReload
+            # is fine and avoids unnecessary downtime on the bot side.
+            #
+            # mcp-gateway is intentionally NOT touched — it lives outside the
+            # site/bot deploy cycle.
+            pm2 startOrReload ecosystem.config.js --only jckauto-bot
+            pm2 restart jckauto --update-env
             pm2 save
             echo "[build] step 7: deploy complete"
             pm2 status

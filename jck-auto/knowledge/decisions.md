@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-28
-  @version:     1.54
-  @lines:       4369
+  @version:     1.55
+  @lines:       4436
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,73 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-28] Б-7 closed — pm2 restart instead of startOrReload for jckauto after slot swap
+
+**Контекст.** Б-7 в bugs.md (с ~2026-04-12) фиксировал 720+ PM2 рестартов на
+jckauto-процессе с ENOENT-ошибками на `.next/server/middleware-manifest.json`
+и `.next/BUILD_ID`. Гипотеза в bugs.md — race condition при two-slot symlink
+swap. Не блокировал продакшн благодаря быстрому PM2-restart.
+
+**Диагностика 2026-04-28.** `pm2 describe jckauto` показал 269 рестартов и
+uptime 16s — стабильный цикл падений ~каждые 94 секунды. Все ENOENT-файлы
+физически существовали в активном слоте `.next-a`. Smoking gun в стеке:
+
+  ⨯ Error: ENOENT: ... '.next/BUILD_ID'
+      at async Module.N (.next-b/server/chunks/ssr/_80fe0b8e._.js:1:2103)
+
+Код выполнялся в файле из СТАРОГО слота `.next-b` и читал `.next/BUILD_ID`
+через symlink, который указывал на НОВЫЙ `.next-a`. BUILD_ID у двух слотов
+разные (Turbopack хеширует chunks по BUILD_ID). In-memory state Next.js
+переживал symlink swap.
+
+**Корневая причина.** `pm2 startOrReload` в `deploy.yml` для уже-online
+процесса выполняет graceful reload, не hard restart. Process image и
+in-memory chunks остаются от старого слота. Это противоречит модели
+two-slot deployment, которая требует чистого старта с нового slot после
+swap'а. Та же ошибка в дизайне ранее обнаружена для бота (Б-13), там
+исправлена через `pm2 delete + start`. Для jckauto — оставалась.
+
+**Решение.** В `deploy.yml` после `ln -sfn` symlink swap:
+
+  pm2 startOrReload ecosystem.config.js --only jckauto-bot
+  pm2 restart jckauto --update-env
+
+`pm2 restart` для jckauto — kill+start, освобождает file descriptors и
+in-memory state. Downtime несколько секунд, идентично существующему
+поведению деплоя бота. `--update-env` заодно перечитывает env при правках
+ecosystem.config.js. `pm2 reload` в fork mode эквивалентен `pm2 restart`,
+поэтому выбор `restart` — явная семантика.
+
+**Альтернативы рассмотренные.**
+- `pm2 reload` — эквивалент в fork mode, выбран `restart` для ясности.
+- `pm2 delete jckauto && pm2 start ecosystem.config.js --only jckauto`
+  (как для бота) — больше downtime, не нужно для jckauto, поскольку нет
+  специфики `.env.local`-перечтения как у бота.
+- Подождать gracefulShutdown в Next.js — нет надёжного API для форсирования
+  drop in-memory chunks без рестарта процесса.
+
+**Почему не сделали раньше.** Б-7 классифицирован «не блокирующий»; PM2
+быстро перезапускал процесс, end-user видел редкие 502 на ~1-2 секунды раз
+в ~94 секунды — терпимо. Триггер сегодня — переход к диагностике через
+skill `bug-hunting` с реальными `pm2 describe` и stack-trace.
+
+**Последствия.**
+- Один лишний рестарт jckauto на каждом деплое (~5-10s downtime вместо
+  graceful reload). Это уже было фактическое поведение из-за crash-loop'ов;
+  honest restart прозрачнее.
+- Б-7 закрыт. Snapshot правил deploy.yml в `knowledge/deploy.md` §8
+  обновлён с явным правилом про `pm2 restart` для jckauto.
+- Симметрия с обработкой бота: оба процесса теперь honest-restart'ятся
+  на каждом деплое. Различие — у бота `pm2 delete + start` (для
+  перечтения .env.local), у сайта `pm2 restart` (env через
+  --update-env).
+
+**Verification.** На следующем deploy-run после merge'а в main:
+проверить `pm2 describe jckauto | grep -E "uptime|restarts"` через
+2-3 минуты после `[build] step 7: deploy complete`. Ожидание: uptime
+растёт стабильно (минуты), restarts inkrement +1 относительно
+предыдущего значения, и больше не растёт.
 
 ## [2026-04-28] noscut-fix — single-source-of-truth helper for instruction + state-arm
 
