@@ -43,6 +43,7 @@ import {
 import { auctionSheetQueue, QueueFullError } from '../../lib/auctionSheetQueue';
 import { siteAndRequestButtons } from '../lib/inlineKeyboards';
 import { pendingSource } from './request';
+import { sendAuctionInstructions } from '../lib/instructionMessages';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -197,22 +198,9 @@ function splitMessage(text: string, maxLen = 4000): string[] {
  * through the shared auctionSheetService (via auctionSheetQueue).
  */
 export function registerAuctionSheetHandler(bot: TelegramBot): void {
-  // /auction slash-command — instruction message (mirrors auction_info callback in start.ts)
+  // /auction slash-command — instruction message (shared with auction_info callback in start.ts)
   bot.onText(/^\/auction\b/, async (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(
-      chatId,
-      [
-        "🔍 *Расшифровка аукционного листа*",
-        "",
-        "Отправьте мне фотографию японского аукционного листа (USS, TAA, HAA, JU и др.) — AI распознает оценку, дефекты, комплектацию и переведёт на русский.",
-        "",
-        "Поддерживаются JPG, PNG, WebP, HEIC. Размер до 5 МБ.",
-        "",
-        "Без авторизации — 3 расшифровки за всё время. Через сайт с авторизацией Telegram — 10/день.",
-      ].join("\n"),
-      { parse_mode: "Markdown" },
-    );
+    sendAuctionInstructions(bot, msg.chat.id);
   });
 
   bot.on('message', async (msg) => {
