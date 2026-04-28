@@ -12,7 +12,8 @@
  * @rule        Cost calculation failure is non-fatal — show vehicle data without price
  * @rule        No incrementCommand call — 'encar' is not a CommandStat slot
  * @rule        Each AI enrichment arm (power, translation) MUST be wrapped in withTimeout(30s). Bare Promise.allSettled hangs the bot event loop (C-8 incident 2026-04-22).
- * @lastModified 2026-04-27
+ * @rule        No photo delivery — Encar handler sends text only. Users view photos on encar.com via sourceUrl embedded in the result. Adding photo delivery requires explicit product decision (see knowledge/bot.md "Encar.com link" row).
+ * @lastModified 2026-04-28
  */
 
 import TelegramBot from 'node-telegram-bot-api';
