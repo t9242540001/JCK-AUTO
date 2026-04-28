@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-27
-  @version:     1.22
-  @lines:       386
+  @version:     1.23
+  @lines:       370
 -->
 
 # Bugs — open issues tracker
@@ -314,22 +314,6 @@
   appears on VDS.
 - **Action:** next session — check all three indicators. If still
   unregistered → rename workflow file (fallback plan).
-
-### Б-новый-A — Two inconsistent bot menus
-
-- **Symptom:** Бот показывает два разных меню одновременно с разным набором сервисов:
-  (1) **Inline-keyboard** в /start-сообщении содержит [Рассчитать стоимость, Каталог, Расшифровать аукцион, Анализ авто с Encar, Связаться, Поделиться ботом].
-  (2) **BotFather command list** (нативное «Меню» в Telegram UI, кнопка слева от поля ввода) содержит [/start, /calc, /customs, /catalog, /noscut].
-  Расхождения: в inline-меню НЕТ `/customs` (калькулятор таможни) и `/noscut` (поиск ноускатов). В command list НЕТ аукционного листа и Encar (потому что они триггерятся через `bot.on('message')`, не через slash-команды).
-- **Impact:** Пользователь видит два разных набора функций в зависимости от того, на что нажал. Часть сервисов (`/customs`, `/noscut`) недоступна через основное inline-меню; часть (auction, encar) недоступна через командное меню. Пользователь не получает полной картины возможностей бота.
-- **Discovered:** 2026-04-26 by Vasily (скриншот в чате стратегического партнёра).
-- **Root cause hypothesis:** Inline-меню формируется в `src/bot/handlers/start.ts` (обновлено сегодня в Б-4). BotFather command list — отдельная конфигурация на стороне Telegram через `bot.setMyCommands()` или вручную через @BotFather, не попадает в git. Два источника не синхронизированы.
-- **Action:** TBD при реализации. Обсудить дизайн меню (см. варианты ниже), затем серия промптов на синхронизацию. Кандидаты решений:
-  (a) 6 сервисов в inline (3×2) + полный command list (`/calc /customs /catalog /noscut`);
-  (b) Самые востребованные (Calc, Catalog, Auction, Encar) в inline (2×2) + полный command list со всеми + кнопка «Все возможности» открывает второе сообщение;
-  (c) Что-то третье.
-  Дополнительно: зафиксировать BotFather command list в коде (например, скрипт `scripts/sync-bot-commands.ts` который вызывает `bot.setMyCommands([...])` при деплое), чтобы избежать дрейфа в будущем.
-- **Status:** Open.
 
 ## Verify status (potentially stale)
 
