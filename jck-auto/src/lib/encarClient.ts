@@ -7,7 +7,7 @@
  * @rule Encar API — без авторизации, endpoint'ы открытые
  * @rule Цена в Encar — в 만원 (万원), умножать на 10000 для KRW
  * @rule CARAPIS_API_KEY — не использовать, Encar API работает без ключей
- * @lastModified 2026-04-03
+ * @lastModified 2026-04-28
  */
 
 import { callDeepSeek } from './deepseek';
@@ -67,7 +67,7 @@ interface EncarVehicleRaw {
   };
   advertisement?: { price?: number };
   vin?: string;
-  photos?: Array<{ path?: string }>;
+  photos?: Array<{ path?: string; code?: string; type?: string }>;
   contact?: { userId?: string; address?: string; no?: string };
   contents?: { text?: string };
   partnership?: {
@@ -192,9 +192,17 @@ export function mapToResult(
   const spec = raw.spec;
   const priceManwon = raw.advertisement?.price ?? 0;
 
+  // @rule Encar API returns photos in arbitrary order; the encar.com
+  // gallery renders them sorted by `code` ("001", "002", ..., "024").
+  // Sort here so that photoUrls[0] is the hero exterior photo
+  // (code="001", type="OUTER"), matching what users see on encar.com.
+  // Items missing `code` are pushed to the end (treated as "999")
+  // to keep them out of the lead position without dropping data.
   const photos = (raw.photos ?? [])
-    .map((p) => p.path ? `${ENCAR_PHOTO_BASE}${p.path}` : null)
-    .filter(Boolean) as string[];
+    .filter((p) => p.path)
+    .slice()
+    .sort((a, b) => (a.code ?? '999').localeCompare(b.code ?? '999'))
+    .map((p) => `${ENCAR_PHOTO_BASE}${p.path}`);
 
   const accidentText = inspection?.condition?.accident;
   const accidentFree = !accidentText || accidentText === '없음' || accidentText === '무사고';
