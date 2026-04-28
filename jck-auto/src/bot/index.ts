@@ -11,6 +11,7 @@ import { registerRequestHandler } from "./handlers/request";
 import { registerAdminHandler } from "./handlers/admin";
 import { loadCache } from "./fileIdCache";
 import { loadUsers } from "./store/users";
+import { syncBotCommands } from "./lib/syncBotCommands";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GROUP_CHAT_ID = process.env.TELEGRAM_GROUP_CHAT_ID;
@@ -63,6 +64,8 @@ registerCatalogHandler(bot, GROUP_CHAT_ID);
 registerContactHandler(bot);
 registerRequestHandler(bot, GROUP_CHAT_ID);
 registerAdminHandler(bot);
+
+syncBotCommands(bot);
 
 bot.on('webhook_error', (error: any) => {
   console.error(`Webhook error: ${error?.message || error}`);
