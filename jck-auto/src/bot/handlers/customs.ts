@@ -142,6 +142,14 @@ export function registerCustomsHandler(bot: TelegramBot): void {
     if (!query.data || !query.message) return;
     const chatId = query.message.chat.id;
 
+    // Start customs calculator from /start menu
+    if (query.data === "customs_start") {
+      bot.answerCallbackQuery(query.id);
+      const telegramId = String(query.from.id);
+      startCustoms(bot, chatId, telegramId);
+      return;
+    }
+
     // Country selection
     if (query.data.startsWith("cust_country_")) {
       bot.answerCallbackQuery(query.id);
