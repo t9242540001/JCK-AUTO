@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-27
-  @version:     1.53
-  @lines:       4322
+  @updated:     2026-04-28
+  @version:     1.54
+  @lines:       4369
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,53 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-28] noscut-fix — single-source-of-truth helper for instruction + state-arm
+
+**Status:** Accepted
+
+**Confidence:** High — bug fix verified against the exact production-screenshot reproduction. The helper pattern (instruction text + state arm in one function call) makes the regression class structurally impossible: any future entry point that calls the helper gets both behaviors atomically, and any future entry point that forgets to call the helper produces no instruction message at all (visible failure mode, not silent like the bug being fixed).
+
+**Context:**
+
+Production bug discovered 2026-04-28 from a Telegram screenshot: user taps "🔧 Ноускаты" inline button in the /start main menu, sees the instruction message ("Отправьте марку и модель авто..."), sends "Toyota RAV4" — and the bot does nothing. No search, no error, no acknowledgement.
+
+Root cause traced to commit `c9e2fed` (Б-новый-A 2/6, 2026-04-27). That commit added the inline button with `callback_data: "noscut_info"` and a callback handler in start.ts that sent the instruction text. But the handler did NOT arm the `awaitingQuery: Map` state in noscut.ts — that state was armed only by the slash-command `/noscut` without arguments. The plain-text handler in noscut.ts (`bot.on('message', ...)`) silently returned for chats without armed state, so the user's reply was ignored.
+
+Two operations — sending the instruction text and arming the state — must always happen together for the user flow to work. Splitting them across two files (instruction text in start.ts callback, state-arm logic in noscut.ts) created a class of regression where future entry points could repeat the same omission.
+
+**Decision:**
+
+Created a single exported helper `sendNoscutInstructions(bot, chatId)` in `src/bot/handlers/noscut.ts`. The helper does two things atomically: sends the long Markdown-formatted instruction message AND calls `awaitingQuery.set(chatId, { setAt: Date.now() })`. Both call sites — the inline-button callback in start.ts AND the slash-without-args branch in noscut.ts — now route through this single helper.
+
+Implemented as a 3-prompt series:
+
+- **Step 1** (`760fa0e`, noscut.ts): created the exported helper with the long instruction text and the state-arm call. Switched the slash-without-args branch to call the helper. As a side-effect improvement, `/noscut` without arguments now shows the long instruction (same as the button) instead of the previous short hint — same affordance regardless of entry point.
+- **Step 2** (`4325ab0`, start.ts): added import `from "./noscut"`, replaced the 13-line inline body of the `noscut_info` callback with a 2-line call to the helper. Removed the inline copy of the instruction text from start.ts. Production bug closed.
+- **Step 3** (this commit, knowledge): atomic close — this ADR, roadmap.md Recent Activity + Done, INDEX.md row updates.
+
+**Alternatives considered:**
+
+- **Move the helper to `src/bot/lib/instructionMessages.ts`** alongside `sendAuctionInstructions` and `sendEncarInstructions`. Rejected: noscut differs structurally from auction/encar — it has a state machine (`awaitingQuery: Map`) coupled to the instruction. Moving the helper to lib would require either exporting the Map and re-arming logic across module boundaries (state internals leak), or duplicating the Map in lib (state lives in two places, drift-prone). The asymmetry — auction/encar helpers in lib, noscut helper in handlers/noscut.ts — reflects the underlying difference and is the simpler, more maintainable design.
+- **Add the missing `awaitingQuery.set` call inline in the start.ts callback.** Rejected: same pattern was duplicated, and any future entry point would face the same bug class. The helper makes the coupling structural, not a discipline rule.
+- **Refactor `awaitingQuery` into a separate state-management module imported by both files.** Rejected: overengineering for a single state Map used by exactly one tool. The current design (Map declared next to the only place that mutates it, helper exposed as the public API) is sufficient.
+- **Leave `/noscut` slash-without-args showing the short hint** (don't unify with the button's long text). Rejected: same affordance regardless of entry point is a UX win; same single helper means no drift between hint texts.
+
+**Consequences:**
+
+- (+) Production bug closed: the user flow works for both entry points (button and slash-without-args).
+- (+) The `@rule` block on `sendNoscutInstructions` makes the coupling explicit: "Sending the instruction text without arming the state breaks the user flow — call this helper instead."
+- (+) `/noscut` without arguments is now consistent with the button — same long text in both cases. Removed the short-hint inconsistency.
+- (−) Architectural asymmetry: `sendAuctionInstructions` and `sendEncarInstructions` live in `src/bot/lib/instructionMessages.ts`, but `sendNoscutInstructions` lives in `src/bot/handlers/noscut.ts`. Justified by state coupling, but a future reviewer scanning the codebase needs to understand why.
+- (Process lesson) Inline buttons that ship an instruction message AND expect a follow-up plain-text reply from the user must arm any state machine that reads the reply. This bug class is recognizable: button callback → instruction → silent ignore of user's text. Future menu additions should be audited for this pattern. Specifically: if a future tool gets an inline button with a callback that sends an instruction and expects a follow-up reply, the developer must check whether the tool has a state machine (like noscut's `awaitingQuery`) that needs arming.
+
+**Files changed:**
+
+- `src/bot/handlers/noscut.ts` (`760fa0e`).
+- `src/bot/handlers/start.ts` (`4325ab0`).
+- `knowledge/decisions.md`, `knowledge/roadmap.md`, `knowledge/INDEX.md` (this commit).
+
+**Reference:** Series of 3 commits on 2026-04-28 — `760fa0e`, `4325ab0`, plus this finalisation commit. Bug introduced 2026-04-27 in commit `c9e2fed` (Б-новый-A 2/6). Production discovery: Telegram screenshot 2026-04-28.
 
 ## [2026-04-27] Б-новый-A closed — bot menu redesigned + BotFather command list synced from code
 
