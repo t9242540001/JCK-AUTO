@@ -2,14 +2,14 @@
   @file:        knowledge/bugs.md
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
-  @updated:     2026-04-25
-  @version:     1.21
-  @lines:       ~333
+  @updated:     2026-04-27
+  @version:     1.22
+  @lines:       386
 -->
 
 # Bugs — open issues tracker
 
-> Updated: 2026-04-25
+> Updated: 2026-04-27
 > Source of truth for open bugs. After fix → ADR in decisions.md, entry removed from this file.
 > Hypotheses listed only when diagnosis requires choosing between alternatives.
 > Related: roadmap.md (high-level status), telegram-bot.md (bot architecture), tools.md.
@@ -329,30 +329,6 @@
   (b) Самые востребованные (Calc, Catalog, Auction, Encar) в inline (2×2) + полный command list со всеми + кнопка «Все возможности» открывает второе сообщение;
   (c) Что-то третье.
   Дополнительно: зафиксировать BotFather command list в коде (например, скрипт `scripts/sync-bot-commands.ts` который вызывает `bot.setMyCommands([...])` при деплое), чтобы избежать дрейфа в будущем.
-- **Status:** Open.
-
-### Б-новый-B — Lead from bot has no source-tool tag
-
-- **Symptom:** Заявки с бота приходят с одинаковой меткой `🔗 Источник: Telegram-бот (прямая заявка)` независимо от того, через какой инструмент пользователь дошёл до заявки (после /noscut, после /catalog, после auction-sheet, после encar). Менеджеры не понимают контекст обращения.
-- **Example real lead (2026-04-26, after noscut search):**
-  ```
-  🚗 Новая заявка!
-  👤 Имя: Василий Франц
-  📨 Username: @FrantsVY
-  📱 Телефон: 892425404343
-  🔗 Источник: Telegram-бот (прямая заявка)
-  Источник: Telegram-бот
-  ```
-  (Заявка пришла после поиска ноуската, но об этом нигде не сказано.)
-- **Expected:** Источник-инструмент должен передаваться в текст заявки. Например, как с сайта приходит:
-  ```
-  🔗 Источник: https://jckauto.ru/catalog/cars/kia-k3-2021-15l-stylish-edition
-  Источник: Telegram-бот
-  ```
-- **Cosmetic sub-issue:** дубликат строки «Источник» в выводе (`🔗 Источник: Telegram-бот (прямая заявка)` + `Источник: Telegram-бот`). Похоже на legacy-форматирование. Исправить вместе с основным фиксом.
-- **Discovered:** 2026-04-26 by Vasily (real lead from production).
-- **Root cause hypothesis:** В `src/bot/handlers/request.ts` функция `handleRequestCommand(bot, chatId, groupChatId)` не получает контекст «откуда вызвана». Инструменты, которые её вызывают через callback_query (catalog, noscut, после auction-sheet, после encar) знают свой контекст, но не передают его дальше. Формирование текста заявки имеет hardcoded «Telegram-бот (прямая заявка)».
-- **Action:** TBD при реализации. Кандидат: расширить `handleRequestCommand(bot, chatId, groupChatId, source?)` где `source` — структурированная строка типа `noscut:hyundai-elantra-2020` / `catalog:kia-k3-2021-15l-stylish-edition` / `auction-sheet:result` / `encar:result-{carId}` / `direct`. Для catalog/noscut — включать конкретный slug/id. Для auction/encar — только тип инструмента (URL-конкретики нет). Все call sites обновить (catalog.ts:375, noscut.ts, auctionSheet.ts, encar.ts, и default `/start` flow). Формат заявки: использовать source как `🔗 Источник` line вместо текущего hardcoded значения, дубликат-строку убрать.
 - **Status:** Open.
 
 ## Verify status (potentially stale)

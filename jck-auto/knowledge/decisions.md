@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-27
-  @version:     1.51
-  @lines:       4218
+  @version:     1.52
+  @lines:       4270
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,58 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-27] Б-новый-B closed — bot leads now carry tool-context source
+
+**Status:** Accepted
+
+**Confidence:** High — symptomatic fix with no behavioral risk. Each writer adds `pendingSource.set(chatId, ...)` immediately before the result-message send; the receiver (`finishRequest` in request.ts) was already reading from `pendingSource` via the existing catalog flow. No signature changes, no new mechanisms, no breaking compatibility.
+
+**Context:**
+
+Bug Б-новый-B (registered 2026-04-26 from a real production lead): leads sent from the bot to the operator group always arrived with hardcoded `🔗 Источник: Telegram-бот (прямая заявка)` regardless of which tool the user actually used (noscut search, catalog browse, auction-sheet decode, encar analysis, calculator/customs computation). Managers had no context at the start of conversations and had to ask "what were you looking at?" — a regression of UX quality compared with site leads, which carry full URLs.
+
+Investigation showed catalog.ts already wrote a meaningful URL to `pendingSource: Map<number, string>` (exported from `request.ts`) before triggering `request_start` callback. The receiver in `finishRequest` read this map with a fallback to the hardcoded "(прямая заявка)" string. Five other tools (noscut, auction-sheet, encar, calculator, customs) never wrote to the map, so the fallback was the universal display.
+
+**Decision:**
+
+Implemented as a 6-prompt series under one-task-one-prompt discipline. The mechanism (`pendingSource` Map) was kept; gaps were filled.
+
+- **Prompt 1** (`6b873ec`, request.ts): Cleaned the receiver. Replaced `"Telegram-бот (прямая заявка)"` with `"Telegram-бот"` at all four occurrences in the file (display fallback in `finishRequest`, audit-log fallback in `appendLeadLog`, fallback in `bot.on("contact")`, fallback in `bot.onText("📝 Без телефона")`). Removed the cosmetic duplicate `Источник: Telegram-бот` line at the bottom of the lead text. The original prompt scoped only the display fallback; Claude Code correctly extended scope per Goal-over-steps to all four occurrences after detecting that the original target alone would not satisfy "zero matches anywhere" AC.
+- **Prompt 2** (`a296f2a`, noscut.ts): Added `pendingSource.set` at four call sites (slash-command + plain-text branches, found + empty result outcomes), local helper `buildNoscutSource(query, found)` with 50-char query truncation. Source format: `Telegram-бот: ноускаты (запрос: "...", не найдено)` for empty, without `, не найдено` suffix for found.
+- **Prompt 3** (`c8d38d9`, calculator.ts + customs.ts): Paired prompt — symmetric edits to both files using shared `siteRequestAndAgainButtons` helper and `COUNTRY_CURRENCY[country].label` lookup. Source formats: `Telegram-бот: расчёт стоимости (Корея)` and `Telegram-бот: расчёт таможни (Корея)`. The pair-in-one-prompt is a documented deviation from skill `prompt-writing-standard`'s 1-2-files-well-under-200 rule (calc 209, customs 240 lines); justified by full structural symmetry of the change. Documented in commit body for audit trail.
+- **Prompt 4** (`28e4801`, auctionSheet.ts): One write inside the result-formatting try-block, after `formatAuctionResult`/`splitMessage` complete (so a formatter throw does not leave a stale entry). Source format: `Telegram-бот: расшифровка аукционного листа` — deliberately without parsed OCR fields, because OCR can return Japanese characters and parse_error states make fields unreliable. Source minimum is enough context for a manager.
+- **Prompt 5** (`38e5c9e`, encar.ts): One write before the result-send try-block, after `formatEncarResult` already returned. Source format: `` Telegram-бот: Encar (carId=${carid}) `` — carId chosen because managers can paste it into encar.com to see the full original listing; deliberately no jckauto.ru link to avoid self-referential noise.
+- **Prompt 6** (this commit, knowledge): Atomic close — bugs.md entry removed, this ADR added, roadmap.md updated (Recent Activity + Done + Technical Debt), INDEX.md updated.
+
+**Alternatives considered:**
+
+- **Extend `handleRequestCommand` signature with `source?` parameter** (the original Action proposed in bugs.md). Rejected: callback_query handler in request.ts only knows chatId at click time, not which message triggered the click. Passing source via signature would require either (a) a separate callback per tool with the source baked in, or (b) parsing the originating message text — both more invasive than using the existing `pendingSource` Map.
+- **Single large prompt covering all 5 writer files plus knowledge.** Rejected: violates one-task-one-prompt skill; risks broken-build window mid-prompt; worse review surface.
+- **Include parsed OCR fields in auction-sheet source string** (e.g., make/model/year). Rejected by team review: Japanese characters, parse_error fragility, content from user-controlled OCR input arriving in operator group. Tool name alone is sufficient context.
+- **Include jckauto.ru link in encar source string.** Rejected: managers go to encar.com directly; our analysis page has a strict subset of the original listing's information.
+- **Truncate noscut query at 30 or 100 chars.** 50 chosen as the readable midpoint — typical car-search queries fit, length-attack inputs are bounded.
+
+**Consequences:**
+
+- (+) Operator-group leads from the bot now carry meaningful tool context. `🔗 Источник: Telegram-бот: ноускаты (запрос: "Toyota RAV4")` lets managers start the conversation with the right context, removing one "what were you looking at?" round-trip.
+- (+) The receiver path is uniform: `finishRequest` reads `pendingSource.get(chatId)`; if any future tool joins the bot, the contract is "set the source before sendMessage with `request_start` button".
+- (+) Audit log (`appendLeadLog`) now records source consistently — useful for retrospective reports on which tool drove which leads.
+- (−) Five separate writers; the pattern is duplicated in each handler. Acceptable given the simplicity of one `pendingSource.set` call per tool, but if a sixth writer is added the pattern should be extracted into a shared helper or a wrapper around `bot.sendMessage`.
+- (−) `pendingSource` Map has no TTL. If a user opens a tool, sees the result with the request button, and never clicks it, the entry stays in memory until a delete is triggered (only on lead submission). This is an existing structural gap, surfaced 5 times during the series in out-of-scope reports and now registered in `roadmap.md` → Planned — Technical debt as a follow-up T2 prompt.
+- (−) Calc and customs JSDoc headers still lack `@dependencies` field. Adding it during this series would have meant enumerating every existing dependency, a scope creep we declined. Registered in `roadmap.md` → Planned — Technical debt for a separate audit-style prompt.
+- (Side note for skill maintenance) `code-markup-standard` skill should clarify when `@dependencies` JSDoc field is required vs optional — current convention is inconsistent across handlers (some have it, some don't, no clear rule). Not registered as a code task; will be addressed during the next skill-writing review session.
+
+**Files changed:**
+
+- `src/bot/handlers/request.ts` (`6b873ec`).
+- `src/bot/handlers/noscut.ts` (`a296f2a`).
+- `src/bot/handlers/calculator.ts`, `src/bot/handlers/customs.ts` (`c8d38d9`).
+- `src/bot/handlers/auctionSheet.ts` (`28e4801`).
+- `src/bot/handlers/encar.ts` (`38e5c9e`).
+- `knowledge/bugs.md`, `knowledge/decisions.md`, `knowledge/roadmap.md`, `knowledge/INDEX.md` (this commit).
+
+**Reference:** Series of 6 commits on 2026-04-27 — `6b873ec`, `a296f2a`, `c8d38d9`, `28e4801`, `38e5c9e`, plus this finalisation commit (see `git log --since="2026-04-27" --grep="Б-новый-B"` for the full sequence).
 
 ## [2026-04-27] users.ts Phase 5b — honest sync API completed
 
