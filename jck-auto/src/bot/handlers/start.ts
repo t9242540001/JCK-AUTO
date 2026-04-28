@@ -2,7 +2,7 @@
  * @file        start.ts
  * @description /start command handler — welcome message, inline keyboard, deep link support.
  *              Deep link pattern: /start web_{source} — sent after Telegram Login Widget auth.
- * @lastModified 2026-04-27
+ * @lastModified 2026-04-28
  */
 
 import TelegramBot from "node-telegram-bot-api";
@@ -12,6 +12,7 @@ import { saveUser } from "../store/users";
 import { ADMIN_IDS } from "../config";
 import { incrementSource, incrementWebAuth } from "../store/botStats";
 import { sendAuctionInstructions, sendEncarInstructions } from "../lib/instructionMessages";
+import { sendNoscutInstructions } from "./noscut";
 
 async function sendStartMessage(bot: TelegramBot, chatId: number, userId?: number) {
   await bot.sendMessage(
@@ -136,19 +137,7 @@ export function registerStartHandler(bot: TelegramBot) {
       handleContactCommand(bot, chatId);
     } else if (query.data === "noscut_info") {
       bot.answerCallbackQuery(query.id);
-      bot.sendMessage(
-        chatId,
-        [
-          "🔧 *Поиск ноускатов*",
-          "",
-          "Отправьте марку и модель авто — я найду подходящий ноускат в наличии или подберу из доступных вариантов.",
-          "",
-          "Например: Toyota RAV4, Honda Accord, Nissan X-Trail.",
-          "",
-          "Можно также использовать команду /noscut <марка модель> для прямого поиска.",
-        ].join("\n"),
-        { parse_mode: "Markdown" },
-      );
+      sendNoscutInstructions(bot, chatId);
     } else if (query.data === "auction_info") {
       bot.answerCallbackQuery(query.id);
       sendAuctionInstructions(bot, chatId);
