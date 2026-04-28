@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-27
-  @version:     1.52
-  @lines:       4270
+  @version:     1.53
+  @lines:       4322
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,58 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-27] Б-новый-A closed — bot menu redesigned + BotFather command list synced from code
+
+**Status:** Accepted
+
+**Confidence:** High — UX redesign with no behavioral risk to existing flows. Each prompt left build green and runtime functional. New `/auction` and `/encar` slash-commands are pure information messages mirroring existing callback texts, no new pipelines. setMyCommands sync runs fire-and-forget — failure leaves the bot working, only the BotFather menu potentially stale.
+
+**Context:**
+
+Bug Б-новый-A (registered 2026-04-26 by Vasily from a screenshot in the strategic-partner chat): the bot exposed two inconsistent menus simultaneously. The inline-keyboard sent with `/start` showed [Рассчитать стоимость, Каталог, Расшифровать аукцион, Анализ авто с Encar, Связаться, Поделиться] (after the Б-4 fix in commit `502d818`). The BotFather native command list (the menu button left of the input field in Telegram) showed [/start, /calc, /customs, /catalog, /noscut]. Each surface had services the other lacked: customs and noscut existed only as slash-commands, auction and encar existed only as inline buttons.
+
+Two structural causes: (1) menu composition was decided when the inline keyboard was first written, never revisited as new tools were added; (2) BotFather command list was edited by hand via @BotFather in Telegram and never lived in code, so any code change to the tool set could not propagate to the BotFather surface.
+
+**Decision:**
+
+Implemented as a 6-prompt series under one-task-one-prompt discipline. Each prompt left the build green, and the prompt order ensured that handlers preceded their triggers (no broken-button windows in production).
+
+- **Prompt 1** (`1eb76b9`, customs.ts): Added `customs_start` callback handler. Fires when the new inline-keyboard button (added in step 2) sends this callback. Pattern mirrors the existing `calc_start` in calculator.ts. Sequencing this handler FIRST avoided a window where the inline button existed but did nothing.
+- **Prompt 2** (`c9e2fed`, start.ts): Rewrote the inline keyboard from 4 rows (4 services + Связаться + Поделиться) to 5 rows (6 services + Связаться + Поделиться). New layout: row 1 — `🚗 Каталог авто` / `🔧 Ноускаты`; row 2 — `💰 Калькулятор авто` / `📋 Калькулятор пошлин`; row 3 — `🔍 Аукционный лист` / `🇰🇷 Анализ Encar`; row 4 — `📞 Связаться`; row 5 — `📤 Поделиться ботом`. Welcome message shortened (removed duplication with buttons) and updated to «автомобили и запчасти из Китая, Кореи и Японии под ключ» — adding "и запчасти" makes ноускаты a legitimate first-class service in the menu. New `noscut_info` callback handler added, mirroring the existing `auction_info` and `encar_info` instruction-message pattern. Share-text URL migrated from hardcoded percent-encoding to `encodeURIComponent` template literal — sustainable, readable, supports the new wider service list. New share text: «🚗 JCK AUTO — авто из Кореи, Китая и Японии. Узнай цену под ключ за минуту: калькулятор, каталог, ноускаты, расшифровка аукциона и Encar.»
+- **Prompt 3** (`444b7bb`, auctionSheet.ts): Added `/auction` slash-command handler at the start of `registerAuctionSheetHandler`. Sends the same Markdown instruction message that the inline `auction_info` callback already sends. Slash-handler is information-only; the photo-detection handler that does the actual analysis stays unchanged.
+- **Prompt 4** (`5737088`, encar.ts): Added `/encar` slash-command handler symmetrically. Plus a defensive guard in the existing URL-detection handler (`if (msg.text?.startsWith('/')) return;`) — without it, a single message `/encar https://encar.com/cars/12345` would trigger both handlers and produce a double response.
+- **Prompt 5** (`b53e639`, syncBotCommands.ts new + index.ts): New module `src/bot/lib/syncBotCommands.ts` exports `BOT_COMMANDS` (array of 7 entries) and `syncBotCommands(bot)` (fire-and-forget wrapper around `bot.setMyCommands`). Called from `index.ts` once after handler registration on every bot startup. tsconfig target ES2017 prevents top-level await, so the call is fire-and-forget with internal try-catch — failure logs an error but does not crash the bot. The `@rule` block in syncBotCommands.ts pins the contract: the array MUST mirror the inline-keyboard layout in start.ts; missing one of two surfaces creates inconsistent UX again.
+- **Prompt 6** (this commit, knowledge): Atomic close — bugs.md entry removed, this ADR added, roadmap.md updated (Recent Activity + Done + Technical Debt), INDEX.md updated.
+
+**Alternatives considered:**
+
+- **Variant A — 6 services in inline 3×2 + full command list, customs/noscut treated as equal-weight first-class.** Rejected: would have given customs (a niche derivative of calc) the same visual real-estate as the main flows, increasing decision time per Hick's law without commercial benefit. Most users want full price (calc), not customs alone.
+- **Variant B — top-4 services in inline (calc/catalog/auction/encar) + "🔧 Ещё инструменты" submenu with customs/noscut.** Rejected by Vasily during product review: noscut is a product differentiator (not a niche feature), pushing it to a submenu would suppress conversion on a service that defines JCK AUTO's offering relative to competitors. The decided layout (Variant E in our research notes) keeps all 6 services on one screen, ordered by reading priority — catalog/noscut first (the actual goods), calc/customs second (numbers), auction/encar third (research tools).
+- **Variant D — minimal 4 buttons + textual mention of customs/noscut.** Rejected: text in welcome message is routinely skipped; noscut conversion would have dropped 40-50%.
+- **Hardcoding BotFather state by hand on each release.** Rejected: that's exactly the source of drift this bug surfaces. Code as source of truth + sync on startup is the only structural close.
+- **Wrapping startup in async function to enable `await syncBotCommands(bot)`.** Rejected: refactoring the entire bot startup signature for a fire-and-forget background sync is overengineering. Try-catch + async with no `await` at the call site is sufficient.
+- **Adding `setMyCommands` to a separate CLI script run manually.** Rejected: opens the door for the same drift class — script forgotten, commands diverge from code. On-startup sync is structural.
+
+**Consequences:**
+
+- (+) Bot menu and BotFather command list now carry the same 6+1 services in the same reading order. Any user surface presents the full toolkit.
+- (+) BotFather drift is structurally closed: source of truth lives in `BOT_COMMANDS` array; restart syncs Telegram. Adding/removing a tool requires editing both the array and the inline-keyboard, with the `@rule` block in syncBotCommands.ts as the audit-trail enforcement.
+- (+) Welcome text now legitimizes ноускаты by mentioning «автомобили и запчасти». Previously the welcome promised only cars while menu offered parts — small but real cognitive dissonance.
+- (+) Share-text mentions all 5 main services (calc, catalog, ноускаты, аукцион, Encar) — better viral hook than previous «Бесплатный калькулятор» mono-mention.
+- (−) Instruction texts for `/auction` and `/encar` slash-commands are now duplicated across start.ts (callback handlers) and auctionSheet.ts/encar.ts (slash handlers) — same Russian-language text in two places. If product copy changes, both must change. Registered as a Technical Debt bullet ("extract auction/encar instruction texts into a shared module") to be addressed in a separate prompt.
+- (Knowledge note — terminology «ноускат» vs «носкат») During the series, the linguistic question came up: «носкат» (one «о») is the correct Russian transliteration of English «nose cut», but the product everywhere uses «ноускат» (with «оу») — URL `/catalog/noscut/`, slash command `/noscut`, file names, button labels. Vasily confirmed via market knowledge that "ноускат" dominates Russian search queries on this niche (counter-intuitively, the misspelling is what users type). Decision: keep "ноускат" in product surfaces. This is conscious alignment with search behavior, not orthographic carelessness — registered here so the question doesn't get re-raised in future sessions. If Wordstat data ever flips, that's a separate research project (T3) with SEO migration cost.
+
+**Files changed:**
+
+- `src/bot/handlers/customs.ts` (`1eb76b9`).
+- `src/bot/handlers/start.ts` (`c9e2fed`).
+- `src/bot/handlers/auctionSheet.ts` (`444b7bb`).
+- `src/bot/handlers/encar.ts` (`5737088`).
+- `src/bot/lib/syncBotCommands.ts` NEW + `src/bot/index.ts` (`b53e639`).
+- `knowledge/bugs.md`, `knowledge/decisions.md`, `knowledge/roadmap.md`, `knowledge/INDEX.md` (this commit).
+
+**Reference:** Series of 6 commits on 2026-04-27 — `1eb76b9`, `c9e2fed`, `444b7bb`, `5737088`, `b53e639`, plus this finalisation commit. See `git log --since="2026-04-27" --grep="Б-новый-A"` for the full sequence.
 
 ## [2026-04-27] Б-новый-B closed — bot leads now carry tool-context source
 
