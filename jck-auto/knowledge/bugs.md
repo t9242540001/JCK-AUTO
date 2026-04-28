@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-28
-  @version:     1.25
-  @lines:       426
+  @version:     1.26
+  @lines:       409
 -->
 
 # Bugs — open issues tracker
@@ -280,23 +280,6 @@
 - **Action:** add 2 inline buttons to start menu + callback handlers with usage instruction
 - **Fix (2026-04-26):** добавлены два inline-кнопки в стартовую клавиатуру (`src/bot/handlers/start.ts`): `🔍 Расшифровать аукционный лист` (callback `auction_info`) и `🇰🇷 Анализ авто с Encar` (callback `encar_info`). Обе кнопки шлют instruction-сообщение объясняющее как использовать фичу. Финальная структура клавиатуры: [Calc][Catalog] / [Auction][Encar] / [Связаться] / [📤 Поделиться]. Коммит `502d818`.
 - **Status:** Closed 2026-04-26.
-
-### Б-7 — middleware-manifest ENOENT / 720+ PM2 restarts
-- **File:** /var/www/jckauto/app/jck-auto/.next/server/middleware-manifest.json
-- **Symptom:** pm2 error log contains hundreds of:
-  `Error: Cannot find module '.../.next/server/middleware-manifest.json'`
-  and `Error: ENOENT: no such file or directory, open '.../.next/BUILD_ID'`.
-  `pm2 status` shows 720+ restarts on `jckauto` process.
-- **Hypothesis:** race condition during two-slot symlink swap — in-flight
-  Next.js requests read the old slot path cached in memory while the symlink
-  points to the new slot whose build is mid-generation. Does NOT manifest
-  as user-visible downtime because PM2 restarts fast.
-- **Impact:** log spam, restart counter inflation, unclear whether any
-  user requests return 500. Not blocking production.
-- **Action:** separate bug-hunt session. Diagnose via correlation of restart
-  timestamps with deploy timestamps. Candidate fix: pm2 graceful reload
-  (pm2 reload instead of restart), or hold symlink swap until next start
-  completes (harder).
 
 ### Б-9 — user store race on bot restart [Closed 2026-04-21]
 - **File:** src/bot/store/users.ts, src/bot/handlers/request.ts

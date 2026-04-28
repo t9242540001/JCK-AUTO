@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-28
-  @version:     1.29
-  @lines:       359
+  @version:     1.30
+  @lines:       368
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-28 — Б-7 закрыт: pm2 restart вместо startOrReload для jckauto
+
+- **Сделано:** в `.github/workflows/deploy.yml` после `ln -sfn` symlink swap заменено `pm2 startOrReload ... --only jckauto,jckauto-bot` на `pm2 startOrReload --only jckauto-bot` + `pm2 restart jckauto --update-env`. Bot deploy-path не меняется. Site (jckauto) теперь делает hard restart, чтобы drop'нуть in-memory Next.js chunks из старого слота и читать новый slot с нуля.
+- **Прервались на:** Б-7 закрыт; верификация на следующем deploy через `pm2 describe jckauto | grep restarts` — restarts должны стабилизироваться. | **Следующий шаг:** Б-7 closing подтверждается следующим деплоем; дальше — Technical Debt хвост (pendingSource TTL, JSDoc audit, TS hygiene, DRY noscut.ts) или новые задачи.
+- **Контекст бага:** 269 рестартов на jckauto за 7 часов (~каждые 94 секунды) с ENOENT на `.next/BUILD_ID`. Корневая причина — graceful reload через `pm2 startOrReload` сохранял in-memory chunks из старого slot после swap. Smoking gun: stack-trace `at async Module.N (.next-b/server/...)` — код старого slot читал BUILD_ID нового slot.
+- **Структурные уроки:** (1) `pm2 startOrReload` ≠ `pm2 restart` для уже-online процесса. Та же ловушка ранее проявилась как Б-13 (бот не подхватил `.env.local`); там исправлено через `delete + start`, но симметричный фикс для сайта не был сделан. Урок: при ловле graceful-reload бага ВСЕГДА проверять, не страдает ли симметричный процесс. (2) Skill `bug-hunting` сработал по своей роли — диагностика через реальные pm2-данные дала smoking gun за один раунд. Без `pm2 describe` (uptime + restarts counter) и `pm2 logs --err` (стек с `.next-b/...` в путях файлов) — мы бы гадали ещё несколько итераций.
+- **Ссылки:** этот коммит. ADR `[2026-04-28] Б-7 closed — pm2 restart instead of startOrReload for jckauto after slot swap` в `decisions.md`.
 
 ### 2026-04-28 — Серия encar-site-photo закрыта (2 промпта): главное фото на /tools/encar
 
@@ -102,6 +110,7 @@
 
 ## Done
 
+- [x] **2026-04-28 — Б-7 закрыт: pm2 restart вместо startOrReload для jckauto после slot swap.** В `.github/workflows/deploy.yml` после symlink swap заменено `pm2 startOrReload ... --only jckauto,jckauto-bot` на `startOrReload --only jckauto-bot` + `pm2 restart jckauto --update-env`. Корневая причина 720+ рестартов из bugs.md подтверждена smoking gun stack-trace `at async Module.N (.next-b/server/...)` — graceful reload сохранял in-memory chunks из старого slot после swap. Hard restart drop'ает все file descriptors и in-memory state, deploy запускается с чистым slot. Downtime несколько секунд (идентично текущему поведению bot deploy через delete+start). Симметрия с Б-13 теперь восстановлена. См. ADR `[2026-04-28] Б-7 closed — pm2 restart instead of startOrReload`.
 - [x] **2026-04-28 — noscut-fix серия (3 промпта): production bug закрыт.** Три коммита (`760fa0e` noscut.ts → `4325ab0` start.ts → этот коммит knowledge). Inline-кнопка «🔧 Ноускаты» в главном меню (введена в commit `c9e2fed` 2026-04-27) шла instruction-message без `awaitingQuery.set`, поэтому юзер тапал кнопку, видел инструкцию, писал марку — и бот молчал. Решение: новый exported helper `sendNoscutInstructions(bot, chatId)` в `src/bot/handlers/noscut.ts`, который атомарно шлёт инструкцию И armит state. Оба call site (start.ts callback `noscut_info` + noscut.ts slash-without-args) используют единственный helper. Архитектурная асимметрия: auction/encar helpers в `lib/instructionMessages.ts` без state, noscut helper в `handlers/noscut.ts` со state — оправдано coupling'ом text↔state. Бонус: `/noscut` без аргументов теперь показывает ту же длинную инструкцию что и кнопка (была короткая «Примеры:...»). См. ADR `[2026-04-28] noscut-fix — single-source-of-truth helper for instruction + state-arm`.
 - [x] **2026-04-27 — Серия Б-новый-A закрыта: bot menu redesign + BotFather sync from code.** Шесть последовательных промптов (`1eb76b9` customs.ts → `c9e2fed` start.ts → `444b7bb` auctionSheet.ts → `5737088` encar.ts → `b53e639` syncBotCommands.ts new + index.ts → этот коммит knowledge). Inline-меню /start теперь содержит 6 сервисов в 3×2 + Связаться + Поделиться (было 4 сервиса). Все 6 сервисов — `🚗 Каталог авто`, `🔧 Ноускаты`, `💰 Калькулятор авто`, `📋 Калькулятор пошлин`, `🔍 Аукционный лист`, `🇰🇷 Анализ Encar` — с emoji, в порядке отражающем продуктовую стратегию. BotFather native command list (нативное «Меню» Telegram) синхронизируется с кодом на каждом старте бота через `bot.setMyCommands(BOT_COMMANDS)` где `BOT_COMMANDS` — экспортированный массив 7 команд в `src/bot/lib/syncBotCommands.ts`. Дрейф между двумя menu surfaces структурно закрыт: source of truth — массив в коде; рестарт бота re-applies sync. Welcome text расширен на «автомобили и запчасти». Share-text мигрирован на `encodeURIComponent` template literal с обновлённым текстом упоминающим 5 главных сервисов. Новые `/auction` и `/encar` slash-команды (информационные, шлют instruction-message), плюс slash-prefix guard в encar.ts URL-handler'е чтобы избежать двойного ответа на `/encar https://encar.com/...`. См. ADR `[2026-04-27] Б-новый-A closed — bot menu redesigned + BotFather command list synced from code`.
 - [x] **2026-04-27 — Серия Б-новый-B закрыта: bot leads carry tool-context source.** Шесть последовательных промптов (`6b873ec` request.ts → `a296f2a` noscut.ts → `c8d38d9` calc+customs → `28e4801` auctionSheet → `38e5c9e` encar → этот коммит knowledge). Все пять tools (noscut, calc, customs, auction-sheet, encar) теперь записывают meaningful source в `pendingSource: Map<number, string>` перед отправкой результата с кнопкой «Оставить заявку». Receiver (`finishRequest`) уже читал из этой Map'ы — gap был только в writers. Source формат для каждого инструмента: `Telegram-бот: ноускаты (запрос: "...")`, `расчёт стоимости (Корея)`, `расчёт таможни (Корея)`, `расшифровка аукционного листа`, `Encar (carId=...)`. Дополнительно очищены 4 occurrences hardcoded `"Telegram-бот (прямая заявка)"` в request.ts (display + audit log + два contact handler'а), удалён дубликат `Источник: Telegram-бот` строки. Менеджеры теперь видят tool context в каждой заявке. См. ADR `[2026-04-27] Б-новый-B closed — bot leads now carry tool-context source`.
