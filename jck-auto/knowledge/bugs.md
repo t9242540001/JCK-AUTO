@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Open bugs tracker — site and bot, with symptom/file/hypothesis/action
   @updated:     2026-04-28
-  @version:     1.24
-  @lines:       403
+  @version:     1.25
+  @lines:       426
 -->
 
 # Bugs — open issues tracker
@@ -327,27 +327,6 @@
   the race class entirely. Deferred; not blocking.
   **Update 2026-04-26:** Phase 5a выполнен коммитом `f90d7e5` — `users.ts` теперь load на старте через sync `fs.readFileSync`. Async public API сохранён для backward compatibility (Phase 5b после 24h soak). Корень класса бугов структурно закрыт: race условие более невозможно даже если call site забывает `ensureUsersLoaded()`. Phase 5b — see roadmap.md → Planned — Technical debt.
 
-### Б-8 — capture-deploy-log.yml registration verification pending
-- **File:** .github/workflows/capture-deploy-log.yml
-- **History:**
-  - 2026-04-14: workflow file added in Prompt 05 (ADR [2026-04-15]
-    Separate workflow for runner-side deploy log capture).
-  - 2026-04-15 (Prompt 08.6): `workflow_dispatch:` added as second
-    trigger to force GitHub Actions registration
-    (ADR `[2026-04-15] Capture Deploy Log: workflow_dispatch`).
-- **Symptom before fix:** workflow did NOT appear in GitHub Actions
-  workflows API response; Deploy runs completed without triggering
-  Capture runs; no log files written to /var/www/jckauto/deploy-logs/.
-- **Verification status:** NOT verified after Prompt 08.6. Three indicators
-  to check: (a) GitHub Actions registry (`curl api.github.com/.../actions/workflows`
-  returns 4 workflows incl. Capture, not 3); (b) UI at
-  `https://github.com/t9242540001/JCK-AUTO/actions/workflows/capture-deploy-log.yml`
-  shows "Run workflow" button; (c) after a real Deploy run completes,
-  a Capture run appears in Actions UI within ~60s and a log file
-  appears on VDS.
-- **Action:** next session — check all three indicators. If still
-  unregistered → rename workflow file (fallback plan).
-
 ## Verify status (potentially stale)
 
 ### С-5 — auction sheet fails on handwritten HAA sheets (Allion case)
@@ -400,4 +379,48 @@
 - **Status:** unknown — fallback to text card may have masked it
 - **Action:** confirm with Vasily if still actual. If yes — investigate file_id caching
   (POST sendPhoto once, save returned file_id, reuse).
+
+## Won't fix (low value, documented workaround)
+
+> Bugs здесь признаны не блокирующими, с понятным workaround. Файлы
+> кода/конфигов оставлены в репо на случай возврата к задаче. Каждая
+> запись фиксирует что пытались, почему остановились, и условие
+> возможного возврата.
+
+### Б-8 — Capture Deploy Log workflow не регистрируется в GitHub Actions
+- **File:** .github/workflows/deploy-log-capture.yml (переименован из capture-deploy-log.yml 2026-04-28)
+- **Status:** Won't fix 2026-04-28. Файл оставлен в репо.
+- **Симптом:** workflow физически в репо, но GitHub Actions его не
+  регистрирует — workflow отсутствует в Actions UI sidebar, ни одного
+  run в истории за 14+ дней, папка `/var/www/jckauto/deploy-logs/`
+  не наполняется новыми файлами.
+- **История попыток:**
+  - 2026-04-14 — workflow добавлен как `capture-deploy-log.yml`
+    (Prompt 05).
+  - 2026-04-15 (Prompt 08.6) — добавлен `workflow_dispatch:` как
+    второй триггер для принудительной регистрации. Не помогло.
+  - 2026-04-28 (commit `004d1a6`) — переименование файла в
+    `deploy-log-capture.yml` (стандартный GitHub fallback для
+    форсирования регистрации). Не помогло. Deploy to VDS #416
+    отработал чисто, capture-run не появился.
+- **Цель workflow была:** сохранение полного лога каждого Deploy to
+  VDS run на VDS в `/var/www/jckauto/deploy-logs/`, чтобы Claude
+  через JCK AUTO Files MCP мог читать лог при диагностике без
+  необходимости открывать Actions UI вручную.
+- **Workaround (используется по умолчанию):** при падении деплоя
+  оператор открывает Actions UI на github.com, заходит в нужный
+  Deploy to VDS run, копирует релевантный фрагмент лога в чат.
+  Стоимость workaround — ~30 секунд за инцидент. Инциденты
+  деплоя редки (последний 2026-04-10).
+- **Условие возврата:** если после изменений в GitHub Actions
+  поведении workflow начнёт регистрироваться сам по себе, или если
+  частота deploy-инцидентов вырастет настолько, что ручной обход
+  станет дорогим — попробовать путь «удалить файл одним коммитом,
+  добавить заново вторым коммитом» (двух-шаговая стратегия,
+  отличная от чистого rename). Этот путь не пробовали.
+- **Что НЕ удалять:** `.github/workflows/deploy-log-capture.yml`
+  остаётся в репо как готовая инфраструктура. `@rule`-ссылка на
+  него в `.github/workflows/deploy.yml` остаётся валидной.
+  `knowledge/deploy.md` §5 описывает корректную архитектуру для
+  случая, когда workflow заработает.
 
