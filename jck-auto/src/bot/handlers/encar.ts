@@ -185,7 +185,26 @@ function formatEncarResult(result: EncarResult, totalRub: number): string {
  * Performs full vehicle analysis with AI enrichment and cost calculation.
  */
 export function registerEncarHandler(bot: TelegramBot): void {
+  // /encar slash-command — instruction message (mirrors encar_info callback in start.ts)
+  bot.onText(/^\/encar\b/, async (msg) => {
+    const chatId = msg.chat.id;
+    bot.sendMessage(
+      chatId,
+      [
+        "🇰🇷 *Анализ авто с Encar.com*",
+        "",
+        "Отправьте ссылку на автомобиль с encar.com — я подтяну характеристики, цену, фото, состояние и рассчитаю стоимость под ключ до Владивостока.",
+        "",
+        "Пример ссылки: https://fem.encar.com/cars/detail/12345678",
+        "",
+        "5 анализов в сутки.",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+  });
+
   bot.on('message', async (msg) => {
+    if (msg.text?.startsWith('/')) return;
     if (!msg.text?.includes('encar.com')) return;
 
     const chatId = msg.chat.id;
