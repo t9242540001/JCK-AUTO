@@ -18,7 +18,7 @@ export default function Hero() {
     <section className="relative overflow-hidden">
       {/* Background image */}
       <Image
-        src="/images/hero-bg.png"
+        src="/images/hero-bg.jpg"
         alt=""
         fill
         className="object-cover object-center"

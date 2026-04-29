@@ -2,9 +2,9 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-28
-  @version:     1.56
-  @lines:       4502
+  @updated:     2026-04-29
+  @version:     1.57
+  @lines:       4518
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,22 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Mobile audit P-1+P-2 — enable Next.js image optimizer + compress hero-bg
+
+**Контекст.** Стартовая инвентаризация мобильной адаптации главной выявила два пункта с наибольшим LCP-эффектом: (а) `images: { unoptimized: true }` в next.config.ts полностью отключал встроенный оптимизатор; (б) `public/images/hero-bg.png` весил 6.62 MB и был LCP-элементом Hero. На медианном мобильном канале в России (37.42 Mbps) только загрузка hero-bg занимала ~1.5s.
+
+**Решение.** Снять `unoptimized: true`, активировать `formats: ['image/avif', 'image/webp']` с deviceSizes включающими мобильные брейкпоинты 360/414. Перенести sharp в production dependencies. Pre-compress hero-bg.png в hero-bg.jpg quality=85 progressive=true mozjpeg=true целевой ширины 1920 — оптимизатор далее сделает AVIF/WebP responsive variants on-demand. Фактический результат компрессии: 6.62 MB → 148 KB (97.8%).
+
+**Альтернативы.**
+- Оставить unoptimized + руками генерить WebP/AVIF varianты в build-time через скрипт. Отклонено: дублирует работу Next.js, требует поддержки.
+- Внешний CDN для image optimization (Cloudinary/Imgix). Отклонено: лишняя зависимость и стоимость для нашего объёма.
+- Только pre-compression без включения оптимизатора. Отклонено: теряем AVIF (~50% выигрыш) и responsive resizing для мобильных.
+
+**Последствия.**
+- На /_next/image теперь идёт нагрузка sharp на VDS — нужен мониторинг CPU после прод-релиза. Кэш minimumCacheTTL=86400 снимает повторные запросы.
+- Все будущие <Image> компоненты на сайте автоматически получают оптимизацию без дополнительных правок.
+- Удалён hero-bg.png — все ссылки на /images/hero-bg.png в репо сломаются. Проверено: используется только в Hero.tsx, других ссылок нет.
 
 ## [2026-04-28] Б-7 closed — pm2 restart instead of startOrReload for jckauto after slot swap
 
