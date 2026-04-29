@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.57
-  @lines:       4518
+  @version:     1.58
+  @lines:       4520
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -35,6 +35,8 @@
 - На /_next/image теперь идёт нагрузка sharp на VDS — нужен мониторинг CPU после прод-релиза. Кэш minimumCacheTTL=86400 снимает повторные запросы.
 - Все будущие <Image> компоненты на сайте автоматически получают оптимизацию без дополнительных правок.
 - Удалён hero-bg.png — все ссылки на /images/hero-bg.png в репо сломаются. Проверено: используется только в Hero.tsx, других ссылок нет.
+
+**Post-deploy fix.** После первого деплоя обнаружен 400 Bad Request на /_next/image. Причина: Next.js 16 требует обязательного поля `qualities` в блоке images — это security-механизм против DoS через произвольные значения q= в URL. Без allowlist'а любой q= → 400. Решено добавлением `qualities: [75, 85]` (75 — дефолт Next.js, 85 — наш Hero). Параллельно добавлен `localPatterns` для путей `/images/**` — best practice 2026 для явного allowlist'а локальных картинок. Урок: при включении продвинутых features Next.js после major-апгрейда — сверять changelog обязательных полей конфига, а не полагаться на то, что отсутствие поля = пермиссивный дефолт.
 
 ## [2026-04-28] Б-7 closed — pm2 restart instead of startOrReload for jckauto after slot swap
 

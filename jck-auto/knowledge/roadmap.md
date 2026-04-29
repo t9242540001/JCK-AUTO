@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.31
-  @lines:       377
+  @version:     1.32
+  @lines:       386
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 (vechelnyaya) — P-1+P-2 fix: qualities + localPatterns required in Next.js 16
+
+- **Сделано:** в `next.config.ts` блок `images` дополнен двумя полями: `qualities: [75, 85]` (allowlist значений quality, ОБЯЗАТЕЛЬНОЕ поле начиная с Next.js 16) и `localPatterns: [{ pathname: '/images/**', search: '' }]` (allowlist путей для локальных <Image>). Без `qualities` оптимизатор отвечал 400 Bad Request на любой запрос /_next/image с q= в URL. После фикса curl должен вернуть 200 + content-type: image/avif или image/webp.
+- **Прервались на:** ожидание curl-проверки на VDS после auto-merge | **Следующий шаг:** P-3 (Framer Motion → LazyMotion) при условии успеха curl. При новом 400 — диагностика nginx/Next.js stderr.
+- **Контекст ошибки:** P-1+P-2 включил optimizer (formats/deviceSizes/imageSizes/minimumCacheTTL), но не включил qualities — поле, ставшее обязательным в Next.js 16 (security: предотвращение DoS через произвольные q=). Next.js 16 docs: "If the quality prop does not match a value in this array, the closest allowed value will be used. If the REST API is visited directly with a quality that does not match a value in this array, the server will return a 400 Bad Request response."
+- **Структурный урок:** новые обязательные поля Next.js при upgrade major версии — потенциальный латентный баг. У нас Next.js 16 уже стоял, P-1+P-2 не вводил Next.js 16 — но активация optimizer вскрыла существующее несоответствие конфига 16-й версии. При следующих включениях продвинутых features Next.js — проверять changelog требуемых полей в конфиге.
+- **Ссылки:** этот коммит. Документация Next.js: https://nextjs.org/docs/app/api-reference/components/image#qualities
 
 ### 2026-04-29 — Mobile audit P-1+P-2: enable Next.js image optimizer + compress hero-bg
 
@@ -118,6 +126,7 @@
 
 ## Done
 
+- [x] **2026-04-29 (vechelnyaya) — P-1+P-2 fix закрыт.** Добавлены `qualities: [75, 85]` и `localPatterns` в next.config.ts. Production curl `/_next/image?url=%2Fimages%2Fhero-bg.jpg&w=1920&q=85` вернул HTTP/2 200 + content-type: image/avif. P-1+P-2 серии Mobile audit функционально завершён.
 - [x] **2026-04-29 — Mobile audit P-1+P-2 закрыт.** В next.config.ts включён image optimizer (AVIF/WebP, mobile-first deviceSizes 360/414). sharp в production dependencies. hero-bg переcжат с 6.62 MB до 148 KB JPEG. Ссылка в Hero обновлена. Production curl-проверка `/_next/image` подтвердила выдачу AVIF/WebP с правильным content-type. См. ADR `[2026-04-29] Mobile audit P-1+P-2`.
 - [x] **2026-04-28 — Б-7 закрыт: pm2 restart вместо startOrReload для jckauto после slot swap.** В `.github/workflows/deploy.yml` после symlink swap заменено `pm2 startOrReload ... --only jckauto,jckauto-bot` на `startOrReload --only jckauto-bot` + `pm2 restart jckauto --update-env`. Корневая причина 720+ рестартов из bugs.md подтверждена smoking gun stack-trace `at async Module.N (.next-b/server/...)` — graceful reload сохранял in-memory chunks из старого slot после swap. Hard restart drop'ает все file descriptors и in-memory state, deploy запускается с чистым slot. Downtime несколько секунд (идентично текущему поведению bot deploy через delete+start). Симметрия с Б-13 теперь восстановлена. См. ADR `[2026-04-28] Б-7 closed — pm2 restart instead of startOrReload`.
 - [x] **2026-04-28 — noscut-fix серия (3 промпта): production bug закрыт.** Три коммита (`760fa0e` noscut.ts → `4325ab0` start.ts → этот коммит knowledge). Inline-кнопка «🔧 Ноускаты» в главном меню (введена в commit `c9e2fed` 2026-04-27) шла instruction-message без `awaitingQuery.set`, поэтому юзер тапал кнопку, видел инструкцию, писал марку — и бот молчал. Решение: новый exported helper `sendNoscutInstructions(bot, chatId)` в `src/bot/handlers/noscut.ts`, который атомарно шлёт инструкцию И armит state. Оба call site (start.ts callback `noscut_info` + noscut.ts slash-without-args) используют единственный helper. Архитектурная асимметрия: auction/encar helpers в `lib/instructionMessages.ts` без state, noscut helper в `handlers/noscut.ts` со state — оправдано coupling'ом text↔state. Бонус: `/noscut` без аргументов теперь показывает ту же длинную инструкцию что и кнопка (была короткая «Примеры:...»). См. ADR `[2026-04-28] noscut-fix — single-source-of-truth helper for instruction + state-arm`.
