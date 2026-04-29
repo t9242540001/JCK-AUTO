@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-28
-  @version:     1.55
-  @lines:       4436
+  @version:     1.56
+  @lines:       4502
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -27,24 +27,69 @@ jckauto-процессе с ENOENT-ошибками на `.next/server/middlewar
 и `.next/BUILD_ID`. Гипотеза в bugs.md — race condition при two-slot symlink
 swap. Не блокировал продакшн благодаря быстрому PM2-restart.
 
-**Диагностика 2026-04-28.** `pm2 describe jckauto` показал 269 рестартов и
-uptime 16s — стабильный цикл падений ~каждые 94 секунды. Все ENOENT-файлы
-физически существовали в активном слоте `.next-a`. Smoking gun в стеке:
+**Диагностика 2026-04-28 (initial).** `pm2 describe jckauto` показал 269
+рестартов и uptime 16s — стабильный цикл падений ~каждые 94 секунды. Все
+ENOENT-файлы физически существовали в активном слоте. В стеке ошибки
+встретился относительный путь:
 
   ⨯ Error: ENOENT: ... '.next/BUILD_ID'
       at async Module.N (.next-b/server/chunks/ssr/_80fe0b8e._.js:1:2103)
 
-Код выполнялся в файле из СТАРОГО слота `.next-b` и читал `.next/BUILD_ID`
-через symlink, который указывал на НОВЫЙ `.next-a`. BUILD_ID у двух слотов
-разные (Turbopack хеширует chunks по BUILD_ID). In-memory state Next.js
-переживал symlink swap.
+Изначально этот путь был интерпретирован как «код из старого слота
+читает новый slot через symlink» — гипотеза «in-memory chunks survive
+graceful reload». На основе этой гипотезы был сформулирован fix
+(`pm2 restart` вместо `startOrReload` для jckauto), и fix внедрён
+коммитом `a67775a`.
 
-**Корневая причина.** `pm2 startOrReload` в `deploy.yml` для уже-online
-процесса выполняет graceful reload, не hard restart. Process image и
-in-memory chunks остаются от старого слота. Это противоречит модели
-two-slot deployment, которая требует чистого старта с нового slot после
-swap'а. Та же ошибка в дизайне ранее обнаружена для бота (Б-13), там
-исправлена через `pm2 delete + start`. Для jckauto — оставалась.
+**Диагностика 2026-04-28 (post-fix, через bug-hunting skill).** После
+fix-деплоя процесс рестартанул чисто, но в полном error log за
+последующие минуты обнаружился ключевой маркер:
+
+  Error: Failed to find Server Action "x". This request might be from
+  an older or newer deployment.
+  Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+
+Это встроенное сообщение Next.js, объясняющее реальный механизм. Stack
+trace `at async Module.N (.next-b/server/...)` — относительный путь к
+текущему executing chunk, не индикатор stale-slot. После fix uptime
+jckauto стабилен 8+ часов, при этом эпизодические Server Action-ошибки
+продолжают логироваться, но процесс уже не падает каскадно благодаря
+hard restart на каждом деплое.
+
+**Корневая причина (revised).** Б-7 — это проявление архитектурного
+свойства Next.js Server Actions при rolling deployments. Action ID,
+встроенный в HTML страницы, привязан к BUILD_ID этой страницы. После
+deploy'а BUILD_ID меняется. Когда пользователь, у которого в браузере
+открыта страница на старом BUILD_ID, нажимает кнопку (форма заявки или
+другой Server Action) — браузер отправляет POST с Action ID от старого
+BUILD_ID. Новый Next.js runtime не находит этот Action ID, падает в
+error rendering path, и при попытке отрендерить /500 цепочка резолвинга
+chunks выкидывает ENOENT на `.next/BUILD_ID` (вместо normal «Action not
+found»). Unhandled rejection → процесс падает → PM2 рестартит.
+
+Это НЕ баг в коде проекта и НЕ баг в PM2-стратегии. Это race между
+живыми вкладками пользователей и cycle деплоев. Минимизируется hard
+restart'ом (стрижка stale connections), но архитектурно не устраняется
+без либо (а) Action ID retention strategy в Next.js, либо (б) snapshots
+старых deployments для graceful обработки stale Actions.
+
+**Почему `pm2 restart` всё-таки помогает.** `pm2 startOrReload`
+(graceful reload) даёт существующим HTTP/keep-alive соединениям окно
+для graceful close. В это окно stale Action requests могут продолжать
+приходить к процессу, который уже находится в transition к новому
+BUILD_ID. `pm2 restart` (hard restart) убивает все соединения мгновенно
+— меньше stale requests доходит до процесса в transition. Частота
+проявлений падает с «петля каждые 94 секунды» до «эпизодические ENOENT,
+не валящие процесс». Стабильность подтверждена: uptime 8+ часов после
+fix.
+
+**Связь с Б-13.** Б-13 (бот) был похожим симптомом (`pm2 startOrReload`
+для уже-online процесса не подхватил `.env.local`), но другой
+корневой причиной (PM2 reuse process image при graceful reload не
+перечитывает env preload). Решение Б-13 (`pm2 delete + start`) и решение
+Б-7 (`pm2 restart`) — оба устраняют graceful reload pattern для своих
+процессов, но по разным причинам. Это симметрия в решении, не симметрия
+в корне.
 
 **Решение.** В `deploy.yml` после `ln -sfn` symlink swap:
 
@@ -58,12 +103,19 @@ ecosystem.config.js. `pm2 reload` в fork mode эквивалентен `pm2 res
 поэтому выбор `restart` — явная семантика.
 
 **Альтернативы рассмотренные.**
-- `pm2 reload` — эквивалент в fork mode, выбран `restart` для ясности.
-- `pm2 delete jckauto && pm2 start ecosystem.config.js --only jckauto`
-  (как для бота) — больше downtime, не нужно для jckauto, поскольку нет
-  специфики `.env.local`-перечтения как у бота.
-- Подождать gracefulShutdown в Next.js — нет надёжного API для форсирования
-  drop in-memory chunks без рестарта процесса.
+- `pm2 reload` — эквивалент `pm2 restart` в fork mode, выбран `restart`
+  для явной семантики «hard kill + start».
+- `pm2 delete jckauto && pm2 start ...` (как для бота) — даёт большую
+  downtime, не нужно для jckauto, поскольку нет специфики
+  `.env.local`-перечтения. Hard restart достаточен.
+- Полная архитектурная mitigation Server Actions stale-state (Action ID
+  retention, multi-deployment overlap) — за рамками: требует серьёзных
+  изменений в Next.js конфигурации и/или сетевом стеке (load balancer
+  с slot-aware routing). Hard restart как минимизация — приемлемое
+  решение на текущем масштабе трафика.
+- Перейти с Server Actions на классические API routes — изолировало бы
+  баг (API routes не привязаны к BUILD_ID), но потребовало бы рефакторинга
+  большого числа форм. Вне scope для одного fix-промпта.
 
 **Почему не сделали раньше.** Б-7 классифицирован «не блокирующий»; PM2
 быстро перезапускал процесс, end-user видел редкие 502 на ~1-2 секунды раз
@@ -86,6 +138,20 @@ skill `bug-hunting` с реальными `pm2 describe` и stack-trace.
 2-3 минуты после `[build] step 7: deploy complete`. Ожидание: uptime
 растёт стабильно (минуты), restarts inkrement +1 относительно
 предыдущего значения, и больше не растёт.
+
+**Урок диагностики (post-mortem 2026-04-28).** Initial diagnosis был
+неверен в части корневой причины, но fix оказался верным по другим
+основаниям. Это распространённый класс ошибок диагностики: relative
+path в stack trace был интерпретирован как индикатор process state
+(«stale slot»), хотя на самом деле это просто текущий путь executing
+chunk относительно cwd. Полный bug-hunting protocol с reading raw error
+log за 200 строк (не grep-фильтрованных) выявил Server Action маркер,
+который изначально был отфильтрован grep'ом по `ENOENT|middleware-manifest`.
+Урок зафиксирован: при hypothesis-driven debugging обязательно
+включает чтение raw error log без pre-filtering на stage 1 of Phase 3
+по skill `bug-hunting`. Pre-filtering экономит время на симптомах, но
+прячет co-occurring сообщения, которые часто содержат настоящий
+маркер причины.
 
 ## [2026-04-28] noscut-fix — single-source-of-truth helper for instruction + state-arm
 
