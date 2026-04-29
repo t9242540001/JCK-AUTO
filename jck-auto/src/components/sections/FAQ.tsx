@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import {
   Accordion,
   AccordionContent,
@@ -13,7 +13,7 @@ export default function FAQ() {
   return (
     <section id="faq" className="bg-white py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -28,9 +28,9 @@ export default function FAQ() {
           <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Ответы на самые популярные вопросы об импорте автомобилей
           </p>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -53,7 +53,7 @@ export default function FAQ() {
               </AccordionItem>
             ))}
           </Accordion>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

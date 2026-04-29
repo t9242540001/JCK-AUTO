@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { Check, ShieldCheck } from "lucide-react";
 
 const features = [
@@ -21,7 +21,7 @@ export default function Warranty() {
     <section id="warranty" className="bg-primary py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
         <div className="grid items-center gap-12 md:grid-cols-2">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
@@ -58,9 +58,9 @@ export default function Warranty() {
             >
               Рассчитать стоимость
             </Link>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
@@ -87,7 +87,7 @@ export default function Warranty() {
                 </div>
               ))}
             </div>
-          </motion.div>
+          </m.div>
         </div>
       </div>
     </section>

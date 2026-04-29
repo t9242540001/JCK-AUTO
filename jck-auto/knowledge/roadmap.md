@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.32
-  @lines:       386
+  @version:     1.33
+  @lines:       396
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Mobile audit P-3: LazyMotion + m migration on home page
+
+- **Сделано:** создан `src/components/MotionProvider.tsx` (client-wrapper с `<LazyMotion features={domAnimation}>`), интегрирован в `src/app/layout.tsx` вокруг `<main>`. Все 10 client-секций главной (Hero, Countries, HowItWorks, Calculator, Values, Warranty, Testimonials, FAQ, ContactCTA, SocialFollow) мигрированы с `motion.div` на `m.div`. Импорт во всех файлах: `import * as m from "framer-motion/m"` вместо `import { motion } from "framer-motion"`. Анимации сохранены внешне идентично — props initial/animate/whileInView/viewport/transition не тронуты, JSX-структура не изменена.
+- **Прервались на:** ожидание визуальной верификации главной на VDS после деплоя | **Следующий шаг:** P-4 (HowItWorks dual-render desktop+mobile) или продуктовое обсуждение P-6 (FloatingMessengers конфликт с CTA).
+- **Контекст:** P-3 закрывает один из 11 пунктов реестра проблем mobile-аудита. Ожидаемый эффект: framer-motion initial bundle сокращается с ~34 KB до ~4.6 KB. На реальной мобильной CPU это снижает parse+exec time на entry, что прямо влияет на INP (порог "good" ≤ 200ms).
+- **Не задеты:** CarCard.tsx, NoscutCard.tsx, tools-страницы — они используют motion, но не относятся к главной. Будут мигрированы при работе по соответствующим типам страниц. После миграции всех motion-вызовов проекта — финальный промпт включит `strict` на LazyMotion для защиты от регрессий.
+- **Структурный урок:** один глобальный `<LazyMotion>` через client-wrapper в layout — чище, чем локальные обёртки в каждой секции. Cost — один новый файл (15 строк), benefit — единое поведение и точка контроля для будущего `strict`.
+- **Ссылки:** этот коммит. Документация Motion: https://motion.dev/docs/react-lazy-motion.
 
 ### 2026-04-29 (vechelnyaya) — P-1+P-2 fix: qualities + localPatterns required in Next.js 16
 
@@ -126,6 +135,7 @@
 
 ## Done
 
+- [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
 - [x] **2026-04-29 (vechelnyaya) — P-1+P-2 fix закрыт.** Добавлены `qualities: [75, 85]` и `localPatterns` в next.config.ts. Production curl `/_next/image?url=%2Fimages%2Fhero-bg.jpg&w=1920&q=85` вернул HTTP/2 200 + content-type: image/avif. P-1+P-2 серии Mobile audit функционально завершён.
 - [x] **2026-04-29 — Mobile audit P-1+P-2 закрыт.** В next.config.ts включён image optimizer (AVIF/WebP, mobile-first deviceSizes 360/414). sharp в production dependencies. hero-bg переcжат с 6.62 MB до 148 KB JPEG. Ссылка в Hero обновлена. Production curl-проверка `/_next/image` подтвердила выдачу AVIF/WebP с правильным content-type. См. ADR `[2026-04-29] Mobile audit P-1+P-2`.
 - [x] **2026-04-28 — Б-7 закрыт: pm2 restart вместо startOrReload для jckauto после slot swap.** В `.github/workflows/deploy.yml` после symlink swap заменено `pm2 startOrReload ... --only jckauto,jckauto-bot` на `startOrReload --only jckauto-bot` + `pm2 restart jckauto --update-env`. Корневая причина 720+ рестартов из bugs.md подтверждена smoking gun stack-trace `at async Module.N (.next-b/server/...)` — graceful reload сохранял in-memory chunks из старого slot после swap. Hard restart drop'ает все file descriptors и in-memory state, deploy запускается с чистым slot. Downtime несколько секунд (идентично текущему поведению bot deploy через delete+start). Симметрия с Б-13 теперь восстановлена. См. ADR `[2026-04-28] Б-7 closed — pm2 restart instead of startOrReload`.

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.58
-  @lines:       4520
+  @version:     1.59
+  @lines:       4537
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,23 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page
+
+**Контекст.** Все 10 client-секций главной импортировали `motion` напрямую из framer-motion, что включает в initial bundle полный feature-set (~34 KB gzipped) — даже когда используется только `initial`/`animate`/`whileInView`/`viewport`/`transition`. На мобильной CPU это бьёт по INP (порог "good" ≤ 200ms по CWV 2026).
+
+**Решение.** Один глобальный client-wrapper `MotionProvider` с `<LazyMotion features={domAnimation}>` в `src/app/layout.tsx` вокруг `<main>`. Все 10 секций главной мигрированы с `motion.div` на `m.div` через `import * as m from "framer-motion/m"`. Bundle framer-motion: ~34 KB → ~4.6 KB initial.
+
+**Альтернативы.**
+- Локальный LazyMotion в каждой секции. Отклонено: 10 дублирующихся обёрток vs один файл MotionProvider.
+- Замена framer-motion на Motion One или CSS keyframes. Отклонено: framer-motion интегрирован в проект, миграция на другую библиотеку — отдельная T3 задача с гораздо большим scope.
+- Убрать декоративные scroll-триггерные анимации с главной полностью. Отклонено: продуктовое решение, не входит в P-3 — может быть рассмотрено отдельно.
+- Включить `strict` на LazyMotion сразу. Отклонено: CarCard/NoscutCard/tools-страницы ещё используют `motion` напрямую (рендерятся на /catalog, /catalog/noscut, /tools/*). `strict` сразу — runtime errors на этих страницах. Включим финальным промптом серии после полной миграции.
+
+**Последствия.**
+- Все будущие client-компоненты в src/ должны использовать `m.X` вместо `motion.X` для tree-shake'инга. Это зафиксировано в `@rule` JSDoc-шапки MotionProvider.tsx.
+- При следующей сессии Claude Code, добавляющего новые анимации — нужно явно проверять, что используется `m`, не `motion`. После включения `strict` это будет автоматически (runtime error).
+- CarCard.tsx, NoscutCard.tsx, tools-страницы и другие неподёрнутые motion-импорты — known техдолг, planned серия. Зарегистрировать в Technical Debt секции roadmap.md (если уже не зарегистрировано).
 
 ## [2026-04-29] Mobile audit P-1+P-2 — enable Next.js image optimizer + compress hero-bg
 

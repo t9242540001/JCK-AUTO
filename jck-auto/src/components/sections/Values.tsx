@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { Eye, ShieldCheck, GraduationCap, RefreshCw } from "lucide-react";
 
 const values = [
@@ -34,7 +34,7 @@ export default function Values() {
   return (
     <section id="values" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -49,11 +49,11 @@ export default function Values() {
           <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Принципы, которыми мы руководствуемся в каждой сделке
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {values.map((v, i) => (
-            <motion.div
+            <m.div
               key={v.title}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -68,7 +68,7 @@ export default function Values() {
                 {v.title}
               </h3>
               <p className="mt-2 text-sm text-text-muted">{v.description}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>
