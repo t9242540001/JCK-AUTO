@@ -1,13 +1,13 @@
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import CalculatorCore from "@/components/calculator/CalculatorCore";
 
 export default function Calculator() {
   return (
     <section id="calculator" className="bg-white py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -23,9 +23,9 @@ export default function Calculator() {
             Калькулятор учитывает таможенные пошлины, утилизационный сбор,
             доставку и наши услуги. Без скрытых платежей
           </p>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -33,7 +33,7 @@ export default function Calculator() {
           className="mx-auto mt-12 max-w-5xl rounded-2xl border border-border bg-surface p-6 md:p-8"
         >
           <CalculatorCore showDeepLink />
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

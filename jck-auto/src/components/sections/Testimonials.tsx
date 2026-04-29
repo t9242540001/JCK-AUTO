@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { Star } from "lucide-react";
 import { testimonials } from "@/data/testimonials";
 import { CONTACTS } from "@/lib/constants";
@@ -15,7 +15,7 @@ export default function Testimonials() {
   return (
     <section id="testimonials" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -30,12 +30,12 @@ export default function Testimonials() {
           <p className="mx-auto mt-4 max-w-2xl text-base text-text-muted sm:text-lg">
             Реальные отзывы людей, которые уже привезли авто с нашей помощью
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Desktop grid */}
         <div className="mt-12 hidden gap-6 md:grid md:grid-cols-2 lg:grid-cols-3">
           {testimonials.slice(0, 3).map((t, i) => (
-            <motion.div
+            <m.div
               key={t.id}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -63,7 +63,7 @@ export default function Testimonials() {
                   {countryFlag[t.country]} {t.car}
                 </span>
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
@@ -98,7 +98,7 @@ export default function Testimonials() {
           ))}
         </div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
@@ -112,7 +112,7 @@ export default function Testimonials() {
           >
             Больше отзывов на YouTube &rarr;
           </a>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import Image from "next/image";
 import { Check } from "lucide-react";
 import { type Country } from "@/lib/constants";
@@ -72,7 +72,7 @@ export default function Countries() {
   return (
     <section id="countries" className="bg-white py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -88,11 +88,11 @@ export default function Countries() {
             Для каждой страны — свои источники, проверенные партнёры и отлаженная
             логистика. Честная итоговая цена без скрытых платежей
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="mt-12 grid gap-8 md:grid-cols-3">
           {countries.map((c, i) => (
-            <motion.div
+            <m.div
               key={c.country}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -143,7 +143,7 @@ export default function Countries() {
                 </ul>
 
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>

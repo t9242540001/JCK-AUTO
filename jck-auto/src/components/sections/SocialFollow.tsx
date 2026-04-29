@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { Send, Youtube, Instagram } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
@@ -28,7 +28,7 @@ const socials = [
 export default function SocialFollow() {
   return (
     <section className="bg-[#F1F3F5] py-10 px-4">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
@@ -54,7 +54,7 @@ export default function SocialFollow() {
             </a>
           ))}
         </div>
-      </motion.div>
+      </m.div>
     </section>
   );
 }

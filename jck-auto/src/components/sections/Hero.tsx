@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { Send } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 
@@ -29,7 +29,7 @@ export default function Hero() {
       {/* Content over the background */}
       <div className="relative mx-auto max-w-7xl px-4 pt-28 pb-8 sm:pt-32 sm:pb-10">
         {/* Main card with semi-transparent background */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -67,10 +67,10 @@ export default function Hero() {
               Написать в Telegram
             </a>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Stats row — tight spacing under the card */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
@@ -87,7 +87,7 @@ export default function Hero() {
               <p className="mt-1 text-xs text-text-muted sm:text-sm">{stat.label}</p>
             </div>
           ))}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

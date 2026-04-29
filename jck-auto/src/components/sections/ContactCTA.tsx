@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { CONTACTS } from "@/lib/constants";
 import LeadForm from "@/components/LeadForm";
 
@@ -9,7 +9,7 @@ export default function ContactCTA() {
   return (
     <section id="contact" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -53,7 +53,7 @@ export default function ContactCTA() {
               {CONTACTS.phone}
             </a>
           </p>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

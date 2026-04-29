@@ -7,6 +7,7 @@ import Header from "@/components/layout/Header";
 import YandexMetrika from "@/components/layout/YandexMetrika";
 import Footer from "@/components/layout/Footer";
 import FloatingMessengers from "@/components/FloatingMessengers";
+import MotionProvider from "@/components/MotionProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://jckauto.ru"),
@@ -71,7 +72,9 @@ export default function RootLayout({
         <JsonLd />
         <Header />
         <YandexMetrika />
-        <main>{children}</main>
+        <MotionProvider>
+          <main>{children}</main>
+        </MotionProvider>
         <Footer />
         <FloatingMessengers />
       </body>

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { MessageCircle, Search, Ship, FileCheck, Key } from "lucide-react";
 
 const steps = [
@@ -40,7 +40,7 @@ export default function HowItWorks() {
   return (
     <section id="how-it-works" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -56,12 +56,12 @@ export default function HowItWorks() {
             Пять шагов от заявки до получения автомобиля. Вы контролируете каждый
             этап — мы присылаем фото и видео на каждом шаге
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Desktop timeline */}
         <div className="mt-12 hidden md:grid md:grid-cols-5 md:gap-4">
           {steps.map((step, i) => (
-            <motion.div
+            <m.div
               key={step.title}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -79,14 +79,14 @@ export default function HowItWorks() {
                 {step.title}
               </h3>
               <p className="mt-2 text-xs text-text-muted">{step.description}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
         {/* Mobile vertical timeline */}
         <div className="mt-12 space-y-8 md:hidden">
           {steps.map((step, i) => (
-            <motion.div
+            <m.div
               key={step.title}
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -108,7 +108,7 @@ export default function HowItWorks() {
                   {step.description}
                 </p>
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>
