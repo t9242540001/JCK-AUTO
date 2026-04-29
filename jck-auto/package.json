@@ -11,7 +11,10 @@
     "fix-pending": "tsx -r tsconfig-paths/register scripts/fix-ai-pending.ts",
     "process-pending": "tsx -r tsconfig-paths/register scripts/process-ai-pending.ts",
     "bot": "tsx scripts/start-bot.ts",
-    "bot:dev": "tsx watch scripts/start-bot.ts"
+    "bot:dev": "tsx watch scripts/start-bot.ts",
+    "screenshots:mobile": "tsx scripts/mobile-screenshots.ts",
+    "lighthouse:mobile": "tsx scripts/mobile-lighthouse.ts",
+    "audit:mobile": "tsx scripts/mobile-audit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
@@ -49,14 +52,17 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/node-telegram-bot-api": "^0.64.13",
     "@types/pdfkit": "^0.17.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "chrome-launcher": "^1.1.2",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "lighthouse": "^12.2.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "tsconfig-paths": "^4.2.0",
