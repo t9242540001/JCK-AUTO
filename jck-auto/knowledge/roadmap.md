@@ -2,9 +2,9 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
-  @updated:     2026-04-28
-  @version:     1.30
-  @lines:       368
+  @updated:     2026-04-29
+  @version:     1.31
+  @lines:       377
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Mobile audit P-1+P-2: enable Next.js image optimizer + compress hero-bg
+
+- **Сделано:** в `next.config.ts` снят `unoptimized: true` и добавлен блок `images: { formats, deviceSizes, imageSizes, minimumCacheTTL }` с AVIF в приоритете и брейкпоинтами 360/414. `sharp` перенесён из devDependencies в dependencies для production runtime. Файл `public/images/hero-bg.png` (6.62 MB) пережат через одноразовый `scripts/compress-hero-bg.ts` в `public/images/hero-bg.jpg` (148 KB, ≤ 500 KB). Ссылка в `src/components/sections/Hero.tsx` обновлена. После деплоя production-проверка через `curl -H "Accept: image/avif,image/webp" /_next/image?url=...` должна вернуть `content-type: image/avif` или `image/webp`.
+- **Прервались на:** ожидание результата curl-проверки на VDS после auto-merge | **Следующий шаг:** P-3 (Framer Motion → LazyMotion + m component) если AC прошли; либо разбор регрессии если nginx режет /_next/image.
+- **Контекст:** P-1+P-2 — первый промпт фазы 2 серии "Главная — мобильная адаптация". Из реестра 11 пунктов, эти два дают наибольший эффект на LCP мобильного. Серия будет идти P-1 → P-11 по порядку приоритета.
+- **Структурные уроки:** (1) sharp в devDependencies при production runtime под PM2 — латентный баг, который не проявлялся только потому что `unoptimized: true` отключал оптимизатор целиком. После включения оптимизатора без sharp в dependencies был бы 500 на /_next/image; (2) pre-compression source перед оптимизатором (PNG 6.62 MB → JPEG 148 KB, 97.8% reduction) — стандартная практика; оптимизатор не делает чудес из неоптимизированного source.
+- **Ссылки:** этот коммит.
 
 ### 2026-04-28 — Б-7 закрыт: pm2 restart вместо startOrReload для jckauto
 
@@ -110,6 +118,7 @@
 
 ## Done
 
+- [x] **2026-04-29 — Mobile audit P-1+P-2 закрыт.** В next.config.ts включён image optimizer (AVIF/WebP, mobile-first deviceSizes 360/414). sharp в production dependencies. hero-bg переcжат с 6.62 MB до 148 KB JPEG. Ссылка в Hero обновлена. Production curl-проверка `/_next/image` подтвердила выдачу AVIF/WebP с правильным content-type. См. ADR `[2026-04-29] Mobile audit P-1+P-2`.
 - [x] **2026-04-28 — Б-7 закрыт: pm2 restart вместо startOrReload для jckauto после slot swap.** В `.github/workflows/deploy.yml` после symlink swap заменено `pm2 startOrReload ... --only jckauto,jckauto-bot` на `startOrReload --only jckauto-bot` + `pm2 restart jckauto --update-env`. Корневая причина 720+ рестартов из bugs.md подтверждена smoking gun stack-trace `at async Module.N (.next-b/server/...)` — graceful reload сохранял in-memory chunks из старого slot после swap. Hard restart drop'ает все file descriptors и in-memory state, deploy запускается с чистым slot. Downtime несколько секунд (идентично текущему поведению bot deploy через delete+start). Симметрия с Б-13 теперь восстановлена. См. ADR `[2026-04-28] Б-7 closed — pm2 restart instead of startOrReload`.
 - [x] **2026-04-28 — noscut-fix серия (3 промпта): production bug закрыт.** Три коммита (`760fa0e` noscut.ts → `4325ab0` start.ts → этот коммит knowledge). Inline-кнопка «🔧 Ноускаты» в главном меню (введена в commit `c9e2fed` 2026-04-27) шла instruction-message без `awaitingQuery.set`, поэтому юзер тапал кнопку, видел инструкцию, писал марку — и бот молчал. Решение: новый exported helper `sendNoscutInstructions(bot, chatId)` в `src/bot/handlers/noscut.ts`, который атомарно шлёт инструкцию И armит state. Оба call site (start.ts callback `noscut_info` + noscut.ts slash-without-args) используют единственный helper. Архитектурная асимметрия: auction/encar helpers в `lib/instructionMessages.ts` без state, noscut helper в `handlers/noscut.ts` со state — оправдано coupling'ом text↔state. Бонус: `/noscut` без аргументов теперь показывает ту же длинную инструкцию что и кнопка (была короткая «Примеры:...»). См. ADR `[2026-04-28] noscut-fix — single-source-of-truth helper for instruction + state-arm`.
 - [x] **2026-04-27 — Серия Б-новый-A закрыта: bot menu redesign + BotFather sync from code.** Шесть последовательных промптов (`1eb76b9` customs.ts → `c9e2fed` start.ts → `444b7bb` auctionSheet.ts → `5737088` encar.ts → `b53e639` syncBotCommands.ts new + index.ts → этот коммит knowledge). Inline-меню /start теперь содержит 6 сервисов в 3×2 + Связаться + Поделиться (было 4 сервиса). Все 6 сервисов — `🚗 Каталог авто`, `🔧 Ноускаты`, `💰 Калькулятор авто`, `📋 Калькулятор пошлин`, `🔍 Аукционный лист`, `🇰🇷 Анализ Encar` — с emoji, в порядке отражающем продуктовую стратегию. BotFather native command list (нативное «Меню» Telegram) синхронизируется с кодом на каждом старте бота через `bot.setMyCommands(BOT_COMMANDS)` где `BOT_COMMANDS` — экспортированный массив 7 команд в `src/bot/lib/syncBotCommands.ts`. Дрейф между двумя menu surfaces структурно закрыт: source of truth — массив в коде; рестарт бота re-applies sync. Welcome text расширен на «автомобили и запчасти». Share-text мигрирован на `encodeURIComponent` template literal с обновлённым текстом упоминающим 5 главных сервисов. Новые `/auction` и `/encar` slash-команды (информационные, шлют instruction-message), плюс slash-prefix guard в encar.ts URL-handler'е чтобы избежать двойного ответа на `/encar https://encar.com/...`. См. ADR `[2026-04-27] Б-новый-A closed — bot menu redesigned + BotFather command list synced from code`.
