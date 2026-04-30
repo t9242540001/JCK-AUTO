@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/space-grotesk";
 import "./globals.css";
@@ -59,6 +59,13 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://jckauto.ru",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#1E3A5F",
 };
 
 export default function RootLayout({

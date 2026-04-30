@@ -78,7 +78,13 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 shadow-sm backdrop-blur-sm">
+    // RULE: env(safe-area-inset-*) on top/left/right is required for iPhone
+    // notch and Dynamic Island. Top covers portrait notch height. Left and
+    // right cover landscape side notch and display cutouts on Android. All
+    // three offsets are 0 on devices without cutouts — no visual regression.
+    // Activated by viewportFit: 'cover' in src/app/layout.tsx; without it
+    // env() values resolve to 0 even on iPhone with notch.
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 shadow-sm backdrop-blur-sm pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
 
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
         <Link href="/" aria-label="JCK AUTO">

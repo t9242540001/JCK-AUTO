@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.62
-  @lines:       4573
+  @version:     1.63
+  @lines:       4598
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,31 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Mobile audit P-5+P-9 — viewport meta and safe-area inset
+
+**Контекст.** Сайт работал без `export const viewport` в `src/app/layout.tsx` — Next.js эмитировал дефолтный `<meta name="viewport" content="width=device-width, initial-scale=1">` без `viewport-fit=cover`. На iPhone с notch / Dynamic Island это означает: (а) контент не доходит до краёв экрана (есть рамка-чёрная-полоска вокруг), (б) даже если бы doходил, CSS-значения `env(safe-area-inset-*)` всегда возвращали бы `0` — нет переключателя `viewport-fit=cover`. Параллельно: Header был `fixed top-0` без safe-area-inset, поэтому в гипотетическом сценарии активного `viewport-fit=cover` логотип/burger были бы заслонены notch'ом в portrait и боковым cutout'ом в landscape. Hero pt-28/sm:pt-32 был hand-tuned под высоту header'а **без notch'а** — после активации viewport-fit Hero физически залезал бы под header'а, увеличившийся на ~47-59px.
+
+**Решение.** Объединить P-5 (Header safe-area) и P-9 (viewport meta) в один промпт.
+- В `layout.tsx` добавить `export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#1E3A5F' }`.
+- В Header.tsx root `<header>` получает `pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]` — top для portrait notch, left/right для landscape side notch и Android display cutouts.
+- В Hero.tsx верхний padding меняется на `pt-[calc(7rem+env(safe-area-inset-top))] sm:pt-[calc(8rem+env(safe-area-inset-top))]` — компенсирует увеличение header'а на величину top inset.
+
+На устройствах без выреза `env(safe-area-inset-top) = 0px`, и все три класса collapse'ятся к нулю — поведение для не-iPhone пользователей идентично текущему production. Никакой регрессии.
+
+**Альтернативы.**
+- **Раздельные промпты для P-5 и P-9.** Отклонено: технически неразделимо. После только-P-5 (safe-area классы без viewport-fit) — no-op для iPhone, лишний код. После только-P-9 (viewport-fit без safe-area) — Header заходит под notch, видимая регрессия для пользователей iPhone в проде между двумя деплоями. Объединённый промпт даёт атомарный переход через GitHub Actions auto-merge.
+- **CSS-переменная `--safe-top` в `globals.css` вместо Tailwind arbitrary values.** Отклонено: ради трёх использований в двух файлах добавлять глобальную переменную — overkill. Tailwind arbitrary value `pt-[env(safe-area-inset-top)]` локализует решение в самом классе и читается без cross-file lookup.
+- **`scaleSnap`/`scalable` `false` для блокировки zoom**. Отклонено: блокирует accessibility (pinch-zoom для visually impaired). Современная конвенция — позволять зум.
+- **`overflowAnchor` или другие viewport poly-fields.** Отклонено: не относятся к safe-area; за scope текущего промпта.
+
+**Последствия.**
+- (+) iPhone 14/15 Pro в portrait — header больше не клипуется notch'ом, Hero card стартует с visible margin'ом ниже header'а.
+- (+) iPhone в landscape — боковой notch не закрывает логотип/контакты.
+- (+) Android Chrome (real device) — address bar тинтуется в брендовый `#1E3A5F`. На iOS Safari `themeColor` действует только в standalone PWA mode — это known platform limitation, не баг проекта.
+- (−) Android устройства с display cutout — не тестировались физически, только через DevTools simulation. При первом обнаружении регрессии — добавить device-specific fix, не пытаться угадать сейчас.
+- (−) Если в будущем нужно отключить viewport-fit (например, при добавлении встраиваемого режима), три safe-area класса в Header.tsx и calc() в Hero.tsx останутся — на устройствах без notch это no-op, удалить можно отдельным промптом без срочности.
+- (Knowledge) Все будущие fixed-header'ы и absolute-positioned элементы у краёв должны учитывать safe-area-inset. Это структурное правило для проекта; зафиксировано в ADR Consequences для будущей сверки.
 
 ## [2026-04-29] Mobile audit P-4 — HowItWorks unified responsive layout
 

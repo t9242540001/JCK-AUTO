@@ -27,7 +27,7 @@ export default function Hero() {
       />
 
       {/* Content over the background */}
-      <div className="relative mx-auto max-w-7xl px-4 pt-28 pb-8 sm:pt-32 sm:pb-10">
+      <div className="relative mx-auto max-w-7xl px-4 pt-[calc(7rem+env(safe-area-inset-top))] pb-8 sm:pt-[calc(8rem+env(safe-area-inset-top))] sm:pb-10">
         {/* Main card with semi-transparent background */}
         <m.div
           initial={{ opacity: 0, y: 20 }}
