@@ -16,7 +16,9 @@ const nextConfig: NextConfig = {
   // - localPatterns: allowlist of paths for local <Image src="/..."/>.
   //   Without it Next.js 16 may 400 on paths with query strings or
   //   unexpected formats. Closes the attack surface of /_next/image
-  //   over arbitrary local paths.
+  //   over arbitrary local paths. Два источника: /images/** для
+  //   статических ассетов, /storage/** для динамических (фото каталога
+  //   через симлинк public/storage → /var/www/jckauto/storage).
   images: {
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [360, 414, 640, 750, 828, 1080, 1200, 1920, 2048],
@@ -26,6 +28,10 @@ const nextConfig: NextConfig = {
     localPatterns: [
       {
         pathname: '/images/**',
+        search: '',
+      },
+      {
+        pathname: '/storage/**',
         search: '',
       },
     ],

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.33
-  @lines:       396
+  @version:     1.34
+  @lines:       406
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 (poslepoldnia) — P-1+P-2 fix #2: localPatterns extended for /storage/**
+
+- **Сделано:** в `next.config.ts` массив `images.localPatterns` расширен вторым паттерном `{ pathname: '/storage/**', search: '' }`. Первый паттерн `/images/**` для статических ассетов сохранён. После фикса оптимизатор валидирует и обрабатывает картинки из обеих директорий: `/public/images/` (статика проекта) и `/public/storage/` (симлинк на `/var/www/jckauto/storage` с фото каталога автомобилей).
+- **Прервались на:** ожидание curl-проверки на VDS после auto-merge. Финальный браузерный smoke-тест: главная без ошибок 400 в DevTools Console при hard reload.
+- **Контекст ошибки:** P-1+P-2 fix добавил `localPatterns` с одним паттерном `/images/**`, потому что я не учёл, что на главной CatalogPreview рендерит CarCard'ы с фото из `/storage/catalog/`. После первого fix в DevTools Console осталась 1 ошибка из 12 — именно на storage-картинку.
+- **Структурный урок:** при добавлении allowlist-полей (localPatterns, remotePatterns, CSP source-list, CORS origins) — обязательно делать инвентаризацию ВСЕХ источников, а не только того, который только что починен. Метод: grep по `<Image src=` в src/, найти все уникальные пути prefix'ы. Это бы выявило `/storage/` сразу.
+- **Bug hunt — это была триггерная серия для skill `bug-hunting`:** P-1+P-2 первый промпт → 400 → fix-1 (qualities, localPatterns: /images/**) → 400 → bug hunt protocol → найден nginx WebSocket-upgrade misconfiguration → fix nginx + узнаём про /storage → fix-2 этот. Урок: при первой неудаче fix'а после деплоя — обязательно проверять реальный браузер, не только curl. Curl без браузерных headers скрыл реальные ошибки от пользователей в DevTools Console.
+- **Ссылки:** этот коммит. Связанные коммиты: 9658e00 (P-1+P-2), fcc7c7c (P-1+P-2 fix-1), nginx-патч на VDS (вне git).
 
 ### 2026-04-29 — Mobile audit P-3: LazyMotion + m migration on home page
 
@@ -136,6 +145,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 (poslepoldnia) — P-1+P-2 fix #2 закрыт.** Расширен `localPatterns` в next.config.ts на `/storage/**`. Браузерный smoke-тест на проде — главная без ошибок 400 в DevTools Console. P-1+P-2 серии Mobile audit функционально полностью завершён. Bug hunt по 400 на /_next/image закрыт (см. ADR расширенный с секциями Post-deploy fix #1 и #2).
 - [x] **2026-04-29 (vechelnyaya) — P-1+P-2 fix закрыт.** Добавлены `qualities: [75, 85]` и `localPatterns` в next.config.ts. Production curl `/_next/image?url=%2Fimages%2Fhero-bg.jpg&w=1920&q=85` вернул HTTP/2 200 + content-type: image/avif. P-1+P-2 серии Mobile audit функционально завершён.
 - [x] **2026-04-29 — Mobile audit P-1+P-2 закрыт.** В next.config.ts включён image optimizer (AVIF/WebP, mobile-first deviceSizes 360/414). sharp в production dependencies. hero-bg переcжат с 6.62 MB до 148 KB JPEG. Ссылка в Hero обновлена. Production curl-проверка `/_next/image` подтвердила выдачу AVIF/WebP с правильным content-type. См. ADR `[2026-04-29] Mobile audit P-1+P-2`.
 - [x] **2026-04-28 — Б-7 закрыт: pm2 restart вместо startOrReload для jckauto после slot swap.** В `.github/workflows/deploy.yml` после symlink swap заменено `pm2 startOrReload ... --only jckauto,jckauto-bot` на `startOrReload --only jckauto-bot` + `pm2 restart jckauto --update-env`. Корневая причина 720+ рестартов из bugs.md подтверждена smoking gun stack-trace `at async Module.N (.next-b/server/...)` — graceful reload сохранял in-memory chunks из старого slot после swap. Hard restart drop'ает все file descriptors и in-memory state, deploy запускается с чистым slot. Downtime несколько секунд (идентично текущему поведению bot deploy через delete+start). Симметрия с Б-13 теперь восстановлена. См. ADR `[2026-04-28] Б-7 closed — pm2 restart instead of startOrReload`.
