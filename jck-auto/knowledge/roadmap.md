@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.39
-  @lines:       470
+  @version:     1.40
+  @lines:       479
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — P-12 fix: Testimonials card width
+
+- **Сделано:** в `src/components/sections/Testimonials.tsx` className mobile-карточек заменён с `min-w-[280px] shrink-0 ...` на `w-[85vw] max-w-[320px] shrink-0 ...`. Добавлен RULE-комментарий выше className с объяснением, почему min-w в одиночку не работает в horizontal-scroll контексте с shrink-0 + переменной длины текста. Остальное в файле (IntersectionObserver, dots, JSX-контент карточек, desktop-grid) — байт-в-байт нетронуто.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge при viewport 360 / 412 / 430px (карточка должна влезать в viewport с peek'ом, текст переноситься на несколько строк) | **Следующий шаг:** P-7/P-8 серии Mobile audit либо closing summary серии.
+- **Контекст бага:** после деплоя P-12 на проде осталась видимая обрезка mobile-карточек на 360-430px («по имп...»). Root cause: `min-w-[280px]` задаёт минимальную ширину но не максимальную; `shrink-0` запрещает flex'у уменьшать карточку; `<p>` с длинным testimonial-текстом (220+ символов) пытается уместиться на наименьшем числе строк — карточка растёт до intrinsic single-line width, выходит за viewport. P-12 (scroll-snap + dots) не пересекался с этим багом — он добавил signal'ы, но не зафиксировал ширину карточки.
+- **Структурный урок:** в horizontal-scroll контексте с `shrink-0` и пользовательским контентом переменной длины — `min-w-` в одиночку недостаточно. Всегда парить с явной `w-` или `max-w-`. Альтернативно: убрать `shrink-0` — тогда flex schould-shrink, но peek-эффект ломается. Баг был latent в P-12 коде; вскрылся на конкретных длинных testimonials в data. Урок зафиксирован в Post-deploy fix секции ADR P-12.
+- **Ссылки:** этот коммит. Связанный коммит: 644cb78 (P-12 первый деплой). ADR `[2026-04-29] Mobile audit P-12` расширен секцией Post-deploy fix.
 
 ### 2026-04-29 — Mobile audit P-12: Testimonials mobile scroll signal
 
@@ -186,6 +194,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — P-12 fix закрыт.** Testimonials mobile-карточки получили deterministic ширину `w-[85vw] max-w-[320px]` вместо `min-w-[280px]` — длинный testimonial-текст теперь wrap'ится внутри границ карточки на всех mobile viewport'ах (360 / 412 / 430). Pagination dots и scroll-snap из исходного P-12 продолжают работать. См. ADR `[2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal` секция Post-deploy fix.
 - [x] **2026-04-29 — Mobile audit P-12 закрыт.** Testimonials секция получила `snap-x snap-mandatory` + `snap-start` на mobile horizontal-scroll, плюс decorative pagination dots (5 точек) под карточками. Active dot обновляется через IntersectionObserver с `root: containerRef.current` (без явного root observer не сработает на horizontal scroll). Desktop grid не задет. См. ADR `[2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal`.
 - [x] **2026-04-29 — Mobile audit P-6 закрыт.** FloatingMessengers FAB теперь auto-hide на любом элементе с атрибутом `[data-fm-hide="true"]` в viewport (через IntersectionObserver). LeadForm opt'ин — единственная правка в файле, атрибут на root `<form>`. На 360-414px touch conflict между FAB и submit-кнопкой формы устранён. При раскрытом menu и появлении формы — menu collapse'ится вместе с FAB. См. ADR `[2026-04-29] Mobile audit P-6 — FloatingMessengers auto-hide on forms`.
 - [x] **2026-04-29 — Mobile audit P-5+P-9 закрыт.** В `layout.tsx` экспортирован `viewport: Viewport` с `viewportFit: 'cover'` и `themeColor: '#1E3A5F'`. В Header добавлены `env(safe-area-inset-top|left|right)` для notch / Dynamic Island в portrait + landscape. В Hero верхний padding адаптирован через `calc(7rem + env(safe-area-inset-top))`. На устройствах без выреза поведение не меняется (env=0). См. ADR `[2026-04-29] Mobile audit P-5+P-9 — viewport meta and safe-area inset`.
