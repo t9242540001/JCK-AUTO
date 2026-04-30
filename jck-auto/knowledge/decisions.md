@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.64
-  @lines:       4618
+  @version:     1.65
+  @lines:       4642
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,30 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal
+
+**Контекст.** Testimonials.tsx на mobile рендерит горизонтальный scroll-контейнер с bleed-to-edge layout (`-mx-4 px-4`), 5 карточек по `min-w-[280px] shrink-0`. На viewport 360px первая карточка занимает ~280px шириной, видимая область — одна карточка целиком + ~16px peek правого края следующей. Это намеренный UX-приём (peek подсказывает «есть ещё»), но без дополнительного сигнала пользователь интерпретирует обрезание как layout-баг («текст обрезается»). Vasily обнаружил это на iPhone 14 Pro Max preview во время верификации P-5+P-9. P-12 добавлен в реестр сегодня.
+
+**Решение.** Два минимальных усилителя сигнала «свайпни», без изменения bleed-to-edge layout'а:
+1. CSS scroll-snap: `snap-x snap-mandatory` на контейнере, `snap-start` на каждой карточке. Тактильный сигнал при свайпе — карточки фиксируются на левой границе, чувствуется дискретность.
+2. Pagination dots: 5 точек под карточками с `md:hidden`. Активная (соответствующая most-visible карточке) — `w-6 bg-primary`, неактивные — `w-2 bg-border`, transition-all 300ms. Декоративные (`aria-hidden="true"`), не кликабельные.
+
+Active dot обновляется через IntersectionObserver. Ключевой технический момент: observer должен использовать `root: containerRef.current`, а не дефолтный root (page viewport). Горизонтальный scroll происходит ВНУТРИ контейнера; page viewport при свайпе не меняется, и observer с дефолтным root никогда не сработает. Threshold `[0, 0.5, 1]` даёт достаточно гранулярности, чтобы по `intersectionRatio` выбрать most-visible карточку.
+
+**Альтернативы.**
+- **Third-party carousel library (embla, swiper, keen-slider).** Отклонено: добавляет 10-30 KB к bundle, отдельная зависимость, замена нашего минимального CSS-решения на overengineered framework для случая, который решается двумя классами + observer'ом.
+- **Vertical stack на mobile** (без scroll вообще, все 5 карточек в колонку). Отклонено: тратит вертикальный scroll real-estate, ломает peek-эффект и удлиняет mobile-страницу. Текущий горизонтальный scroll с peek — правильный UX для testimonials.
+- **Sticky scroll indicator (custom progress bar внизу).** Отклонено: дублирует функцию pagination dots с большим визуальным шумом. Dots — стандартный вариант для 3-7 элементов.
+- **Clickable dots (jump to card on tap).** Отклонено для текущего промпта: добавляет state-management (smooth scroll programmatically, scroll-position lock на кадр выбора). Вне scope P-12 — текущая задача в коммуникации affordance, не в полноценном carousel-control. Можно открыть отдельным промптом если появится feedback.
+- **Только scroll-snap без dots.** Отклонено: тактильный signal работает только во время свайпа. На статике (когда пользователь увидел секцию и не двигался) sense of «есть больше» не появляется. Dots — визуальный cue для статики.
+- **Только dots без scroll-snap.** Отклонено: dots показывают «есть 5 карточек», но без snap'а свайп ощущается «расхлябанным» (карточки могут останавливаться в произвольной позиции, peek не работает чисто).
+
+**Последствия.**
+- (+) Прецедент для будущих horizontal-scroll секций (catalog preview на главной, news strip, partners). Шаблон: scroll-snap + dots + IntersectionObserver с root=containerRef. Применить когда понадобится.
+- (+) IntersectionObserver с явным `root: containerRef.current` зафиксирован RULE-комментарием в коде. Без этого setting observer на контейнерных scroll'ах — частая ловушка для будущих контрибьюторов (включая будущего Claude).
+- (−) Pagination dots — `aria-hidden`, decorative. Screen reader'ы не получат cue про количество testimonials. Accessibility note: количество карточек уже доступно через нативную структуру DOM (5 children в scroll контейнере); decorative dots не отнимают доступности, но и не добавляют. Если в будущем понадобится кликабельная навигация — переход с `aria-hidden` на `role="tablist"` с `aria-selected` для каждого dot.
+- (Knowledge) Pattern «peek-carousel needs both tactile AND visual signal» зафиксирован в ADR Consequences. Один из двух сигналов — половина коммуникации.
 
 ## [2026-04-29] Mobile audit P-6 — FloatingMessengers auto-hide on forms
 
