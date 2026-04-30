@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.35
-  @lines:       433
+  @version:     1.36
+  @lines:       443
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Mobile audit P-4: HowItWorks unified responsive
+
+- **Сделано:** в `src/components/sections/HowItWorks.tsx` два дублирующих блока (desktop `hidden md:grid md:grid-cols-5` с иконками и mobile `md:hidden space-y-8` с цифрами) заменены на один unified блок `mt-12 grid gap-8 md:grid-cols-5 md:gap-4`. Каждый шаг рендерится одним `<m.div>` с адаптивным flex-ом (`flex gap-4 md:flex-col md:items-center md:gap-0 md:text-center`). Иконка-кружок h-12 w-12 несёт сразу два сигнала: lucide-икону (тип шага) И маленький badge h-5 w-5 в правом-нижнем углу с номером 1-5 (порядок шага). Раньше mobile-блок терял иконку, desktop-блок терял номер — теперь информационная семантика унифицирована на обоих breakpoint'ах. Decorative connector-линии остались двух-вариантными (вертикальная `md:hidden` + горизонтальная `hidden md:block`) — это accepted exception для одного visual элемента, оставшегося dual-render по природе.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge на двух viewport'ах (360px и ≥1024px) | **Следующий шаг:** P-5 серии Mobile audit либо продуктовое обсуждение P-6 (FloatingMessengers конфликт с CTA).
+- **Контекст:** P-4 закрывает один из 11 пунктов реестра mobile audit. Ожидаемый эффект: 90 DOM-узлов → 45 (50% сокращение), 10 motion-инстансов → 5 (50% сокращение). Меньше parse + reconcile work на render.
+- **Структурный урок:** dual-render `hidden md:` + `md:hidden` antipattern — следствие "сделать как макет на desktop, потом скопировать и переделать для mobile". Правильный подход — один responsive layout с tailwind breakpoints. Цена antipattern'а: дублирование контента, дрейф между surface'ами (mobile терял иконку), 2× JS-нагрузка на motion-инстансы. Этот паттерн ещё может встречаться в других секциях — проверить при следующих P-промптах.
+- **Trade-off:** mobile fade-up animation `x:-20 → x:0` (slide-from-left) заменена на `y:20 → y:0` (fade-up). Принято как accepted trade-off за code unification — обе анимации функционально эквивалентны (signal "элемент появляется"), визуальное различие минимально.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Mobile audit P-4 — HowItWorks unified responsive layout`.
 
 ### 2026-04-29 (vecher) — P-1+P-2 bug hunt closed: image optimizer fully operational
 
@@ -153,6 +162,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Mobile audit P-4 закрыт.** HowItWorks unified responsive layout: один блок вместо двух дублирующих (`hidden md:grid` + `md:hidden`). 90 DOM-узлов → 45, 10 motion-инстансов → 5. Иконка + small number badge на каждом breakpoint'е — больше нет потери информационной семантики между mobile (только цифры) и desktop (только иконки). См. ADR `[2026-04-29] Mobile audit P-4 — HowItWorks unified responsive layout`.
 - [x] **2026-04-29 — P-1+P-2 bug hunt полностью закрыт.** Image optimizer работает на проде: AVIF/WebP с responsive srcset для всех `<Image>` на сайте. hero-bg.jpg сжат с 6.94 MB до 56 KB AVIF (124× меньше). DevTools Console чистая. См. ADR `[2026-04-29] Mobile audit P-1+P-2` со всеми тремя секциями fix'ов и Closure.
 - [x] **2026-04-29 (poslepoldnia) — P-1+P-2 fix #2 закрыт.** Расширен `localPatterns` в next.config.ts на `/storage/**`. Браузерный smoke-тест на проде — главная без ошибок 400 в DevTools Console. P-1+P-2 серии Mobile audit функционально полностью завершён. Bug hunt по 400 на /_next/image закрыт (см. ADR расширенный с секциями Post-deploy fix #1 и #2).
 - [x] **2026-04-29 (vechelnyaya) — P-1+P-2 fix закрыт.** Добавлены `qualities: [75, 85]` и `localPatterns` в next.config.ts. Production curl `/_next/image?url=%2Fimages%2Fhero-bg.jpg&w=1920&q=85` вернул HTTP/2 200 + content-type: image/avif. P-1+P-2 серии Mobile audit функционально завершён.
