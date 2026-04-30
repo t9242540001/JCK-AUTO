@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.38
-  @lines:       461
+  @version:     1.39
+  @lines:       470
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Mobile audit P-12: Testimonials mobile scroll signal
+
+- **Сделано:** в `src/components/sections/Testimonials.tsx` мобильный horizontal-scroll контейнер получил `snap-x snap-mandatory`, каждая карточка — `snap-start`. Добавлен ref на контейнер и массив refs на 5 карточек. Под карточками рендерится ряд из 5 dots с `md:hidden` (decorative, `aria-hidden="true"`): активный dot — `w-6 bg-primary`, неактивный — `w-2 bg-border`, transition-all 300ms. IntersectionObserver с `root: containerRef.current` и `threshold: [0, 0.5, 1]` определяет most-visible карточку через max `intersectionRatio` и обновляет `activeIndex`. Desktop grid (3 карточки на md+) — байт-в-байт нетронут.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge при viewport 360px и 430px (свайп через все 5 карточек, проверка плавного движения active-dot слева направо) | **Следующий шаг:** P-7 / P-8 серии, либо closing-промпт серии Mobile audit (9 из 12 пунктов закрыто).
+- **Контекст:** P-12 добавлен в реестр сегодня после визуальной верификации P-5+P-9. Vasily увидел на iPhone 14 Pro Max preview, что секция «Что говорят клиенты» на mobile выглядит как одна обрезанная карточка — нет визуального сигнала «свайпни». Bleed-to-edge layout (`-mx-4 px-4` peek) — намеренный UX, который без cue теряется. Решение: добавить scroll-snap (тактильный сигнал на свайпе) + pagination dots (визуальный сигнал на статике).
+- **Структурный урок:** peek-effect carousel'и требуют МИНИМУМ двух явных сигналов, чтобы пользователь понял interactivity: (1) scroll-snap для tactile feedback при свайпе, (2) pagination dots для статичного visual cue. Только один сигнал — половина коммуникации. Этот шаблон применим к любой будущей horizontal-scroll секции (catalog, news, partners). IntersectionObserver с `root: containerRef.current` — ключевой паттерн: без явного root observer не сработает на horizontal scroll внутри контейнера, потому что page viewport не меняется. Зафиксировано RULE-комментарием в коде.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal`.
 
 ### 2026-04-29 — Mobile audit P-6: FloatingMessengers auto-hide on forms
 
@@ -178,6 +186,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Mobile audit P-12 закрыт.** Testimonials секция получила `snap-x snap-mandatory` + `snap-start` на mobile horizontal-scroll, плюс decorative pagination dots (5 точек) под карточками. Active dot обновляется через IntersectionObserver с `root: containerRef.current` (без явного root observer не сработает на horizontal scroll). Desktop grid не задет. См. ADR `[2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal`.
 - [x] **2026-04-29 — Mobile audit P-6 закрыт.** FloatingMessengers FAB теперь auto-hide на любом элементе с атрибутом `[data-fm-hide="true"]` в viewport (через IntersectionObserver). LeadForm opt'ин — единственная правка в файле, атрибут на root `<form>`. На 360-414px touch conflict между FAB и submit-кнопкой формы устранён. При раскрытом menu и появлении формы — menu collapse'ится вместе с FAB. См. ADR `[2026-04-29] Mobile audit P-6 — FloatingMessengers auto-hide on forms`.
 - [x] **2026-04-29 — Mobile audit P-5+P-9 закрыт.** В `layout.tsx` экспортирован `viewport: Viewport` с `viewportFit: 'cover'` и `themeColor: '#1E3A5F'`. В Header добавлены `env(safe-area-inset-top|left|right)` для notch / Dynamic Island в portrait + landscape. В Hero верхний padding адаптирован через `calc(7rem + env(safe-area-inset-top))`. На устройствах без выреза поведение не меняется (env=0). См. ADR `[2026-04-29] Mobile audit P-5+P-9 — viewport meta and safe-area inset`.
 - [x] **2026-04-29 — Mobile audit P-4 закрыт.** HowItWorks unified responsive layout: один блок вместо двух дублирующих (`hidden md:grid` + `md:hidden`). 90 DOM-узлов → 45, 10 motion-инстансов → 5. Иконка + small number badge на каждом breakpoint'е — больше нет потери информационной семантики между mobile (только цифры) и desktop (только иконки). См. ADR `[2026-04-29] Mobile audit P-4 — HowItWorks unified responsive layout`.

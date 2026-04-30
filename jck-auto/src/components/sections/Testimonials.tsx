@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import * as m from "framer-motion/m";
 import { Star } from "lucide-react";
 import { testimonials } from "@/data/testimonials";
@@ -12,6 +13,44 @@ const countryFlag: Record<string, string> = {
 };
 
 export default function Testimonials() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // RULE: IntersectionObserver MUST use `root: containerRef.current` because
+  // the horizontal scroll happens INSIDE the container, not in the page
+  // viewport. With default root (viewport), the observer never fires while
+  // the user swipes — the page itself doesn't scroll. Threshold list lets
+  // us pick the entry with the maximum intersectionRatio as "most visible".
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const root = containerRef.current;
+    if (!root) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let bestIdx = -1;
+        let bestRatio = 0;
+        for (const entry of entries) {
+          const idx = cardRefs.current.indexOf(entry.target as HTMLDivElement);
+          if (idx === -1) continue;
+          if (entry.intersectionRatio > bestRatio) {
+            bestRatio = entry.intersectionRatio;
+            bestIdx = idx;
+          }
+        }
+        if (bestIdx !== -1) setActiveIndex(bestIdx);
+      },
+      { root, threshold: [0, 0.5, 1] },
+    );
+
+    cardRefs.current.forEach((el) => {
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <section id="testimonials" className="bg-surface-alt py-12 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
@@ -68,11 +107,17 @@ export default function Testimonials() {
         </div>
 
         {/* Mobile horizontal scroll */}
-        <div className="mt-12 flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 md:hidden">
-          {testimonials.map((t) => (
+        <div
+          ref={containerRef}
+          className="mt-12 flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory md:hidden"
+        >
+          {testimonials.map((t, idx) => (
             <div
               key={t.id}
-              className="min-w-[280px] shrink-0 rounded-2xl border border-border bg-white p-6"
+              ref={(el) => {
+                cardRefs.current[idx] = el;
+              }}
+              className="min-w-[280px] shrink-0 rounded-2xl border border-border bg-white p-6 snap-start"
             >
               <div className="flex gap-1">
                 {Array.from({ length: t.rating }).map((_, j) => (
@@ -95,6 +140,21 @@ export default function Testimonials() {
                 </span>
               </div>
             </div>
+          ))}
+        </div>
+
+        {/* Pagination dots — mobile only, decorative */}
+        <div
+          className="mt-4 flex justify-center gap-2 md:hidden"
+          aria-hidden="true"
+        >
+          {testimonials.map((_, idx) => (
+            <span
+              key={idx}
+              className={`h-2 rounded-full transition-all duration-300 ${
+                idx === activeIndex ? "w-6 bg-primary" : "w-2 bg-border"
+              }`}
+            />
           ))}
         </div>
 
