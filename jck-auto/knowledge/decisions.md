@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.67
-  @lines:       4670
+  @version:     1.68
+  @lines:       4737
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,73 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Mobile audit series — final summary
+
+**Контекст.** Серия "Главная — мобильная адаптация" (фаза 2) была запущена 2026-04-29 утром после визуальной проверки главной на мобильных брейкпоинтах. Реестр из 12 пунктов составлен по результатам аудита кода + публичных стандартов CWV 2026 + анализа российской мобильной аудитории (30-42% трафика mobile). Этот ADR — финальное summary серии после закрытия последнего пункта (P-8).
+
+**Что реализовано (12/12 resolved).**
+
+Implemented (8 пунктов через 14+ промптов кода):
+- **P-1+P-2:** Next.js Image Optimizer включён, `hero-bg.png` 6.94 MB → `hero-bg.jpg` 148 KB → AVIF 56 KB. 124× сокращение для LCP-элемента.
+- **P-3:** LazyMotion + `m` migration на 10 секциях главной. Framer-motion bundle ~34 KB → ~4.6 KB initial.
+- **P-4:** HowItWorks unified responsive. 90 DOM-узлов → 45, 10 motion instances → 5.
+- **P-5+P-9:** `viewport-fit=cover` + `themeColor` + `safe-area-inset` на Header и Hero. iPhone notch handled.
+- **P-6:** FloatingMessengers auto-hide через `data-fm-hide` IntersectionObserver. Touch-конфликт с LeadForm submit устранён.
+- **P-12:** Testimonials scroll-snap + pagination dots + card width fix (`min-w-[280px]` → `w-[85vw] max-w-[320px]`).
+
+Verified без изменений (3 пункта):
+- **P-7:** Hero на 360px рендерится корректно visually.
+- **P-10:** Countries hover-effects корректны через Tailwind defaults.
+- **P-11:** YandexMetrika уже на оптимальной `strategy="afterInteractive"`.
+
+Researched and deferred (1 пункт):
+- **P-8:** bundle reduction через dynamic imports — не реализуем из-за Next.js 16 server-component limitation. Открыт как MA-3.
+
+**Methodology lessons (4 урока для будущих серий).**
+
+1. **Browser-first verification.** При любом frontend-баге primary источник истины — DevTools Console + Network в реальном браузере, не curl. Cost нарушения: 4 итерации диагностики P-1+P-2 (вместо 1) из-за curl-only диагностики, которая пропустила nginx WebSocket-upgrade misconfiguration. Зафиксировано как `R-FE-1` в `rules.md`.
+
+2. **Allowlist completeness.** Поля типа `localPatterns` / CSP / `remotePatterns` требуют полной инвентаризации источников при первом задании, а не реакции на конкретный сломанный случай. Cost нарушения: 2 итерации fix'ов P-1+P-2 (`qualities` + одного pattern для `/images/`, потом расширение для `/storage/`). Зафиксировано как `R-FE-2` в `rules.md`.
+
+3. **Bug hunt protocol triggers.** Skill `bug-hunting` Section 3.1 Trigger 1 (два неуспешных fix-промпта на одной ошибке) и Trigger 5 (повтор «закрытой» ошибки) применяются строго. Cost нарушения: первые 3 fix'а P-1+P-2 я лез в очередной curl без bug-hunt protocol; четвёртая итерация наконец применила skill и нашла корневую причину за 2 шага.
+
+4. **Inseparability exceptions to one-prompt-one-file rule.** P-5+P-9 объединены в один промпт (3 кодовых файла) потому что `viewport-fit` активирует `env()` — это conditio-sine-qua-non для `safe-area-inset`. Skill `prompt-writing-standard` Section 6 допускает exception при architectural inseparability с обоснованием в CONTEXT. Pattern зафиксирован.
+
+**Открытые Technical Debt от серии.**
+- **IaC-1** — nginx-конфиг вне git-репо (открыт в P-1+P-2 closure).
+- **MA-1** — Countries hover-only (low priority, conscious deferral).
+- **MA-2** — Yandex Metrika webvisor performance trade-off (продуктовое решение, открыть на следующей продуктовой ревью).
+- **MA-3** — Below-fold dynamic imports (Next.js 16 limitation workaround, открывать при Lighthouse regression).
+
+**Численные итоги.**
+- LCP image: 6.94 MB PNG → 56 KB AVIF (124× меньше).
+- JS bundle framer-motion: ~34 KB → ~4.6 KB (7.4× меньше).
+- DOM nodes в HowItWorks: 90 → 45 (50% меньше).
+- Motion instances в HowItWorks: 10 → 5 (50% меньше).
+- DevTools Console errors на главной: 12 → 0.
+
+**Ссылки.** Серия охватывает коммиты от `9658e00` (P-1+P-2 первый) до этого финального коммита. ADR-цепочка: Mobile audit P-1+P-2, P-3, P-4, P-5+P-9, P-6, P-12, P-12 fix, closing cleanup, P-8 deferred — все в `decisions.md` в порядке coverage. nginx-патч на VDS — вне git, документирован в P-1+P-2 ADR Closure & lessons.
+
+## [2026-04-29] Mobile audit P-8 — researched, deferred
+
+**Контекст.** P-8 предлагал сократить initial JS bundle главной страницы через `next/dynamic` для 9 below-fold client-секций (Countries, HowItWorks, Calculator, Values, Warranty, Testimonials, FAQ, ContactCTA, SocialFollow). Цель — улучшить INP и TTI на мобильных пользователях за счёт отложенной загрузки interactivity для секций, видимых после скролла.
+
+**Что выяснилось.** Next.js 16 имеет documented limitation: когда Server Component (наш `page.tsx`) делает `dynamic(() => import('...'))` для Client Component, code-splitting не происходит — импортируемый компонент попадает в initial bundle родителя. Это **подтверждённый limitation**, не наш баг (см. vercel/next.js issues #61066, #58238, #66414; App Router docs section "Lazy Loading").
+
+**Решение.** НЕ реализовывать P-8 в его текущем виде. Закрыть как researched-and-deferred. Зарегистрировать workaround через Client Component wrapper в Technical Debt MA-3 с явным triggers для reopen (Lighthouse regression / INP > 200ms / +5 секций).
+
+**Альтернативы.**
+- Прямой `next/dynamic` в page.tsx. Отклонено: limitation Next.js 16, code-splitting не работает.
+- Client Component wrapper `BelowFoldSections.tsx` с динамическими импортами внутри. Отклонено сейчас: новый файл-обёртка, потенциальные SSR-вопросы, gain ~10-20 KB. Cost > immediate benefit после P-3 (framer-motion bundle уже сокращён в 7.4×).
+- Перевод page.tsx в Client Component целиком. Отклонено: потеря SSR data-fetching преимущества для NoscutPreview (server-side `fs.readFileSync` в `loadNoscutPreview`).
+- Webpack `splitChunks` tuning. Отклонено: Next.js 16 уже использует дефолтные `splitChunks` оптимально для App Router; ручная настройка может конфликтовать с Next.js internals.
+
+**Последствия.**
+- Initial bundle главной остаётся в текущем размере. После P-3 это приемлемо.
+- MA-3 в Technical Debt с явным reopen trigger (Lighthouse mobile < 80, INP > 200ms, или +5 секций на главной).
+- Если в будущем добавятся новые тяжёлые секции на главную — нужно повторно оценить P-8/MA-3.
+- Workaround с Client wrapper остаётся доступной опцией; investment в research сохранён в этом ADR.
 
 ## [2026-04-29] Mobile audit closing cleanup — P-7, P-10, P-11
 
