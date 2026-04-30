@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.61
-  @lines:       4555
+  @version:     1.62
+  @lines:       4573
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,24 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Mobile audit P-4 — HowItWorks unified responsive layout
+
+**Контекст.** В `src/components/sections/HowItWorks.tsx` 5 шагов процесса рендерились **двумя дублирующими JSX-блоками**: desktop (`hidden md:grid md:grid-cols-5 md:gap-4` с большими кружками h-14 и lucide-иконками) и mobile (`md:hidden space-y-8` с маленькими кружками h-6 и цифрами вместо иконок). Итого 90 DOM-узлов (5 × 2 × 9), один блок всегда `display: none` на конкретном устройстве. Каждый шаг — отдельный `<m.div>` с whileInView анимацией, итого 10 motion-инстансов на странице (5+5). Дополнительная проблема — потеря информационной семантики: на mobile пользователь видит номера 1-5 (порядок), на desktop — иконки (тип шага), но не оба сигнала одновременно ни на одном breakpoint'е.
+
+**Решение.** Заменить два блока одним unified responsive блоком `mt-12 grid gap-8 md:grid-cols-5 md:gap-4` с одним `.map()`. Каждый шаг — один `<m.div>` с адаптивным flex (`flex gap-4` на mobile, `md:flex-col md:items-center md:gap-0 md:text-center` на desktop). Иконка-кружок h-12 w-12 несёт оба сигнала на каждом breakpoint'е: lucide-икону + small badge h-5 w-5 в правом-нижнем углу с номером 1-5 (`absolute -bottom-1 -right-1 bg-secondary text-white ring-2 ring-surface-alt`). Connector-линии остаются двух-вариантными (вертикальная `md:hidden` + горизонтальная `hidden md:block`) — это decorative dual-div, не контент, accepted exception. Результат: 90 DOM-узлов → 45, 10 motion-инстансов → 5, ноль информационной потери между breakpoint'ами.
+
+**Альтернативы.**
+- **Vertical-everywhere** (один column-layout на всех viewport'ах): отклонено — desktop теряет преимущество horizontal timeline, который интуитивно читается как "процесс слева направо".
+- **Container queries** (`@container` Tailwind 4): отклонено как overengineering для секции, у которой parent — full-width container, а responsive-логика ровно одна (mobile vs desktop). Container queries оправданы когда несколько embedded-сценариев (например, sidebar vs main content) — здесь не наш случай.
+- **Numbers-only на всех breakpoint'ах** (без lucide-икон): отклонено — иконки даны редактором копии, они carry semantic meaning per step (MessageCircle = заявка, Ship = доставка, и т.д.), убрать их = регрессия по копирайтингу.
+- **Icons-only на всех breakpoint'ах** (без номеров): отклонено — номер 1-5 даёт sequential cue ("шаг N из 5"), важный для процессного нарратива. Иконка одна не передаёт порядок без mental load.
+
+**Последствия.**
+- (+) Прецедент для будущих timeline-подобных секций: единый responsive layout вместо dual-render. Этот паттерн ещё может встретиться в других секциях главной (Values, FAQ); при следующих P-промптах серии — проверять и применять тот же подход.
+- (+) Decorative connector-линии остаются как dual-div (`md:hidden` + `hidden md:block`) — это accepted exception, потому что геометрия линий принципиально разная (вертикаль vs горизонталь). Один connector через `flex-direction`-aware абсолютное позиционирование был бы overengineering.
+- (−) Mobile animation trade-off: было `x:-20 → x:0` (slide-from-left), стало `y:20 → y:0` (fade-up). Функционально эквивалентно (signal "элемент появляется"), визуальное различие минимально. Принято за code unification.
+- (Knowledge) RULE-комментарий внутри блока фиксирует зависимость connector-line offsets от размера кружка (h-12 = 48px) и parent gap (mobile gap-8 = 2rem, desktop gap-4 = 16px). Любое изменение размера кружка требует синхронной правки calc()-выражений.
 
 ## [2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page
 
