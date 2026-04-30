@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-29
-  @version:     1.29
-  @lines:       210
+  @version:     1.30
+  @lines:       240
 -->
 
 # Critical Rules
@@ -208,3 +208,33 @@ grep -rn 'next/image' src/ | head
 - CSP: инвентаризовать все домены `<script src="https://...">`, inline-scripts, eval-использование.
 - CORS: инвентаризовать все клиентские origins (production, staging, localhost для dev).
 - remotePatterns: инвентаризовать все hostnames в `<Image src="https://...">` через grep.
+
+### R-FE-3 — Grid item min-width auto trap
+
+CSS Grid items default to `min-width: auto` (= `min-content`). When a grid item contains a flex or overflow-scroll child whose contents are wider than the column allocation, the GRID ITEM grows to min-content size of its child instead of the child clipping or scrolling — and propagates the overflow up through the grid, body, and page.
+
+**Rule:** any grid item containing `flex` + `overflow-x-auto`, `flex` + `flex-shrink-0` children of variable count, long user-generated text with `[overflow-wrap:anywhere]`, or any nested scroll container — MUST carry `min-w-0` in its className.
+
+**Diagnostic recipe** (for finding overflow on any page):
+
+```js
+(() => {
+  const docW = document.documentElement.scrollWidth;
+  const viewW = document.documentElement.clientWidth;
+  console.log(`Viewport: ${viewW}px, Document: ${docW}px, Overflow: ${docW - viewW}px`);
+  if (docW > viewW) {
+    const wide = [];
+    document.querySelectorAll('*').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.right > viewW + 1) {
+        wide.push({el: el.tagName + (el.className ? '.' + String(el.className).split(' ')[0] : ''), right: Math.round(r.right), width: Math.round(r.width)});
+      }
+    });
+    console.table(wide.slice(0, 20));
+  }
+})();
+```
+
+Run this in Chrome DevTools Console with viewport at the smallest target (360px). Top entries by `right` reveal the chain of overflow contributors.
+
+**Cost of violation:** car detail page CD-1 incident (2026-04-29) — Document = 840px on 375px viewport, root cause hidden across page.tsx + CarGallery + CSS Grid spec interaction. Without the diagnostic recipe, debugging would require manual inspection of every nested container.
