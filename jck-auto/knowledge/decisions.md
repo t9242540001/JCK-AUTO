@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.69
-  @lines:       4791
+  @version:     1.70
+  @lines:       4823
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,38 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Car detail audit CD-2 — correctness + perf cleanup
+
+**Контекст.** После закрытия CD-1 (horizontal overflow fix через `min-w-0` на двух grid-items) визуальный layout страницы `/catalog/cars/[id]` стал корректным на 360/414/430. Технический audit страницы выявил пять non-visual issues — SEO data inaccuracy, server timing inefficiency, mobile bandwidth waste, и Russian text wrap regression. Все пять не проявляются визуально, но напрямую влияют на SEO data quality, server performance и mobile UX. CD-2 закрывает их одним промптом.
+
+**Решение.** Пять хирургических корректировок:
+
+- **A1 — `getAllCars` в `React.cache()`.** Функция вызывается дважды за request (`generateMetadata()` + page component). При `export const dynamic = 'force-dynamic'` каждый request делает оба вызова, каждый — `readCatalogJson()` с disk I/O ~275ms. Без `cache()` это ~550ms лишнего I/O. Решение: `import { cache } from "react"` + `const getAllCars = cache(async () => ...)`. Call sites не меняются — React дедуплицирует внутри request lifecycle. RULE-комментарий выше декларации фиксирует контракт.
+
+- **A2 — `priceCurrency` в Schema.org.** Было `priceCurrency: car.priceRub ? "RUB" : "CNY"` — для машин из Кореи (KRW) и Японии (JPY) JSON-LD сообщал CNY, что ломает Google Shopping и price aggregators. Стало `car.priceRub ? "RUB" : car.currency`. `car.currency` типизирован `"CNY" | "KRW" | "JPY"` в `src/types/car.ts` — точные ISO 4217 коды без fallback'а.
+
+- **A3 — `description` в Schema.org.** Было синтетическое `${brand} ${model} ${year}, ${engineVolume}L ${transmission}` (4 токена). Стало: если `car.description` присутствует — нормализованный excerpt (collapse whitespace + word-boundary truncate до 300 символов через локальный helper `truncateForSchema`); fallback на старую техническую строку если description отсутствует. Лучший SEO snippet, rich result eligibility.
+
+- **B5 — Lazy thumbnails в CarGallery.** На thumb `<Image>` добавлено `loading={i === 0 ? "eager" : "lazy"}`. Первая миниатюра — eager (initially-active, нужна без задержки). Thumbs 2-12 загружаются по мере скролла горизонтального thumb-row. Экономит до ~360 KB на mobile при 12 thumbs × ~30 KB AVIF. Главное фото `priority` — без `loading` (взаимоисключающие в next/image).
+
+- **C2 — `[overflow-wrap:anywhere]` selectively removed.** Применялся в 4 местах рядом с `break-words`. `[overflow-wrap:anywhere]` режет текст на любой границе включая mid-word — на русском prose это уродливые mid-syllable переносы. `break-words` (= `overflow-wrap: break-word`) ломает только на word-boundaries и hyphens — корректно для естественного текста. Удалён с **трёх description-related блоков** (description div, description p, condition note), сохранён на `<h1>` (folderName может содержать undersлore/dash join-strings типа `Used_Mercedes-Benz_A180L_2023_280TSI_DSG_R-Line` без пробелов).
+
+**Альтернативы.**
+- **ISR через `revalidate` вместо `cache()` (A1).** Отклонено: зависит от mtime detection на catalog.json или внешнего invalidation, существенно сложнее. `cache()` решает локальный per-request dedup без global invalidation.
+- **Vehicle schema upgrade вместо Product (A2/A3).** Отклонено: schema.org/Vehicle более специфичен и даёт более rich-результаты, но требует больше полей и validation. Перенесено в CD-4 как separate scope.
+- **Полный motion → m migration в CarCard / CarTrustBlock.** Отклонено: вне scope CD-2, перенесено в CD-3 (вместе с CLS fix from hover:scale).
+- **Динамический BreadcrumbList structured data.** Отклонено: scope CD-4 (вместе с aria-labels на thumbs).
+
+**Последствия.**
+- (+) Schema.org data accuracy improved → potential SEO uplift на Google Shopping / SERP snippets для машин Korea/Japan.
+- (+) Server timing на каждом car detail request: -275ms (one fewer disk read).
+- (+) Initial mobile bandwidth: -~330 KB (11 thumbs × ~30 KB AVIF, минус один который остался eager).
+- (+) Russian text wrap correctness — prose в trusted текстовых блоках больше не режется mid-syllable.
+- (−) `truncateForSchema` — локальный helper внутри `CarDetailPage`, не shared. Если потребуется в других server-component'ах — выделить в `src/lib/text.ts` отдельным промптом. Сейчас premature.
+- (−) `loading="lazy"` для thumbs зависит от corretной разметки `<button>` parent'а — если в будущем кнопка будет hidden/display:none на mount, lazy-loading может задержать рендер. Не текущий случай.
+- (Knowledge) Pattern «cache() для server-rendered Page'ов с двойным data-fetch» применять во всех будущих `force-dynamic` страницах с `generateMetadata`. Записан в этом ADR как CD-2 lesson.
+- Серия Car detail audit: CD-1 ✓, CD-2 ✓, CD-3 + CD-4 planned.
 
 ## [2026-04-29] Car detail audit CD-1 — horizontal overflow fix
 

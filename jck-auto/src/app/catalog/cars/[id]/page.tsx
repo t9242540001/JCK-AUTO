@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Calculator, ChevronRight } from "lucide-react";
@@ -30,10 +31,16 @@ interface PageProps {
 
 export const dynamic = 'force-dynamic';
 
-async function getAllCars() {
+// RULE: getAllCars must stay wrapped in React cache() — page.tsx
+// calls it twice per request (generateMetadata + page component)
+// and force-dynamic means each request runs both. Without cache(),
+// catalog.json is read from disk twice (~275ms each = ~550ms
+// redundant I/O per request). cache() deduplicates within a single
+// request lifecycle. See ADR [2026-04-29] Car detail audit CD-2.
+const getAllCars = cache(async () => {
   const blobCars = await readCatalogJson();
   return blobCars.length > 0 ? blobCars : mockCars;
-}
+});
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
@@ -81,11 +88,22 @@ export default async function CarDetailPage({ params }: PageProps) {
 
   const brand = cleanBrand(car.brand);
   const countryGen = getCountryGenitive(car.country);
+
+  function truncateForSchema(text: string, maxLen: number): string {
+    const normalized = text.replace(/\s+/g, " ").trim();
+    if (normalized.length <= maxLen) return normalized;
+    const sliced = normalized.slice(0, maxLen);
+    const lastSpace = sliced.lastIndexOf(" ");
+    return lastSpace > 0 ? sliced.slice(0, lastSpace) + "…" : sliced + "…";
+  }
+
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: `${brand} ${car.model} ${car.year}`,
-    description: `${brand} ${car.model} ${car.year}, ${car.engineVolume}L ${car.transmission}`,
+    description: car.description
+      ? truncateForSchema(car.description, 300)
+      : `${brand} ${car.model} ${car.year}, ${car.engineVolume}L ${car.transmission}`,
     image: car.photos[0] || "",
     brand: { "@type": "Brand", name: brand },
     model: car.model,
@@ -93,7 +111,7 @@ export default async function CarDetailPage({ params }: PageProps) {
     offers: {
       "@type": "Offer",
       price: car.priceRub || car.price,
-      priceCurrency: car.priceRub ? "RUB" : "CNY",
+      priceCurrency: car.priceRub ? "RUB" : car.currency,
       availability: "https://schema.org/InStock",
       seller: { "@type": "Organization", name: "JCK AUTO" },
     },
@@ -180,7 +198,7 @@ export default async function CarDetailPage({ params }: PageProps) {
             {car.description && car.description.length > 100 && (
               <div className="mt-4 rounded-xl bg-gray-50 p-4">
                 <p className="mb-1 text-sm font-medium text-gray-900">Описание</p>
-                <div className="space-y-3 text-sm leading-relaxed text-text-muted break-words [overflow-wrap:anywhere]">
+                <div className="space-y-3 text-sm leading-relaxed text-text-muted break-words">
                   {car.description.split("\n\n").map((paragraph, i) => (
                     <p key={i}>{paragraph}</p>
                   ))}
@@ -189,11 +207,11 @@ export default async function CarDetailPage({ params }: PageProps) {
             )}
 
             {car.description && car.description.length <= 100 && (
-              <p className="mt-4 text-text-muted break-words [overflow-wrap:anywhere]">{car.description}</p>
+              <p className="mt-4 text-text-muted break-words">{car.description}</p>
             )}
 
             {car.condition && (
-              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 text-sm text-gray-600 break-words [overflow-wrap:anywhere]">
+              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 text-sm text-gray-600 break-words">
                 Отметки: {car.condition}
               </div>
             )}

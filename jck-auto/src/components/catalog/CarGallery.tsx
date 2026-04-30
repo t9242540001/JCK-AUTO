@@ -45,6 +45,7 @@ export default function CarGallery({ photos, alt }: CarGalleryProps) {
               fill
               className="object-cover"
               sizes="112px"
+              loading={i === 0 ? "eager" : "lazy"}
             />
           </button>
         ))}
