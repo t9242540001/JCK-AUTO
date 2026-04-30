@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.36
-  @lines:       443
+  @version:     1.37
+  @lines:       452
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Mobile audit P-5+P-9: viewport meta and safe-area inset
+
+- **Сделано:** в `src/app/layout.tsx` добавлен `export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#1E3A5F' }` рядом с существующим `export const metadata`. В `src/components/layout/Header.tsx` к root `<header>` добавлены три класса `pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]` с RULE-комментарием выше. В `src/components/sections/Hero.tsx` верхний padding контента изменён с `pt-28 sm:pt-32` на `pt-[calc(7rem+env(safe-area-inset-top))] sm:pt-[calc(8rem+env(safe-area-inset-top))]` — на устройствах без выреза `env() = 0` и поведение не меняется, на iPhone с notch / Dynamic Island Hero опускается ниже теперь-более-высокого header'а.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge через DevTools Device Toolbar в presets «iPhone 14 Pro» (portrait + landscape) и «Galaxy S20» (regression check) | **Следующий шаг:** P-6 (FloatingMessengers конфликт с CTA, продуктовое обсуждение) либо следующий пункт реестра.
+- **Контекст:** P-5 (Header safe-area) и P-9 (viewport meta) технически неразделимы — `viewport-fit=cover` активирует `env()`-значения; без `env()` safe-area классы — no-op. Раздельный деплой создаёт промежуточные состояния, видимо регрессирующие у пользователей mobile. Поэтому объединены в один промпт. После merge закрыто 6 из 11 пунктов реестра mobile audit.
+- **Структурный урок:** viewport-fit и env() приходят в комплекте. Любой будущий промпт про safe-area / mobile keyboard avoidance / virtual-keyboard inset должен начинаться с проверки, что `viewport: Viewport` экспортирован с `viewportFit: 'cover'`. Иначе CSS-классы добавляются впустую.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Mobile audit P-5+P-9 — viewport meta and safe-area inset`.
 
 ### 2026-04-29 — Mobile audit P-4: HowItWorks unified responsive
 
@@ -162,6 +170,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Mobile audit P-5+P-9 закрыт.** В `layout.tsx` экспортирован `viewport: Viewport` с `viewportFit: 'cover'` и `themeColor: '#1E3A5F'`. В Header добавлены `env(safe-area-inset-top|left|right)` для notch / Dynamic Island в portrait + landscape. В Hero верхний padding адаптирован через `calc(7rem + env(safe-area-inset-top))`. На устройствах без выреза поведение не меняется (env=0). См. ADR `[2026-04-29] Mobile audit P-5+P-9 — viewport meta and safe-area inset`.
 - [x] **2026-04-29 — Mobile audit P-4 закрыт.** HowItWorks unified responsive layout: один блок вместо двух дублирующих (`hidden md:grid` + `md:hidden`). 90 DOM-узлов → 45, 10 motion-инстансов → 5. Иконка + small number badge на каждом breakpoint'е — больше нет потери информационной семантики между mobile (только цифры) и desktop (только иконки). См. ADR `[2026-04-29] Mobile audit P-4 — HowItWorks unified responsive layout`.
 - [x] **2026-04-29 — P-1+P-2 bug hunt полностью закрыт.** Image optimizer работает на проде: AVIF/WebP с responsive srcset для всех `<Image>` на сайте. hero-bg.jpg сжат с 6.94 MB до 56 KB AVIF (124× меньше). DevTools Console чистая. См. ADR `[2026-04-29] Mobile audit P-1+P-2` со всеми тремя секциями fix'ов и Closure.
 - [x] **2026-04-29 (poslepoldnia) — P-1+P-2 fix #2 закрыт.** Расширен `localPatterns` в next.config.ts на `/storage/**`. Браузерный smoke-тест на проде — главная без ошибок 400 в DevTools Console. P-1+P-2 серии Mobile audit функционально полностью завершён. Bug hunt по 400 на /_next/image закрыт (см. ADR расширенный с секциями Post-deploy fix #1 и #2).
