@@ -98,7 +98,7 @@ export default function LeadForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className={`space-y-3 ${compact ? "text-sm" : ""}`}>
+    <form onSubmit={handleSubmit(onSubmit)} data-fm-hide="true" className={`space-y-3 ${compact ? "text-sm" : ""}`}>
       <div>
         <input
           {...register("phone")}
