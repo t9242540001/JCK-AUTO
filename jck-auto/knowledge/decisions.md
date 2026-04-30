@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.59
-  @lines:       4537
+  @version:     1.60
+  @lines:       4543
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -54,6 +54,12 @@
 - Удалён hero-bg.png — все ссылки на /images/hero-bg.png в репо сломаются. Проверено: используется только в Hero.tsx, других ссылок нет.
 
 **Post-deploy fix.** После первого деплоя обнаружен 400 Bad Request на /_next/image. Причина: Next.js 16 требует обязательного поля `qualities` в блоке images — это security-механизм против DoS через произвольные значения q= в URL. Без allowlist'а любой q= → 400. Решено добавлением `qualities: [75, 85]` (75 — дефолт Next.js, 85 — наш Hero). Параллельно добавлен `localPatterns` для путей `/images/**` — best practice 2026 для явного allowlist'а локальных картинок. Урок: при включении продвинутых features Next.js после major-апгрейда — сверять changelog обязательных полей конфига, а не полагаться на то, что отсутствие поля = пермиссивный дефолт.
+
+**Post-deploy fix #2.** После первого fix (qualities + localPatterns: /images/**) и nginx-патча на VDS (WebSocket upgrade map) optimizer заработал на hero-bg.jpg, но картинки каталога из `/storage/` продолжали возвращать 400. Причина: `localPatterns` валидирует пути по allowlist, и `/storage/**` под него не подпадал. Решено расширением массива до двух паттернов: `/images/**` (статические ассеты) и `/storage/**` (динамические фото каталога через симлинк public/storage → /var/www/jckauto/storage).
+
+Урок (в дополнение к Post-deploy fix #1): при добавлении allowlist-полей (localPatterns, remotePatterns, CSP source-list, CORS origins) — обязательная инвентаризация всех источников через grep по src/, а не реакция на конкретную сломанную картинку. Цена нарушения этого правила: 4 итерации диагностики + bug hunt по другой связанной проблеме (nginx WebSocket misconfiguration), вместо одного полного fix'а в первом промпте P-1+P-2.
+
+Также: первая неудача fix'а после деплоя — обязательная браузерная верификация (DevTools Console), не только curl. Curl без браузерных headers (особенно Accept-header с image/avif,...) скрыл от меня и реальные 400 на /storage/, и реальный механизм через nginx upgrade-headers. Браузерные DevTools — primary источник истины для прод-багов с фронтендом.
 
 ## [2026-04-28] Б-7 closed — pm2 restart instead of startOrReload for jckauto after slot swap
 
