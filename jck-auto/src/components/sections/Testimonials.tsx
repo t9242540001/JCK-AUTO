@@ -112,12 +112,20 @@ export default function Testimonials() {
           className="mt-12 flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory md:hidden"
         >
           {testimonials.map((t, idx) => (
+            // RULE: deterministic card width is required for horizontal scroll
+            // with shrink-0. `min-w-` alone lets the card grow to fit the
+            // intrinsic single-line width of the inner <p> (long testimonial
+            // text expands the card past the viewport edge — the bug
+            // observed after P-12 deploy). Use `w-[85vw]` (anchors to
+            // viewport so the card always fits with a peek of the next),
+            // capped by `max-w-[320px]` for wider mobile devices, and keep
+            // `shrink-0` so flex never collapses cards below this width.
             <div
               key={t.id}
               ref={(el) => {
                 cardRefs.current[idx] = el;
               }}
-              className="min-w-[280px] shrink-0 rounded-2xl border border-border bg-white p-6 snap-start"
+              className="w-[85vw] max-w-[320px] shrink-0 rounded-2xl border border-border bg-white p-6 snap-start"
             >
               <div className="flex gap-1">
                 {Array.from({ length: t.rating }).map((_, j) => (
