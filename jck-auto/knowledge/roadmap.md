@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.42
-  @lines:       536
+  @version:     1.43
+  @lines:       546
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Car detail audit CD-1: horizontal overflow fix
+
+- **Сделано:** в `src/app/catalog/cars/[id]/page.tsx` к двум grid-items добавлен класс `min-w-0` — на gallery column (`lg:col-span-3`) и на info sidebar (`lg:col-span-2`). Каждая правка — добавление одного токена в className + RULE-комментарий выше с объяснением grid-item-min-width-auto trap. CarGallery.tsx и остальные компоненты не тронуты — баг был в parent grid items, не в галерее.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge при viewport widths 360 / 414 / 430. После фикса должны всплыть остальные visual bugs страницы, ранее замаскированные общим overflow'ом — будут зарегистрированы в реестр car detail audit | **Следующий шаг:** визуальный smoke-тест страницы детали машины на проде, составление реестра CD-2..N, прогон по приоритету.
+- **Контекст и диагностика:** Vasily сообщил про обрезку фото и текста на iPhone SE preview. DevTools console показал `Viewport: 375px, Document: 840px, Overflow: 465px` — страница больше viewport'а вдвое. Через `getBoundingClientRect()` traversal'ом по всем элементам найдена цепочка overflow contributors: HEADER.fixed → DIV.mx-auto → DIV.lg:col-span-3 → IMG + thumbs row. Все 840px шириной. Корневая причина: CSS Grid item имеет `min-width: auto` (= min-content) по дефолту. Когда ребёнок — flex/scroll контейнер с `overflow-x-auto` + `flex-shrink-0` thumbs, grid item растёт под intrinsic min-content child'а, а не позволяет ему clip'аться. Fix: `min-w-0` на grid items.
+- **Структурный урок:** grid-item-min-width-auto trap — частый баг, требующий специфического знания CSS Grid spec. Без diagnostic-recipe (DevTools snippet с `scrollWidth vs clientWidth + getBoundingClientRect traversal`) поиск занял бы значительно дольше — пришлось бы вручную инспектировать каждый nested контейнер. Recipe сохранён в R-FE-3 в `rules.md` для повторного использования. Правило: любой grid item, содержащий `flex + overflow-x-auto`, или `flex + flex-shrink-0` детей, или длинный текст с `[overflow-wrap:anywhere]`, или nested scroll containers — ОБЯЗАН иметь `min-w-0`.
+- **Открытие новой серии:** car detail audit. Vasily обозначил страницу `/catalog/cars/[id]` как «больше всего визуальных багов». CD-1 — первый закрытый пункт. Реестр CD-2..N будет составлен после визуальной верификации фикса CD-1 (бывают баги, замаскированные общим overflow'ом).
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Car detail audit CD-1 — horizontal overflow fix`. Новое правило `R-FE-3` в `rules.md`.
 
 ### 2026-04-29 (final) — Mobile audit P-8 researched and deferred + series closed
 
@@ -212,6 +221,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Car detail audit CD-1 closed.** Horizontal overflow on `/catalog/cars/[id]` mobile fixed via `min-w-0` на двух grid items в `page.tsx`. Корневая причина: grid item default min-width: auto + nested flex/overflow-x-auto child = parent expansion past viewport. Diagnostic command (`scrollWidth vs clientWidth + getBoundingClientRect traversal`) сохранён в ADR для будущих audit'ов. Открыта серия Car detail audit (Vasily обозначил страницу как «больше всего визуальных багов»). См. ADR `[2026-04-29] Car detail audit CD-1 — horizontal overflow fix` и новое правило `R-FE-3` в `rules.md`.
 - [x] **2026-04-29 — Mobile audit series CLOSED (12/12 resolved).** Implemented: P-1+P-2 (image optimizer + hero-bg compression), P-3 (LazyMotion + m migration), P-4 (HowItWorks unified responsive), P-5+P-9 (viewport meta + safe-area inset), P-6 (FloatingMessengers auto-hide), P-12 (Testimonials scroll signal + width fix). Verified/deferred: P-7 (verified visually), P-10 (conscious deferral), P-11 (verified code), P-8 (researched, deferred). Open Technical Debt от серии: IaC-1, MA-1, MA-2, MA-3. См. ADR `[2026-04-29] Mobile audit series — final summary`.
 - [x] **2026-04-29 — Mobile audit P-8 closed (researched, deferred).** Next.js 16 Server Components не делают code-splitting Client Component dynamic imports (documented limitation, vercel/next.js issues #61066, #58238, #66414). Workaround через Client Component wrapper deemed not worth complexity для ~10-20 KB gain после P-3 (framer-motion bundle уже сокращён 7.4×). Tracked как MA-3 с reopen trigger (Lighthouse < 80 / INP > 200ms / +5 секций). См. ADR `[2026-04-29] Mobile audit P-8 — researched, deferred`.
 - [x] **2026-04-29 — Mobile audit P-7 closed (verified visually).** Hero на 360px: заголовок переносится корректно, кнопки на всю ширину карточки, stats-сетка читается. No code change needed. См. ADR `[2026-04-29] Mobile audit closing cleanup`.

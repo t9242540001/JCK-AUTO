@@ -127,7 +127,14 @@ export default async function CarDetailPage({ params }: PageProps) {
         {/* Main content: Gallery + Info */}
         <div className="mt-6 grid gap-8 lg:grid-cols-5">
           {/* Gallery — 3/5 width on desktop */}
-          <div className="lg:col-span-3">
+          {/* RULE: min-w-0 required — grid item default min-width is auto
+              (= min-content), which lets child flex/scroll containers
+              expand the parent past viewport. CarGallery thumbs row uses
+              overflow-x-auto + flex-shrink-0 — without min-w-0 here the
+              thumbs row stretches the grid, the grid stretches the body,
+              and the entire page overflows on mobile. See R-FE-3 in
+              rules.md. */}
+          <div className="min-w-0 lg:col-span-3">
             <CarGallery
               photos={car.photos}
               alt={`${cleanBrand(car.brand)} ${car.model} ${car.year}`}
@@ -135,7 +142,10 @@ export default async function CarDetailPage({ params }: PageProps) {
           </div>
 
           {/* Info sidebar — 2/5 width on desktop */}
-          <div className="lg:col-span-2">
+          {/* RULE: min-w-0 required — same reason as the gallery column.
+              Long testimonial-style text with [overflow-wrap:anywhere]
+              relies on this. See R-FE-3 in rules.md. */}
+          <div className="min-w-0 lg:col-span-2">
             <h1 className="mt-3 font-heading text-2xl font-bold text-text sm:text-3xl break-words [overflow-wrap:anywhere]">
               {car.folderName.replace(/^Used\s+/i, "")}
             </h1>

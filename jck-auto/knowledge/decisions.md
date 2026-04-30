@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.68
-  @lines:       4737
+  @version:     1.69
+  @lines:       4791
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,60 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Car detail audit CD-1 — horizontal overflow fix
+
+**Контекст.** Vasily сообщил про visual truncation на странице `/catalog/cars/[id]` при iPhone SE preview (375x667): обрезается главное фото галереи, описание уезжает за правый край viewport'а, breadcrumbs частично скрыт. Page определена как «больше всего визуальных багов» — открывается серия Car detail audit.
+
+Diagnostic measurement в Chrome DevTools (viewport 375px):
+
+```
+Viewport: 375px, Document: 840px, Overflow: 465px
+```
+
+Документ — 840px на 375px viewport (более чем в 2 раза шире). Через `getBoundingClientRect()` traversal по всем элементам найдена цепочка overflow-contributors: HEADER.fixed, DIV.mx-auto (max-w-7xl wrapper), DIV.lg:col-span-3 (gallery column), IMG main, DIV.mt-3 (thumbs row). Все 840px шириной. Thumb-кнопки внутри thumbs row на right=424, 528, 632, 736 — N flex items по 96px + gap-2 без scroll containment.
+
+**Решение.** Добавить `min-w-0` к двум grid-items в `src/app/catalog/cars/[id]/page.tsx`:
+- `<div className="lg:col-span-3">` → `<div className="min-w-0 lg:col-span-3">`
+- `<div className="lg:col-span-2">` → `<div className="min-w-0 lg:col-span-2">`
+
+Над каждым добавлен RULE-комментарий, объясняющий grid-item-min-width-auto trap. CarGallery.tsx и остальные компоненты не тронуты — баг в parent grid items, не в галерее.
+
+Корневая причина: CSS Grid item имеет `min-width: auto` (= `min-content`) по дефолту. Когда ребёнок — flex/scroll контейнер с `overflow-x-auto` + `flex-shrink-0` thumbnails, GRID ITEM растёт под intrinsic min-content child'а вместо того, чтобы child'у clip'аться или scroll'иться. Overflow propaгируется вверх через grid → body → page.
+
+**Альтернативы.**
+- Перенести overflow-handling в CarGallery (внутри thumbs row). Отклонено: CarGallery уже корректен (`flex gap-2 overflow-x-auto`); проблема не в нём, а в parent'е grid item, у которого `min-width: auto` сильнее `overflow-x-auto` ребёнка.
+- Добавить `overflow-x: hidden` на body или html. Отклонено: маскирует симптом, не лечит причину; ломает горизонтальный scroll-snap паттерн который мы уже используем (Testimonials P-12) — внутри-контейнерный horizontal scroll должен работать.
+- Реструктурировать layout (заменить CSS Grid на Flex или другую модель). Отклонено: overengineering для bag, который решается одним токеном `min-w-0`.
+- Удалить `flex-shrink-0` с thumbnails в CarGallery. Отклонено: thumbnails должны сохранять фиксированную ширину 96px для consistency визуала; `flex-shrink-0` правильный.
+
+**Последствия.**
+- Страница `/catalog/cars/[id]` помещается в viewport на всех mobile-устройствах. После фикса должны всплыть остальные visual bugs страницы (если они были замаскированы общим overflow'ом) — будут зарегистрированы как CD-2..N.
+- Новое правило `R-FE-3 — Grid item min-width auto trap` в `rules.md` фиксирует общий принцип: любой grid item с nested flex/scroll/long-text-with-anywhere-wrap должен иметь `min-w-0`.
+- Diagnostic recipe (DevTools console snippet) сохранён в ADR и в R-FE-3 — пригоден для любого audit'а на overflow в будущем.
+- Открыта серия Car detail audit. CD-1 — первый закрытый пункт; реестр CD-2..N составится после визуальной верификации фикса.
+
+**Diagnostic recipe.** DevTools Console snippet, найдённый этим инцидентом и пригодный для повторного использования при любом подозрении на horizontal overflow:
+
+```js
+(() => {
+  const docW = document.documentElement.scrollWidth;
+  const viewW = document.documentElement.clientWidth;
+  console.log(`Viewport: ${viewW}px, Document: ${docW}px, Overflow: ${docW - viewW}px`);
+  if (docW > viewW) {
+    const wide = [];
+    document.querySelectorAll('*').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.right > viewW + 1) {
+        wide.push({el: el.tagName + (el.className ? '.' + String(el.className).split(' ')[0] : ''), right: Math.round(r.right), width: Math.round(r.width)});
+      }
+    });
+    console.table(wide.slice(0, 20));
+  }
+})();
+```
+
+Запускать на самом узком target-viewport (360px). Top entries по `right` дают цепочку overflow contributors сверху-вниз по DOM.
 
 ## [2026-04-29] Mobile audit series — final summary
 
