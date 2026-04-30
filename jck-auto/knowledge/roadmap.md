@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.40
-  @lines:       479
+  @version:     1.41
+  @lines:       509
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 (closing) — Mobile audit closing cleanup: P-7, P-10, P-11
+
+- **Сделано:** документационный closing-промпт серии "Главная — мобильная адаптация". Три пункта реестра проверены/оценены и закрыты без code changes: P-7 (Hero на 360px) — verified visually Vasily'ем после деплоев P-1+P-2 и P-5+P-9, заголовок переносится корректно, кнопки на всю ширину карточки, stats-сетка читается. P-10 (hover-only effects на Countries) — стили декоративные, карточки не интерактивные (не Link, не onClick); Tailwind 4 уже по умолчанию применяет `hover:` только на устройствах с hover. Зарегистрировано как Technical Debt MA-1 для полноты картины. P-11 (Yandex Metrika strategy) — уже использует `strategy='afterInteractive'` (оптимально для analytics scripts). Отдельный продуктовый вопрос webvisor=true (overhead на mobile CPU) зарегистрирован как Technical Debt MA-2.
+- **Прервались на:** серия Mobile audit имеет 11 из 12 пунктов закрытыми; остался P-8 (bundle reduction через dynamic imports для below-fold секций) | **Следующий шаг:** P-8 отдельным промптом, либо переключение на другие задачи проекта (Telegram bot и т.д.).
+- **Контекст:** closing-cleanup нужен чтобы будущая Claude-сессия при чтении roadmap не возвращалась к P-7/P-10/P-11 заново. Каждый пункт явно закрыт с указанной причиной (verified visually / verified code / conscious deferral в TD).
+- **Структурный урок:** не каждый пункт audit-реестра требует code change. Часть закрывается visual verification, часть — code review без правок, часть — осознанная отсрочка с регистрацией в TD. Главное правило: **причина закрытия должна быть явной**, иначе через 2 сессии пункт всплывёт заново и кто-то начнёт его делать с нуля.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Mobile audit closing cleanup — P-7, P-10, P-11`.
 
 ### 2026-04-29 — P-12 fix: Testimonials card width
 
@@ -194,6 +202,8 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Mobile audit P-7 closed (verified visually).** Hero на 360px: заголовок переносится корректно, кнопки на всю ширину карточки, stats-сетка читается. No code change needed. См. ADR `[2026-04-29] Mobile audit closing cleanup`.
+- [x] **2026-04-29 — Mobile audit P-11 closed (verified code).** YandexMetrika уже использует `strategy='afterInteractive'` — оптимальная стратегия для analytics. No code change needed. Отдельный вопрос webvisor=true — Technical Debt MA-2 (продуктовое решение). См. ADR `[2026-04-29] Mobile audit closing cleanup`.
 - [x] **2026-04-29 — P-12 fix закрыт.** Testimonials mobile-карточки получили deterministic ширину `w-[85vw] max-w-[320px]` вместо `min-w-[280px]` — длинный testimonial-текст теперь wrap'ится внутри границ карточки на всех mobile viewport'ах (360 / 412 / 430). Pagination dots и scroll-snap из исходного P-12 продолжают работать. См. ADR `[2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal` секция Post-deploy fix.
 - [x] **2026-04-29 — Mobile audit P-12 закрыт.** Testimonials секция получила `snap-x snap-mandatory` + `snap-start` на mobile horizontal-scroll, плюс decorative pagination dots (5 точек) под карточками. Active dot обновляется через IntersectionObserver с `root: containerRef.current` (без явного root observer не сработает на horizontal scroll). Desktop grid не задет. См. ADR `[2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal`.
 - [x] **2026-04-29 — Mobile audit P-6 закрыт.** FloatingMessengers FAB теперь auto-hide на любом элементе с атрибутом `[data-fm-hide="true"]` в viewport (через IntersectionObserver). LeadForm opt'ин — единственная правка в файле, атрибут на root `<form>`. На 360-414px touch conflict между FAB и submit-кнопкой формы устранён. При раскрытом menu и появлении формы — menu collapse'ится вместе с FAB. См. ADR `[2026-04-29] Mobile audit P-6 — FloatingMessengers auto-hide on forms`.
@@ -420,6 +430,26 @@
 **Стоимость отсрочки:** низкая в обычное время (правки nginx редкие), высокая в момент инцидента (несколько часов на восстановление при отсутствии бэкапа).
 
 **Когда открывать:** при следующей значимой правке nginx или при первом серьёзном инциденте. Сейчас — backup-файлы на VDS актуальны (`jckauto.backup-2026-04-29-bug-hunt`, `nginx.conf.backup-2026-04-29-bug-hunt`), что снимает immediate риск.
+
+### MA-1 — Countries section hover-only effects (low priority)
+
+**Что:** Карточки стран в `src/components/sections/Countries.tsx` используют hover-стили (`hover:border-china/korea/japan`, `hover:shadow-md`), которые на тач-устройствах не активируются.
+
+**Почему техдолг, а не баг:** карточки декоративные (не Link, не onClick) — informational blocks, не интерактивные. Hover не ломает UX, просто бесполезен на мобиле. Стили парсятся, но не применяются.
+
+**Возможное решение:** обернуть hover-стили в `@media (hover: hover)` через Tailwind variant `hover:` уже это делает в Tailwind 4 (по умолчанию hover применяется только на устройствах с hover). То есть фактически уже корректно. Минимальная экономия CSS bytes — не оправдывает изменение.
+
+**Стоимость отсрочки:** нулевая. Регистрируем для полноты картины серии Mobile audit. Открывать только если возникнет связанная задача в Countries.tsx.
+
+### MA-2 — Yandex Metrika webvisor performance trade-off
+
+**Что:** в `src/components/layout/YandexMetrika.tsx` параметр `webvisor: true` включает запись пользовательских сессий — самую тяжёлую фичу Yandex Metrika по bundle size и runtime overhead на мобильных CPU.
+
+**Почему техдолг, а не баг:** webvisor — рабочая фича, активно используется для UX-исследований. Это **продуктовое решение** (стоит ли webvisor мобильной производительности), не технический баг.
+
+**Возможное решение:** обсудить с Vasiliy — сохраняем webvisor для аналитики или отключаем для мобильной производительности. Если отключать: одна правка `webvisor: true → false` в YandexMetrika.tsx.
+
+**Стоимость отсрочки:** низкая. Webvisor влияет на metrics LCP/INP на ~5-15ms (estimate). Не критично, но измеримо. Открывать при следующей продуктовой ревью аналитики.
 
 ## Strategic initiatives
 

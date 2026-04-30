@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.66
-  @lines:       4648
+  @version:     1.67
+  @lines:       4670
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,28 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Mobile audit closing cleanup — P-7, P-10, P-11
+
+**Контекст.** Серия "Главная — мобильная адаптация" (фаза 2) закрывает 11 из 12 пунктов реестра. Три пункта (P-7, P-10, P-11) не привели к изменениям в коде — каждый по своей причине. Этот ADR фиксирует causes для будущих сессий, чтобы не возвращаться к ним без необходимости.
+
+- **P-7 (Hero на 360px).** Verified visually Vasily'ем после деплоев P-1+P-2 и P-5+P-9. Заголовок переносится корректно, кнопки на всю ширину карточки, stats-сетка (2x2) читается. Никаких code changes не требуется.
+- **P-10 (Countries hover-only effects).** Карточки стран декоративные (не Link, не onClick) — informational blocks. Hover-стили на тач-устройствах не применяются благодаря тому, что Tailwind 4 по умолчанию обрабатывает `hover:` только на устройствах с hover. Минимальная теоретическая экономия CSS bytes не оправдывает изменение. Зарегистрировано как Technical Debt MA-1 для полноты картины.
+- **P-11 (Yandex Metrika strategy).** Inspected `src/components/layout/YandexMetrika.tsx` — уже использует `<Script strategy="afterInteractive">`, оптимальная стратегия для analytics-скриптов. Отдельный продуктовый вопрос — `webvisor: true` (overhead на mobile CPU); это не технический баг, а trade-off UX-исследования vs. mobile performance. Зарегистрировано как Technical Debt MA-2.
+
+**Решение.** Закрыть P-7 как verified visually. Закрыть P-11 как verified code. Перенести P-10 в Technical Debt как осознанную отсрочку (декоративный hover, нулевая стоимость). Webvisor-вопрос отделить как MA-2 в Technical Debt — продуктовое решение, не баг.
+
+**Альтернативы.**
+- Создавать отдельный ADR на каждый пункт. Отклонено: closing-summary в одном ADR компактнее, читателю-в-будущем легче понять полную картину серии за один заход.
+- Открыть P-10 как полноценный bug fix. Отклонено: hover-стили не ломают UX, не блокируют интерактивность. Cost > benefit. Tailwind 4 уже гарантирует корректное поведение через media-query default.
+- Сразу отключить webvisor. Отклонено: продуктовое решение, требует обсуждения с Vasiliy. Webvisor активно используется для UX-исследований.
+- Молча закрыть пункты. Отклонено: через 2 сессии Claude увидит P-7/P-10/P-11 как незакрытые в реестре и начнёт их обрабатывать заново. Явное закрытие — primary защита от такого drift'а.
+
+**Последствия.**
+- Серия Mobile audit имеет один открытый пункт (P-8 — bundle reduction через dynamic imports для below-fold секций). После его закрытия серия завершена полностью.
+- Будущие сессии при чтении roadmap видят явное закрытие P-7/P-10/P-11, не путают с забытыми пунктами.
+- Webvisor-обсуждение зарегистрировано в Technical Debt MA-2, не теряется при следующей продуктовой ревью аналитики.
+- (Knowledge) Шаблон closing-cleanup ADR установлен: при закрытии многошаговой серии, где не каждый пункт привёл к code change, единый ADR с разделением по причинам (verified / deferred / out-of-scope) — хорошая форма. Применять при следующих сериях такого размера.
 
 ## [2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal
 
