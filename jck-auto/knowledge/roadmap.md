@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.43
-  @lines:       546
+  @version:     1.44
+  @lines:       555
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Car detail audit CD-2: correctness + perf cleanup
+
+- **Сделано:** пять корректировок в `src/app/catalog/cars/[id]/page.tsx` и `src/components/catalog/CarGallery.tsx`. **A1:** `getAllCars()` обёрнут в `React.cache()` — функция вызывается дважды за запрос (`generateMetadata` + page component) при `force-dynamic`, без cache() это ~550ms лишнего disk I/O. **A2:** Schema.org `priceCurrency` теперь использует `car.currency` (CNY/KRW/JPY) когда `priceRub` отсутствует — раньше всегда писалось CNY, что ломало Google Shopping для машин из Кореи и Японии. **A3:** Schema.org `description` теперь — нормализованный excerpt из `car.description` (до 300 символов с word-boundary truncation), а не синтетическая 4-токенная техническая строка. Локальный helper `truncateForSchema` внутри `CarDetailPage` — не выносится в shared lib (один call site). **B5:** thumbnails в CarGallery загружаются `loading={i === 0 ? "eager" : "lazy"}` — экономит до ~360 KB на mobile при 12 thumbs × ~30 KB AVIF. **C2:** `[overflow-wrap:anywhere]` удалён с трёх description-related блоков (description div, description p, condition note), сохранён на `<h1>` (folderName может содержать длинные join-строки без пробелов). Русский prose теперь wrap'ится на word-boundaries, а не mid-syllable.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge: page source → JSON-LD priceCurrency и description correct, Network → thumbs lazy load, визуально страница не изменилась | **Следующий шаг:** CD-3 (CarCard motion → m migration, CLS fix from hover:scale, CarTrustBlock motion → m migration), CD-4 (BreadcrumbList structured data, Schema.org Product → Vehicle, thumb aria-labels).
+- **Контекст:** CD-1 закрыл horizontal overflow, после визуальной верификации технический audit страницы выявил 5 non-visual issues (SEO data accuracy + perf). CD-2 закрывает все пять одним промптом — каждое изменение хирургическое, визуальный рендер байт-в-байт identical.
+- **Структурный урок:** Schema.org SEO data correctness (priceCurrency, description) — silent regressions на проде, которые не проявляются визуально, но напрямую влияют на Google Shopping/SERP snippets. Их проще ловить когда есть систематический audit (как этот), чем reactively по жалобам аналитики. Урок: после серий мобильной адаптации делать обязательный SEO/perf-audit pass на ключевых страницах.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Car detail audit CD-2 — correctness + perf cleanup`.
 
 ### 2026-04-29 — Car detail audit CD-1: horizontal overflow fix
 
@@ -221,6 +229,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Car detail audit CD-2 closed.** Пять корректировок в `src/app/catalog/cars/[id]/page.tsx` и `src/components/catalog/CarGallery.tsx`: (A1) `getAllCars` обёрнут в `React.cache()` для dedup per-request reads — экономит ~275ms. (A2) Schema.org `priceCurrency` отражает `car.currency` для Korea/Japan, не всегда CNY. (A3) Schema.org `description` — truncated excerpt из `car.description` (300 chars, word-boundary). (B5) Thumb-images lazy-load кроме первого. (C2) Удалён `[overflow-wrap:anywhere]` с трёх description-блоков (сохранён на h1). Визуально страница идентична. См. ADR `[2026-04-29] Car detail audit CD-2 — correctness + perf cleanup`.
 - [x] **2026-04-29 — Car detail audit CD-1 closed.** Horizontal overflow on `/catalog/cars/[id]` mobile fixed via `min-w-0` на двух grid items в `page.tsx`. Корневая причина: grid item default min-width: auto + nested flex/overflow-x-auto child = parent expansion past viewport. Diagnostic command (`scrollWidth vs clientWidth + getBoundingClientRect traversal`) сохранён в ADR для будущих audit'ов. Открыта серия Car detail audit (Vasily обозначил страницу как «больше всего визуальных багов»). См. ADR `[2026-04-29] Car detail audit CD-1 — horizontal overflow fix` и новое правило `R-FE-3` в `rules.md`.
 - [x] **2026-04-29 — Mobile audit series CLOSED (12/12 resolved).** Implemented: P-1+P-2 (image optimizer + hero-bg compression), P-3 (LazyMotion + m migration), P-4 (HowItWorks unified responsive), P-5+P-9 (viewport meta + safe-area inset), P-6 (FloatingMessengers auto-hide), P-12 (Testimonials scroll signal + width fix). Verified/deferred: P-7 (verified visually), P-10 (conscious deferral), P-11 (verified code), P-8 (researched, deferred). Open Technical Debt от серии: IaC-1, MA-1, MA-2, MA-3. См. ADR `[2026-04-29] Mobile audit series — final summary`.
 - [x] **2026-04-29 — Mobile audit P-8 closed (researched, deferred).** Next.js 16 Server Components не делают code-splitting Client Component dynamic imports (documented limitation, vercel/next.js issues #61066, #58238, #66414). Workaround через Client Component wrapper deemed not worth complexity для ~10-20 KB gain после P-3 (framer-motion bundle уже сокращён 7.4×). Tracked как MA-3 с reopen trigger (Lighthouse < 80 / INP > 200ms / +5 секций). См. ADR `[2026-04-29] Mobile audit P-8 — researched, deferred`.
