@@ -2,9 +2,9 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-25
-  @version:     1.28
-  @lines:       157
+  @updated:     2026-04-29
+  @version:     1.29
+  @lines:       210
 -->
 
 # Critical Rules
@@ -171,3 +171,40 @@
 | deliveryConfig.ts: Vladivostok excluded (company location) | deliveryConfig.ts | Illogical to list home city as delivery destination |
 | Image prompts: NEVER request text, numbers, labels or callouts | generate-noscut.ts | Diffusion models produce unreadable garbage text in images |
 | Price research: ask for SUM of 6 individual parts, NOT "noscut kit" price | update-noscut-prices.ts | "Noscut" keyword finds used parts at 100–180k — lower than our price |
+
+## Frontend & Debugging
+
+### R-FE-1 — Browser-first verification for frontend bugs
+
+При диагностике любого фронтенд-бага в production (400/500 на /api, /_next/image, JS errors, missing assets, layout breakage) **первый источник истины — DevTools Console + Network tab в реальном браузере**, не curl.
+
+**Почему:** curl без браузерных headers (Accept, User-Agent, Sec-Fetch-*) проходит другие code paths в nginx и Next.js. Многие баги воспроизводятся **только при браузерных headers**. Curl-only диагностика 2026-04-29 пропустила nginx WebSocket-upgrade баг полностью.
+
+**Метод:**
+1. https://<site> в Chrome.
+2. F12 → Console → ⊘ очистить.
+3. Правый клик на reload → "Empty Cache and Hard Reload".
+4. Полная инвентаризация всех ошибок — URL, статус, тип ресурса.
+5. Только после этого — curl для проверки конкретных гипотез.
+
+**Curl допустим как primary** только для:
+- Backend API-эндпоинтов без браузерной отдачи (webhook, cron, server-to-server).
+- Smoke-тестов после fix'а (после того как картина уже понятна из DevTools).
+- SSR-проверки (см. Next.js → проверить, что HTML с правильным контентом возвращается).
+
+### R-FE-2 — Allowlist completeness check
+
+При добавлении любого allowlist-поля (`localPatterns`, `remotePatterns`, CSP `script-src`/`img-src`/etc, CORS `Access-Control-Allow-Origin`, nginx `valid_referers`) **обязательная инвентаризация всех источников ДО составления allowlist**, не реакция на сломанный конкретный случай.
+
+**Метод инвентаризации (для Next.js Image localPatterns как пример):**
+```
+grep -rn '<Image src=' src/ | grep -oE 'src="[^"]+"' | sort -u
+grep -rn 'next/image' src/ | head
+```
+
+Найти все уникальные path prefix'ы, **все включить в allowlist**. Цена нарушения этого правила: 4 итерации диагностики 2026-04-29 P-1+P-2.
+
+**Аналогично для других allowlist'ов:**
+- CSP: инвентаризовать все домены `<script src="https://...">`, inline-scripts, eval-использование.
+- CORS: инвентаризовать все клиентские origins (production, staging, localhost для dev).
+- remotePatterns: инвентаризовать все hostnames в `<Image src="https://...">` через grep.

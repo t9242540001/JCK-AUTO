@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.34
-  @lines:       406
+  @version:     1.35
+  @lines:       433
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 (vecher) — P-1+P-2 bug hunt closed: image optimizer fully operational
+
+- **Сделано:** последняя проверка через DevTools Console на main page после Empty Cache and Hard Reload — 0 ошибок 400 на /_next/image. Image optimizer полностью работает в production: hero-bg.jpg → image/avif 56 KB (с источника 148 KB JPEG; до P-1+P-2 был PNG 6.94 MB). Картинки каталога из /storage/ тоже оптимизируются.
+- **Что было:** баг hunt по 400 на /_next/image занял 4 итерации фиксов: P-1+P-2 первый промпт (включил optimizer) → fix-1 (добавил qualities + localPatterns: /images/**) → ручной nginx-патч на VDS (WebSocket upgrade map) → fix-2 (расширил localPatterns на /storage/**). Каждая итерация закрывала один слой проблемы.
+- **Что мешало:** диагностика через curl без браузерных headers скрыла реальное поведение. После первого 400 — нужно было сразу открыть DevTools Console на проде, увидеть **все 12 ошибок** и их URL, а не пытаться воспроизвести через curl. Урок зафиксирован в rules.md.
+- **Закрытие skill `bug-hunting`:** 7 из 8 пунктов Section 6.7 закрыты. Пункт 6 (RULE anchor в nginx) — оператор выполнит ручной командой на VDS (см. конец этого промпта).
+- **Ссылки:** коммиты 9658e00, fcc7c7c, b7d14d9. nginx-патч — вне git, на VDS в /etc/nginx/nginx.conf и /etc/nginx/sites-available/jckauto.
 
 ### 2026-04-29 (poslepoldnia) — P-1+P-2 fix #2: localPatterns extended for /storage/**
 
@@ -145,6 +153,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — P-1+P-2 bug hunt полностью закрыт.** Image optimizer работает на проде: AVIF/WebP с responsive srcset для всех `<Image>` на сайте. hero-bg.jpg сжат с 6.94 MB до 56 KB AVIF (124× меньше). DevTools Console чистая. См. ADR `[2026-04-29] Mobile audit P-1+P-2` со всеми тремя секциями fix'ов и Closure.
 - [x] **2026-04-29 (poslepoldnia) — P-1+P-2 fix #2 закрыт.** Расширен `localPatterns` в next.config.ts на `/storage/**`. Браузерный smoke-тест на проде — главная без ошибок 400 в DevTools Console. P-1+P-2 серии Mobile audit функционально полностью завершён. Bug hunt по 400 на /_next/image закрыт (см. ADR расширенный с секциями Post-deploy fix #1 и #2).
 - [x] **2026-04-29 (vechelnyaya) — P-1+P-2 fix закрыт.** Добавлены `qualities: [75, 85]` и `localPatterns` в next.config.ts. Production curl `/_next/image?url=%2Fimages%2Fhero-bg.jpg&w=1920&q=85` вернул HTTP/2 200 + content-type: image/avif. P-1+P-2 серии Mobile audit функционально завершён.
 - [x] **2026-04-29 — Mobile audit P-1+P-2 закрыт.** В next.config.ts включён image optimizer (AVIF/WebP, mobile-first deviceSizes 360/414). sharp в production dependencies. hero-bg переcжат с 6.62 MB до 148 KB JPEG. Ссылка в Hero обновлена. Production curl-проверка `/_next/image` подтвердила выдачу AVIF/WebP с правильным content-type. См. ADR `[2026-04-29] Mobile audit P-1+P-2`.
@@ -347,6 +356,24 @@
 - [ ] **DRY noscut.ts: extract slash + plain-text branches into shared function.** Сейчас две ветки (slash-command в `bot.onText(/\/noscut(.*)/)` и plain-text после пустого `/noscut` в новом `bot.on('message')`) дублируют rate-limit check + searchNoscut call + format + send. ~80 строк дубликата. Извлечь в `runNoscutSearch(bot, chatId, telegramId, query)` который вызывается из обоих мест. Низкий приоритет — рефактор после ещё одной модификации (правило тройки: после третьего повторения).
 - [ ] **`pendingSource` Map без TTL.** `src/bot/handlers/request.ts` экспортирует `pendingSource: Map<number, string>` без механизма expiration. Запись очищается только при оформлении lead'а через явный `pendingSource.delete(chatId)`. Если пользователь видит кнопку «Оставить заявку» (после noscut/calc/customs/auction-sheet/encar) и не нажимает её — entry остаётся в Map'е до следующего захода через тот же tool (overwrite) или до restart процесса. Theoretical memory drift при долгой uptime, но keys=chatId ограничено userbase'ом (несколько тысяч). Архитектурная неопрятность, surfaced 5 раз в out-of-scope reports серии Б-новый-B (2026-04-27). Один T2 промпт: добавить TTL 5–10 минут аналогично паттерну `awaitingQuery: Map` в `noscut.ts` (lazy cleanup при обращении + `AWAITING_TTL_MS` константа). Без поведенческих изменений в нормальных сценариях.
 - [ ] **Handler JSDoc audit — `@dependencies` field.** Convention inconsistent across `src/bot/handlers/*.ts`: некоторые файлы (`noscut.ts`, `auctionSheet.ts`, `encar.ts`, `request.ts`) имеют полноценный `@dependencies` блок в JSDoc-шапке, другие (`calculator.ts`, `customs.ts`, `start.ts`, `admin.ts`) — нет. Surfaced out-of-scope в промпте 3 серии Б-новый-B (calc/customs не получили обновление @dependencies на новый pendingSource импорт, потому что это поле отсутствовало целиком). Один T2 промпт: пройти все handler-файлы, добавить или дополнить `@dependencies` где отсутствует/неполный, зафиксировать конвенцию в `code-markup-standard` skill. Зацепка для skill-update: критерии "что включать в @dependencies" — runtime requirements (env vars, JSON files, sibling modules с side-effects) обязательно, чистые helpers — опционально.
+
+### IaC-1 — nginx-конфиг вне git-репо
+
+**Что:** конфигурация nginx (`/etc/nginx/nginx.conf` и `/etc/nginx/sites-available/jckauto`) живёт только на VDS. Git её не отслеживает. GitHub Actions deploy её не трогает.
+
+**Почему это техдолг:**
+- При краше VDS конфиг придётся восстанавливать по памяти и backup-файлам.
+- История изменений конфига отсутствует — нельзя сделать `git log` или `git revert`.
+- Каждая правка nginx — ручная операция оператора, не отслеживаемая в общем рабочем процессе проекта.
+- 2026-04-29 baghunt по WebSocket-upgrade misconfiguration занял несколько итераций именно из-за того, что я не мог быстро увидеть полный конфиг — пришлось через MCP-чтение восстанавливать его по фрагментам.
+
+**Возможные решения:**
+1. Подпапка `infra/nginx/` в существующем репо JCK-AUTO. Симлинки на `/etc/nginx/sites-available/jckauto` и `nginx.conf`. Правки идут через PR, ручной apply на VDS (потому что reload nginx — административная операция).
+2. Отдельный приватный репо `JCK-AUTO-infra` для всех системных конфигов (nginx, PM2 ecosystem, cron, systemd-units). Чище разделение, но больше overhead.
+
+**Стоимость отсрочки:** низкая в обычное время (правки nginx редкие), высокая в момент инцидента (несколько часов на восстановление при отсутствии бэкапа).
+
+**Когда открывать:** при следующей значимой правке nginx или при первом серьёзном инциденте. Сейчас — backup-файлы на VDS актуальны (`jckauto.backup-2026-04-29-bug-hunt`, `nginx.conf.backup-2026-04-29-bug-hunt`), что снимает immediate риск.
 
 ## Strategic initiatives
 

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.60
-  @lines:       4543
+  @version:     1.61
+  @lines:       4555
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -60,6 +60,18 @@
 Урок (в дополнение к Post-deploy fix #1): при добавлении allowlist-полей (localPatterns, remotePatterns, CSP source-list, CORS origins) — обязательная инвентаризация всех источников через grep по src/, а не реакция на конкретную сломанную картинку. Цена нарушения этого правила: 4 итерации диагностики + bug hunt по другой связанной проблеме (nginx WebSocket misconfiguration), вместо одного полного fix'а в первом промпте P-1+P-2.
 
 Также: первая неудача fix'а после деплоя — обязательная браузерная верификация (DevTools Console), не только curl. Curl без браузерных headers (особенно Accept-header с image/avif,...) скрыл от меня и реальные 400 на /storage/, и реальный механизм через nginx upgrade-headers. Браузерные DevTools — primary источник истины для прод-багов с фронтендом.
+
+**Closure & lessons (2026-04-29 vecher).** P-1+P-2 функционально завершён: AVIF/WebP отдаются всем пользователям. Bug hunt по 400 на /_next/image занял 4 итерации, потому что было три разных корневых причины, последовательно скрывавших друг друга:
+
+1. Next.js 16 требует `qualities` allowlist (security feature, не было задано) → 400 из самого optimizer.
+2. nginx с хардкодом `Connection 'upgrade'` для всех запросов в location / превращал обычные браузерные GET в попытки WebSocket handshake → 400 от Next.js на не-WebSocket endpoint.
+3. `localPatterns` allowlist не покрывал `/storage/**` → 400 для всех картинок каталога.
+
+Каждый последующий fix вскрывал следующий слой. Это **не патология** — это нормальное layered failure mode для production-стека с несколькими компонентами. Патология — что я пытался найти все три причины через curl, не открывая DevTools Console. **Curl без браузерных Accept-headers пропустил баг #2 целиком**, потому что nginx ведёт себя по-разному для запросов с/без headers.
+
+**Главный урок:** при первом 400 на /_next/image (или любом другом frontend-ресурсе) — primary источник истины **всегда DevTools Console + Network tab**, не curl. Curl — supplemental tool для проверки гипотез после визуального инвентаризатора через DevTools. Это правило вынесено в rules.md как `R-FE-1`.
+
+**Второй урок:** allowlist-поля (localPatterns, remotePatterns, CSP, CORS) требуют **полной инвентаризации источников** при первом задании. Метод: `grep -r '<Image src=' src/ | sort -u | awk -F'src="' '{print $2}' | awk -F'"' '{print $1}' | head` — посмотреть все уникальные пути prefix'ы. У нас были два (`/images/`, `/storage/`), а в первый fix я внёс только один. Это `R-FE-2` в rules.md.
 
 ## [2026-04-28] Б-7 closed — pm2 restart instead of startOrReload for jckauto after slot swap
 
