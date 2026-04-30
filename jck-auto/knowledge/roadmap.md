@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.41
-  @lines:       509
+  @version:     1.42
+  @lines:       536
 -->
 
 # Roadmap
@@ -15,6 +15,16 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 (final) — Mobile audit P-8 researched and deferred + series closed
+
+- **Сделано:** документационный финальный промпт серии "Главная — мобильная адаптация". P-8 (bundle reduction через dynamic imports для below-fold секций) исследован и отложен из-за documented Next.js 16 limitation: когда Server Component (наш `src/app/page.tsx`) делает `dynamic(() => import('Client'))`, code-splitting не происходит — Client Component попадает в initial bundle родителя. Подтверждено vercel/next.js issues #61066, #58238, #66414 + App Router docs. Workaround через Client Component wrapper `BelowFoldSections.tsx` оценён как cost > benefit при текущих метриках (после P-3 framer-motion bundle уже сокращён 7.4×). Зарегистрировано как Technical Debt MA-3 с явным reopen-trigger: Lighthouse mobile < 80, INP > 200ms, или +5 секций на главной.
+- **Прервались на:** серия Mobile audit полностью закрыта (12/12 resolved). После этого коммита — переключение на другие задачи проекта | **Следующий шаг:** другие открытые задачи (Telegram bot, контентные страницы, новые продуктовые цели), либо опциональный smoke-test всех закрытых пунктов на проде.
+- **Контекст:** P-8 был последним открытым пунктом реестра. Серия включала 11 промптов кода (P-1+P-2 + 2 fix'а + nginx-патч + P-3 + P-4 + P-5+P-9 + P-6 + P-12 + P-12 fix) и 2 closing-документационных промпта (closing cleanup для P-7/P-10/P-11, и этот финальный для P-8 + series summary).
+- **Структурный урок:** не каждый пункт audit-реестра требует code change. P-8 — пример third-class закрытия: «исследовано, отложено, открыто как TD с явным trigger». Это полное закрытие, не silent-drop. Вместе с P-7 (verified visually), P-10 (conscious deferral в TD), P-11 (verified code) серия демонстрирует все четыре класса резолюций: implemented, verified-visually, verified-code, researched-and-deferred. Шаблон применять при следующих audit-сериях.
+- **Methodology lessons (за всю серию):** (1) Browser-first verification → R-FE-1 в rules.md; (2) Allowlist completeness → R-FE-2 в rules.md; (3) Bug hunt protocol triggers (skill `bug-hunting`) применяются строго — если пропустить, цена 4× итераций; (4) Inseparability exceptions to one-prompt-one-file rule оправданы при architectural inseparability (P-5+P-9 пример).
+- **Численные итоги:** LCP image 6.94 MB → 56 KB AVIF (124×). Framer-motion bundle ~34 KB → ~4.6 KB (7.4×). HowItWorks DOM 90 → 45 (50%). HowItWorks motion instances 10 → 5 (50%). Console errors на главной 12 → 0.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Mobile audit P-8 — researched, deferred` и `[2026-04-29] Mobile audit series — final summary`.
 
 ### 2026-04-29 (closing) — Mobile audit closing cleanup: P-7, P-10, P-11
 
@@ -202,6 +212,8 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Mobile audit series CLOSED (12/12 resolved).** Implemented: P-1+P-2 (image optimizer + hero-bg compression), P-3 (LazyMotion + m migration), P-4 (HowItWorks unified responsive), P-5+P-9 (viewport meta + safe-area inset), P-6 (FloatingMessengers auto-hide), P-12 (Testimonials scroll signal + width fix). Verified/deferred: P-7 (verified visually), P-10 (conscious deferral), P-11 (verified code), P-8 (researched, deferred). Open Technical Debt от серии: IaC-1, MA-1, MA-2, MA-3. См. ADR `[2026-04-29] Mobile audit series — final summary`.
+- [x] **2026-04-29 — Mobile audit P-8 closed (researched, deferred).** Next.js 16 Server Components не делают code-splitting Client Component dynamic imports (documented limitation, vercel/next.js issues #61066, #58238, #66414). Workaround через Client Component wrapper deemed not worth complexity для ~10-20 KB gain после P-3 (framer-motion bundle уже сокращён 7.4×). Tracked как MA-3 с reopen trigger (Lighthouse < 80 / INP > 200ms / +5 секций). См. ADR `[2026-04-29] Mobile audit P-8 — researched, deferred`.
 - [x] **2026-04-29 — Mobile audit P-7 closed (verified visually).** Hero на 360px: заголовок переносится корректно, кнопки на всю ширину карточки, stats-сетка читается. No code change needed. См. ADR `[2026-04-29] Mobile audit closing cleanup`.
 - [x] **2026-04-29 — Mobile audit P-11 closed (verified code).** YandexMetrika уже использует `strategy='afterInteractive'` — оптимальная стратегия для analytics. No code change needed. Отдельный вопрос webvisor=true — Technical Debt MA-2 (продуктовое решение). См. ADR `[2026-04-29] Mobile audit closing cleanup`.
 - [x] **2026-04-29 — P-12 fix закрыт.** Testimonials mobile-карточки получили deterministic ширину `w-[85vw] max-w-[320px]` вместо `min-w-[280px]` — длинный testimonial-текст теперь wrap'ится внутри границ карточки на всех mobile viewport'ах (360 / 412 / 430). Pagination dots и scroll-snap из исходного P-12 продолжают работать. См. ADR `[2026-04-29] Mobile audit P-12 — Testimonials mobile scroll signal` секция Post-deploy fix.
@@ -450,6 +462,21 @@
 **Возможное решение:** обсудить с Vasiliy — сохраняем webvisor для аналитики или отключаем для мобильной производительности. Если отключать: одна правка `webvisor: true → false` в YandexMetrika.tsx.
 
 **Стоимость отсрочки:** низкая. Webvisor влияет на metrics LCP/INP на ~5-15ms (estimate). Не критично, но измеримо. Открывать при следующей продуктовой ревью аналитики.
+
+### MA-3 — Below-fold dynamic imports for home page
+
+**Что:** `src/app/page.tsx` (Server Component) импортирует 10 client-секций главной (Hero + 9 below-fold). Все они попадают в initial JS bundle. Прямой `next/dynamic` на этих импортах не работает из-за ограничения Next.js 16 — Server Components не делают code-splitting Client Component dynamic imports.
+
+**Почему техдолг, а не баг:** функционально всё работает. Bundle уже значительно сокращён в P-3 (framer-motion ~34 KB → ~4.6 KB). Дополнительная экономия от below-fold dynamic imports оценена в ~10-20 KB — измеримая, но не критичная для текущих CWV метрик главной.
+
+**Возможное решение:** создать Client Component wrapper `BelowFoldSections.tsx` с `'use client'`, который делает `dynamic(() => import('@/components/sections/X'), { ssr: true })` для 9 below-fold секций, и импортить wrapper статически в page.tsx. Это даст реальное code-splitting. Cost: один новый файл-обёртка, потенциальная переоценка SSR-поведения секций (в обёртке `'use client'`, но дочерние секции остаются client с собственными SSR через Next.js).
+
+**Стоимость отсрочки:** низкая. Текущий initial bundle главной приемлем для CWV. Открывать MA-3 при следующих условиях:
+- Lighthouse mobile performance score падает ниже 80.
+- Core Web Vitals INP > 200ms на real-user мониторинге.
+- Появляется задача добавить ещё 5+ секций на главную (увеличит bundle).
+
+**Связанная документация:** vercel/next.js issues #61066, #58238, #66414 (limitation подтверждён командой Next.js); App Router docs section "Lazy Loading" (workaround pattern).
 
 ## Strategic initiatives
 
