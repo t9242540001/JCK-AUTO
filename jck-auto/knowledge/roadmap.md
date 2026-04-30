@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.37
-  @lines:       452
+  @version:     1.38
+  @lines:       461
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Mobile audit P-6: FloatingMessengers auto-hide on forms
+
+- **Сделано:** в `src/components/FloatingMessengers.tsx` добавлены два новых useEffect: (1) IntersectionObserver, который запускается через `requestAnimationFrame` после mount'а, наблюдает все элементы с атрибутом `[data-fm-hide]` и хранит Set текущих intersecting элементов. `setHidden(set.size > 0)` — OR-логика. (2) Side effect `if (hidden && open) setOpen(false)` — collapse'ит menu вместе с FAB. Root div получает conditional className `transition-opacity duration-300 ${hidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`. RULE-комментарий выше observer'а фиксирует data-fm-hide контракт. В `src/components/LeadForm.tsx` к root `<form>` добавлен атрибут `data-fm-hide="true"` — единственная правка в этом файле.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge через DevTools при viewport widths 360px / 414px / ≥1024px (scroll до ContactCTA, проверка fade-out FAB, проверка collapse menu при scroll вниз с открытым menu) | **Следующий шаг:** P-7 серии (если по реестру) либо следующий приоритетный пункт.
+- **Контекст:** P-6 — touch conflict между FAB (`fixed bottom-6 right-6`) и LeadForm submit-кнопкой при viewport width 360-414px. На 360px LeadForm wrapped в `max-w-sm` ≈ 328px, gap до правого края viewport ≈ 16px. FAB занимает right 16px + 48px влево = 64px от правого края, что перекрывает правые ~32px submit-кнопки. Юзер целится в submit, попадает по FAB. После фикса FAB исчезает на 300ms transition при появлении формы в viewport, возвращается при скролле вверх. После merge закрыто 7 из 11 пунктов реестра mobile audit.
+- **Структурный урок:** declarative opt-in через `data-attribute` extensible'нее, чем hardcoded ref-based logic. Любой будущий компонент (sticky CTA, focus zone, full-screen modal, video player в hero) может opt-in одной строкой `data-fm-hide="true"` на root JSX. Без новых импортов FloatingMessengers, без изменений observer-логики. Обратная сторона: static observer на mount'е не ловит динамически добавленные элементы (например, lazy-loaded modal). При первой такой потребности — заменить на MutationObserver wrapper или re-query при route change.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Mobile audit P-6 — FloatingMessengers auto-hide on forms`.
 
 ### 2026-04-29 — Mobile audit P-5+P-9: viewport meta and safe-area inset
 
@@ -170,6 +178,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Mobile audit P-6 закрыт.** FloatingMessengers FAB теперь auto-hide на любом элементе с атрибутом `[data-fm-hide="true"]` в viewport (через IntersectionObserver). LeadForm opt'ин — единственная правка в файле, атрибут на root `<form>`. На 360-414px touch conflict между FAB и submit-кнопкой формы устранён. При раскрытом menu и появлении формы — menu collapse'ится вместе с FAB. См. ADR `[2026-04-29] Mobile audit P-6 — FloatingMessengers auto-hide on forms`.
 - [x] **2026-04-29 — Mobile audit P-5+P-9 закрыт.** В `layout.tsx` экспортирован `viewport: Viewport` с `viewportFit: 'cover'` и `themeColor: '#1E3A5F'`. В Header добавлены `env(safe-area-inset-top|left|right)` для notch / Dynamic Island в portrait + landscape. В Hero верхний padding адаптирован через `calc(7rem + env(safe-area-inset-top))`. На устройствах без выреза поведение не меняется (env=0). См. ADR `[2026-04-29] Mobile audit P-5+P-9 — viewport meta and safe-area inset`.
 - [x] **2026-04-29 — Mobile audit P-4 закрыт.** HowItWorks unified responsive layout: один блок вместо двух дублирующих (`hidden md:grid` + `md:hidden`). 90 DOM-узлов → 45, 10 motion-инстансов → 5. Иконка + small number badge на каждом breakpoint'е — больше нет потери информационной семантики между mobile (только цифры) и desktop (только иконки). См. ADR `[2026-04-29] Mobile audit P-4 — HowItWorks unified responsive layout`.
 - [x] **2026-04-29 — P-1+P-2 bug hunt полностью закрыт.** Image optimizer работает на проде: AVIF/WebP с responsive srcset для всех `<Image>` на сайте. hero-bg.jpg сжат с 6.94 MB до 56 KB AVIF (124× меньше). DevTools Console чистая. См. ADR `[2026-04-29] Mobile audit P-1+P-2` со всеми тремя секциями fix'ов и Closure.

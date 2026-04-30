@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.63
-  @lines:       4598
+  @version:     1.64
+  @lines:       4618
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,26 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Mobile audit P-6 — FloatingMessengers auto-hide on forms
+
+**Контекст.** FloatingMessengers FAB позиционирован `fixed bottom-6 right-6 z-50` (`max-sm:bottom-4 max-sm:right-4`), main toggle h-14 w-14 (h-12 w-12 на mobile). LeadForm на главной (внутри ContactCTA) wrapped в `max-w-sm` контейнер с `space-y-3` стеком и full-width submit-кнопкой. На viewport 360px форма ≈ 328px шириной, gap до правого края viewport ≈ 16px. FAB занимает зону right 16-64px → перекрывает правые ~32px submit-кнопки. Замер на iPhone SE (375px) и Galaxy S20 (360px) подтвердил touch conflict: пользователь целится в «Оставить заявку», палец задевает FAB и открывает мессенджер-меню вместо submit'а.
+
+**Решение.** IntersectionObserver в FloatingMessengers, declarative opt-in через атрибут `data-fm-hide="true"`. Любой элемент с этим атрибутом, попадающий в viewport, переключает FAB в hidden state (`opacity-0 pointer-events-none`, `transition-opacity duration-300`). LeadForm получает атрибут на root `<form>` — единственная правка в этом файле. Если открытое messenger-menu застаёт момент скрытия — отдельный useEffect collapse'ит его (`setOpen(false)`). Observer запускается через `requestAnimationFrame` после mount'а (гарантия что все секции страницы отрендерились), threshold 0 (любой пиксель формы в viewport триггерит hide).
+
+**Альтернативы.**
+- **Перенести FAB в другую позицию (bottom-center, left-bottom).** Отклонено: bottom-center конфликтует с iOS home indicator зоной, left-bottom — нестандартный паттерн (RU/EN пользователи привыкли к right-bottom для мессенджер-кнопок).
+- **Понизить z-index FAB и поднять z-index формы.** Отклонено: не решает touch conflict — z-index влияет на painting order, но palец всё равно попадает в bounding rect FAB'а если он сверху по координатам.
+- **Dismiss FAB после первого тапа на сессию (sessionStorage flag).** Отклонено: ломает основное use case'у — кнопка должна быть доступна снова после возврата с другой страницы или прокрутки. Существующий `fm_shake_shown` уже использует sessionStorage для anti-shake — добавлять второй такой flag overengineered.
+- **Скрывать FAB через CSS media query на узких viewport (`max-sm:hidden`).** Отклонено: убирает FAB полностью на mobile, теряем основной messenger entry point на самом важном устройстве. Целевая логика — скрывать только когда есть конкурирующий focus zone (форма), не когда устройство узкое.
+- **Hardcoded ref-based logic в FloatingMessengers** (импорт LeadForm ref'а). Отклонено: tight coupling между несвязанными компонентами; каждое новое opt-in потребует новой строки в FloatingMessengers; impossible для динамически рендерящихся компонентов через Portal.
+
+**Последствия.**
+- (+) Declarative opt-in через `data-fm-hide="true"` — extensible. Любой будущий компонент (sticky CTA bar, focus zone, full-screen modal, video player) может включиться одной строкой на root JSX без изменений в FloatingMessengers.
+- (+) Touch conflict на 360-414px на главной устранён. Замер ожидаемый: поток заявок через ContactCTA не должен блокироваться mis-tap'ами.
+- (−) Static observer (querySelectorAll один раз после requestAnimationFrame) — не ловит динамически добавленные элементы (lazy-loaded modal, dynamic form через client-side route). При первой такой потребности — заменить на MutationObserver wrapper или re-query при route change. Сейчас все потребители `data-fm-hide` рендерятся сразу с страницей.
+- (−) `pointer-events-none` ОБЯЗАТЕЛЬНО парный с `opacity-0` в hidden state. Невидимая интерактивная кнопка — UX trap (пользователь не видит, но тапы работают). Зафиксировано RULE-комментарием в коде около className.
+- (Knowledge) Этот ADR — first applied case паттерна «declarative opt-in via data-attribute для глобальных UI behaviors». Если в будущем появится нужда в подобной механике (например, hide header on scroll over elements with data-no-header), повторное использование паттерна предпочтительнее чем hardcoded refs.
 
 ## [2026-04-29] Mobile audit P-5+P-9 — viewport meta and safe-area inset
 

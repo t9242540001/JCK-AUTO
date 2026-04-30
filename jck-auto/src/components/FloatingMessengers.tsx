@@ -33,6 +33,7 @@ const messengers = [
 export default function FloatingMessengers() {
   const [open, setOpen] = useState(false);
   const [shaking, setShaking] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,6 +70,45 @@ export default function FloatingMessengers() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  // RULE: any element with data-fm-hide="true" attribute hides this FAB while
+  // it is intersecting the viewport. Used to avoid touch conflict between the
+  // floating button and inline lead-forms / sticky CTAs on narrow screens.
+  // Opt-in via attribute only — do NOT hardcode component refs here. Adding
+  // a new opt-in: just put data-fm-hide="true" on the element's root in JSX.
+  // Static observer — does not detect elements added after mount; if a future
+  // case requires that, switch to a MutationObserver wrapper.
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+
+    const intersecting = new Set<Element>();
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) intersecting.add(entry.target);
+        else intersecting.delete(entry.target);
+      }
+      setHidden(intersecting.size > 0);
+    });
+
+    let cancelled = false;
+    const handle = requestAnimationFrame(() => {
+      if (cancelled) return;
+      const targets = document.querySelectorAll<HTMLElement>("[data-fm-hide]");
+      targets.forEach((el) => observer.observe(el));
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(handle);
+      observer.disconnect();
+    };
+  }, []);
+
+  // Collapse the messenger menu when the FAB hides — leaving an expanded
+  // menu visible while the FAB itself fades is incoherent UX.
+  useEffect(() => {
+    if (hidden && open) setOpen(false);
+  }, [hidden, open]);
+
   return (
     <>
     <style>{`
@@ -82,7 +122,10 @@ export default function FloatingMessengers() {
         100% { transform: rotate(0deg) scale(1); }
       }
     `}</style>
-    <div ref={containerRef} className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 max-sm:bottom-4 max-sm:right-4">
+    {/* RULE: opacity-0 + pointer-events-none MUST stay paired in the hidden
+        state. Invisible-but-tappable FAB is a UX trap (taps land on
+        air-elements above the form). Keep both in the same conditional. */}
+    <div ref={containerRef} className={`fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 max-sm:bottom-4 max-sm:right-4 transition-opacity duration-300 ${hidden ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
       {/* Child buttons */}
       {messengers.map((m, i) => (
         <a
