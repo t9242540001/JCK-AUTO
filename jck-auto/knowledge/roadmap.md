@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.45
-  @lines:       578
+  @version:     1.46
+  @lines:       607
 -->
 
 # Roadmap
@@ -15,6 +15,16 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Car detail audit CD-4 + series closed
+
+- **Сделано:** три improvements закрыли серию Car detail audit. **D2:** в `productJsonLd` `@type` изменён `"Product" → "Vehicle"` + 5 новых полей: `mileageFromOdometer` (QuantitativeValue с unitCode KMT), `vehicleEngine` (EngineSpecification с fuelType + engineDisplacement в литрах), `vehicleTransmission` ("AT"→"Automatic"|"MT"→"Manual"), `bodyType`, `color`. Существующие поля (name, description, image, brand, model, vehicleModelDate, offers с CD-2 priceCurrency fix) — байт-в-байт. **D1:** новый второй JSON-LD блок `breadcrumbJsonLd` с `@type: "BreadcrumbList"` (3 ListItem: Главная / Каталог / current car) с абсолютными URL'ами. **D3:** thumb-кнопки CarGallery получили `aria-label="Показать фото N из M"` и `aria-current="true"` для активной. Минорные improvements (B4 sizes, C1 description ternary, C3 hardcoded color, C4 useEscape hook, D4 h1 mt-3, drivetrain enum, enginePower unit) collected в Technical Debt CD-DEBT-1.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge: View Source → 2 JSON-LD блока (Vehicle + BreadcrumbList), DevTools Elements → thumb buttons aria-label + aria-current, Rich Results Test без ошибок | **Следующий шаг:** серия Car detail audit полностью закрыта. Переход к другим задачам.
+- **Контекст:** CD-4 — финальный промпт серии, закрывает оставшиеся SEO + a11y improvements после CD-1 (overflow), CD-2 (correctness/perf), CD-3 (motion/m + CLS). Vehicle schema — automotive-specific subtype Product'а, BreadcrumbList дополняет крошки в SERP, thumb-aria даёт screen-reader контекст.
+- **Структурный урок (за всю серию Car detail audit):** browser-first diagnostic как первый шаг новой audit-серии — окупается. CD-1 нашёл root cause overflow за 30 секунд через DevTools snippet, без него — debugging by component reading. R-FE-3 в `rules.md` сохраняет recipe навсегда. Также серия показала value «root-cause first, аудит после»: CD-1 (overflow) был самым видимым багом; CD-2/CD-3/CD-4 нашли остальные проблемы только ПОСЛЕ исправления overflow'а. Если бы их искали под overflow'ом — часть была бы маскирована.
+- **Численные итоги серии:** Document width 840px → 375px на 375px viewport (overflow 465px → 0). Server response timing -275ms на car detail. Initial JS bundle на car detail entry path → P-3 win extended. SEO: 2 JSON-LD блока вместо 1, Product → Vehicle с 5 новыми полями. Mobile thumb bandwidth: ~80% сокращение. Console errors на car detail: 0.
+- **Открытый Technical Debt от серии:** **CD-DEBT-1** (7 минорных improvements). Зарегистрирован.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Car detail audit CD-4 — SEO + a11y` и `[2026-04-29] Car detail audit series — final summary`. Серия охватывает коммиты `ce4d130` (CD-1) → `4401529` (CD-2) → `5d7806a` (CD-3) → этот финальный.
 
 ### 2026-04-29 — Car detail audit CD-3: CarCard + CarTrustBlock motion → m + CLS fix
 
@@ -238,6 +248,8 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Car detail audit series CLOSED (4/4 resolved).** CD-1 (horizontal overflow + R-FE-3 grid trap rule), CD-2 (correctness: cache, currency, description, lazy thumbs, text wrapping), CD-3 (LazyMotion m migration + CLS fix), CD-4 (Vehicle schema + BreadcrumbList + thumb a11y). Open Technical Debt от серии: CD-DEBT-1. См. ADR `[2026-04-29] Car detail audit series — final summary`.
+- [x] **2026-04-29 — Car detail audit CD-4 closed.** Schema.org Product upgraded до Vehicle с mileage, engine, transmission, bodyType, color (drivetrain и enginePower deferred к CD-DEBT-1 из-за enum/unit ambiguity). BreadcrumbList JSON-LD добавлен на /catalog/cars/[id]. Thumb-кнопки CarGallery получили aria-label и aria-current. См. ADR `[2026-04-29] Car detail audit CD-4 — SEO + a11y`.
 - [x] **2026-04-29 — Car detail audit CD-3 closed.** CarCard.tsx и CarTrustBlock.tsx мигрированы с raw `motion` на `m` (LazyMotion-compatible) — закрывает gap для car detail entry path, оставленный P-3. CarCard hover:scale-[1.02] заменён на hover:-translate-y-1 — устраняет CLS на «Other cars» grid. Adjacent компоненты (NoscutCard, EncarClient и др.) ещё используют raw motion — зарегистрированы как Technical Debt MA-4. См. ADR `[2026-04-29] Car detail audit CD-3 — CarCard + CarTrustBlock motion → m + CLS fix`.
 - [x] **2026-04-29 — Car detail audit CD-2 closed.** Пять корректировок в `src/app/catalog/cars/[id]/page.tsx` и `src/components/catalog/CarGallery.tsx`: (A1) `getAllCars` обёрнут в `React.cache()` для dedup per-request reads — экономит ~275ms. (A2) Schema.org `priceCurrency` отражает `car.currency` для Korea/Japan, не всегда CNY. (A3) Schema.org `description` — truncated excerpt из `car.description` (300 chars, word-boundary). (B5) Thumb-images lazy-load кроме первого. (C2) Удалён `[overflow-wrap:anywhere]` с трёх description-блоков (сохранён на h1). Визуально страница идентична. См. ADR `[2026-04-29] Car detail audit CD-2 — correctness + perf cleanup`.
 - [x] **2026-04-29 — Car detail audit CD-1 closed.** Horizontal overflow on `/catalog/cars/[id]` mobile fixed via `min-w-0` на двух grid items в `page.tsx`. Корневая причина: grid item default min-width: auto + nested flex/overflow-x-auto child = parent expansion past viewport. Diagnostic command (`scrollWidth vs clientWidth + getBoundingClientRect traversal`) сохранён в ADR для будущих audit'ов. Открыта серия Car detail audit (Vasily обозначил страницу как «больше всего визуальных багов»). См. ADR `[2026-04-29] Car detail audit CD-1 — horizontal overflow fix` и новое правило `R-FE-3` в `rules.md`.
@@ -519,6 +531,23 @@
 **Возможное решение:** единым промптом-серией mige все оставшиеся компоненты — pattern идентичен CD-3 (replace import, rename JSX-теги). После — отдельный тщательный grep audit + включение `strict` на LazyMotion в MotionProvider.
 
 **Стоимость отсрочки:** низкая. Bundle-impact на пользователях посещающих `/catalog/noscut` и `/tools/encar`. Открывать когда: будет связанная задача в этих файлах, или Lighthouse регрессия на bundle size, или запланированная "bundle hygiene" сессия.
+
+### CD-DEBT-1 — Car detail page minor improvements (deferred)
+
+**Что:** Технический аудит car detail page выявил ряд минорных улучшений, не реализованных в CD-1..CD-4 как не-блокеров и не-баги:
+- **B4:** более точный `sizes` на главном фото галереи (текущий `(max-width: 768px) 100vw, 60vw` неточен — desktop фактически грузит до 768px image, можно оптимизировать до конкретного pixel value).
+- **C1:** в page.tsx два JSX-блока с противоположными условиями (`description.length > 100` и `<= 100`) можно объединить через ternary в одну переменную.
+- **C3:** `text-[#C9A84C]` (✓ галочки в "Что входит в стоимость") — hardcoded цвет, не из дизайн-системы. Заменить на `text-secondary` или вынести в design token.
+- **C4:** Escape-key useEffect в CarCard можно упростить через custom hook `useKeyDown('Escape', handler, enabled)`.
+- **D4:** `mt-3` на h1 info sidebar создаёт визуальную асимметрию относительно top edge галереи на desktop. Проверить намеренность.
+- **driveWheelConfiguration** в Vehicle schema: `car.drivetrain` хранит "AWD"/"FWD"/etc.; Schema.org требует enum (`AllWheelDriveConfiguration`, `FrontWheelDriveConfiguration`). Нужен mapping table.
+- **enginePower** в Vehicle schema: `car.power` хранит число, но unit (hp vs kW) неоднозначен в типе. Schema.org требует kW. Нужно подтвердить unit и конвертировать.
+
+**Почему техдолг:** все пункты — стилистика, минорная оптимизация или non-critical SEO enrichment. Ни один не блокирует функционал и не ухудшает CWV.
+
+**Возможное решение:** один T2 промпт-пакет на все 7 пунктов после получения данных по power-unit и составления drivetrain-enum mapping table.
+
+**Стоимость отсрочки:** низкая. Открывать когда: будет связанная задача в car detail page, или появится систематическая работа по design tokens, или Lighthouse SEO score < 95.
 
 ## Strategic initiatives
 

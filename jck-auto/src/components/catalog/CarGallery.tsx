@@ -32,6 +32,8 @@ export default function CarGallery({ photos, alt }: CarGalleryProps) {
           <button
             key={i}
             onClick={() => setActiveIndex(i)}
+            aria-label={`Показать фото ${i + 1} из ${photos.length}`}
+            aria-current={i === activeIndex ? "true" : undefined}
             className={cn(
               "relative h-16 w-24 flex-shrink-0 snap-start overflow-hidden rounded-lg transition-all sm:h-20 sm:w-28",
               activeIndex === i

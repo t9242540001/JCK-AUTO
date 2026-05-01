@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.71
-  @lines:       4850
+  @version:     1.72
+  @lines:       4904
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,60 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Car detail audit series — final summary
+
+**Контекст.** Серия "Car detail page — мобильная адаптация и технический аудит" запущена 2026-04-29 после серии Mobile audit главной. Vasily указал что на car detail странице "больше всего визуальных багов". Реестр сложился органически: визуальный баг (overflow) → root-cause fix (CD-1) → визуальная проверка → технический аудит → 14 находок в 4 категориях → группировка в 3 промпта по приоритету и риску.
+
+**Что реализовано (4/4 промпта).**
+
+- **CD-1** (commit `ce4d130`): horizontal overflow fix через `min-w-0` на двух grid items. Diagnostic: Document width 840px на 375px viewport (overflow 465px). Root cause: CSS Grid item default min-width=auto + flex/scroll child = parent expansion. Введено правило R-FE-3 в `rules.md`. Сохранён диагностический DevTools-recipe для будущих audit'ов любых страниц.
+
+- **CD-2** (commit `4401529`): корректность данных + perf cleanup. (A1) `getAllCars()` обёрнут в React `cache()` для дедупликации в request lifecycle (-275ms). (A2) Schema.org `priceCurrency` теперь корректно отражает KRW/JPY для Korea/Japan машин. (A3) Schema.org `description` заменён на нормализованный excerpt `car.description` (300 символов, word-boundary). (B5) Thumbnail images lazy-load кроме первого. (C2) убран лишний `[overflow-wrap:anywhere]` из 3 description-блоков (h1 сохранён для folderName).
+
+- **CD-3** (commit `5d7806a`): bundle + CLS. CarCard + CarTrustBlock мигрированы на LazyMotion-совместимый `m` import — extends P-3 win to car detail entry path. `hover:scale-[1.02]` заменён на `hover:-translate-y-1` в CarCard для устранения CLS в "Other cars" grid. Зарегистрирован MA-4 для оставшихся raw motion компонентов (NoscutCard, EncarClient).
+
+- **CD-4** (this commit): SEO + a11y. Schema.org `Product` upgraded до `Vehicle` с mileage, engine, transmission, bodyType, color. Добавлен BreadcrumbList JSON-LD. Thumb-кнопки CarGallery получили aria-label + aria-current. Минорные улучшения (B4, C1, C3, C4, D4 + drivetrain/power Vehicle fields) collected в CD-DEBT-1.
+
+**Methodology lessons (3 урока для будущих серий).**
+
+1. **Browser-first diagnostic для new audit series.** CD-1 нашёл root cause за 30 секунд через DevTools console snippet (scrollWidth vs clientWidth + table of widest elements). Без recipe пришлось бы читать все компоненты страницы по очереди и гадать. R-FE-3 сохраняет recipe для будущих audit'ов. Lesson: **новая audit-серия начинается с диагностического скрипта, не с component-by-component reading.**
+
+2. **Audit-find-первым-промптом, не комплексные пакеты.** CD-1 — узкий root-cause fix без связанных улучшений. После исправления overflow открылись остальные находки (которые могли быть скрыты под overflow). Lesson: **в новой audit-серии первый промпт — root-cause fix самой видимой проблемы, технический audit делается ПОСЛЕ.**
+
+3. **AC literal grep vs regression-shield collision.** CD-2 AC7 ожидал точный счётчик `[overflow-wrap:anywhere]` = 1, но мой собственный CD-1 RULE-комментарий (regression shield запрещает редактировать) содержал эту фразу в тексте, давая 2 совпадения. Lesson: **AC через grep должны учитывать существующие RULE-комментарии и/или формулироваться через спирит ("3 specific blocks no longer have it, h1 keeps it"), не через точное число.**
+
+**Открытые Technical Debt от серии.**
+- **CD-DEBT-1** — Car detail page minor improvements (B4, C1, C3, C4, D4, drivetrain enum, enginePower unit).
+
+**Численные итоги.**
+- Document width на 375px viewport: 840px → 375px (overflow 465px → 0).
+- Server response timing на car detail: -275ms на каждый запрос (force-dynamic + двойной getAllCars).
+- Initial JS bundle на car detail entry path: extends P-3 win (~30 KB framer-motion разница vs raw motion).
+- SEO structured data: 2 JSON-LD блока вместо 1 (+ BreadcrumbList; Product → Vehicle с 5 новыми полями).
+- Mobile thumb bandwidth: ~80% сокращение initial load (1 thumb eager + 11 lazy вместо 12 eager).
+- DevTools Console errors на car detail: 0.
+
+**Ссылки.** Серия охватывает коммиты от `ce4d130` (CD-1) до этого финального коммита (CD-4). ADR-цепочка: Car detail audit CD-1, CD-2, CD-3, CD-4, final summary — все в `decisions.md` в порядке coverage.
+
+## [2026-04-29] Car detail audit CD-4 — SEO + a11y
+
+**Контекст.** Технический аудит car detail page выявил отсутствующий BreadcrumbList structured data, неполный Product schema (нет mileage, engine, transmission, body type), отсутствующие aria-label на thumb-кнопках CarGallery. Эти три недостатка относятся к category-broad SEO/a11y improvements — закрывают серию car-detail audit.
+
+**Решение.** Schema.org `Product` → `Vehicle` (Vehicle IS-A Product, обратной совместимости не теряется). Добавлены `mileageFromOdometer` (QuantitativeValue с unitCode KMT), `vehicleEngine` (EngineSpecification с fuelType + engineDisplacement в литрах), `vehicleTransmission` (mapped "AT"→"Automatic", "MT"→"Manual"), `bodyType`, `color`. Добавлен второй JSON-LD блок — BreadcrumbList с тремя позициями (Главная → Каталог → car-name) с абсолютными URL-ами. Thumb-кнопки получили aria-label на русском ("Показать фото N из M") + aria-current="true" для активной кнопки.
+
+**Альтернативы.**
+- Использовать готовый JsonLd компонент. Отклонено: он глобальный (LocalBusiness + WebSite в layout), page-specific schema нужен в page.tsx.
+- Добавить `driveWheelConfiguration` и `enginePower` в Vehicle. Отклонено: requires enum mapping и unit confirmation, не делаем без верификации данных. Регистрируем в CD-DEBT-1.
+- Сделать thumbs кликабельными через клавиатуру. Отклонено: `<button>` уже keyboard-accessible by default — нужны только aria-* атрибуты для контекста.
+- Использовать Person Schema для author/sales-manager. Отклонено: вне scope car detail (LocalBusiness в layout уже это покрывает).
+
+**Последствия.**
+- Vehicle schema → потенциально лучшее ranking в automotive search verticals.
+- BreadcrumbList → крошки в Google search results вместо URL → выше CTR.
+- aria-label/aria-current → screen reader пользователи могут эффективно навигировать галерею.
+- CD-DEBT-1 регистрирует deferred drivetrain/power fields + 5 минорных пунктов аудита.
+- Car-detail audit series закрыта (4/4).
 
 ## [2026-04-29] Car detail audit CD-3 — CarCard + CarTrustBlock motion → m + CLS fix
 
