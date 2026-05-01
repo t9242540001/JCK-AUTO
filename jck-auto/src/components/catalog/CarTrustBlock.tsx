@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { Camera, ShieldCheck, FileText, Headphones } from "lucide-react";
 
 const TRUST_ITEMS = [
@@ -38,7 +38,7 @@ export default function CarTrustBlock() {
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {TRUST_ITEMS.map((item, i) => (
-          <motion.div
+          <m.div
             key={item.title}
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -55,7 +55,7 @@ export default function CarTrustBlock() {
                 {item.description}
               </p>
             </div>
-          </motion.div>
+          </m.div>
         ))}
       </div>
     </div>

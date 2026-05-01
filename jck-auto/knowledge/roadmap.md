@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.44
-  @lines:       555
+  @version:     1.45
+  @lines:       578
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Car detail audit CD-3: CarCard + CarTrustBlock motion → m + CLS fix
+
+- **Сделано:** `src/components/catalog/CarCard.tsx` и `src/components/catalog/CarTrustBlock.tsx` мигрированы с raw `import { motion } from "framer-motion"` на `import * as m from "framer-motion/m"` (LazyMotion-compatible). JSX-теги `<motion.div>` и `</motion.div>` переименованы в `<m.div>` / `</m.div>`. В CarCard в hover-стиле inner-div'а заменён `hover:scale-[1.02] hover:shadow-md` на `hover:-translate-y-1 hover:shadow-md` — устраняет CLS на «Other cars» grid (scale изменяет размер карточки, сдвигает соседей; translate-y лифтит карточку без изменения размера). Все motion-props (initial / whileInView / viewport / transition) — байт-в-байт. group-hover:scale-105 на inner Image сохранён (intentional dual-hover effect: card lifts + photo zooms).
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge: hover на «Other cars» лифтит карточки на ~4px без horizontal/vertical shift соседей, fade-in анимации работают, bundle на car detail entry path не тянет полный framer-motion | **Следующий шаг:** CD-4 (Vehicle schema upgrade + BreadcrumbList structured data + thumb aria-labels) либо переход к другим audit'ам.
+- **Контекст:** P-3 (Mobile audit, commit `b1bd44c`) перевёл 10 секций главной с raw motion на m, сократив framer-motion bundle ~34 KB → ~4.6 KB. CarCard и CarTrustBlock в P-3 явно отложены — оба не на hot path главной. CD-3 закрывает их в car-detail-audit серии: оба компонента рендерятся на `/catalog/cars/[id]` (CarCard в «Other cars» секции внизу страницы, CarTrustBlock mid-page). Прямой landing на car detail из поиска без P-3-fix тащил полный framer-motion для new-visitor entry path. CD-3 этот gap закрывает.
+- **Структурный урок:** при системной миграции на LazyMotion deferred-компоненты должны быть зарегистрированы как Technical Debt (которое потом закрывается follow-up серией) — иначе они тихо ломают bundle на entry-paths, отличных от того, для которого делалась миграция. Урок: P-3 не должен был только-deferring-без-TD-entry; CD-3 закрывает один из таких deferred. Остальные (NoscutCard, EncarClient + любые ещё) зарегистрированы как MA-4.
+- **Bonus structural lesson — CLS pattern:** `hover:scale` на grid-card'ах = CLS, потому что transform: scale всё же расширяет visual bounding box и может pushить соседей в некоторых grid-сценариях. `hover:-translate-y-1` (или translate-x) — безопасный pattern для card-hover «лифт». Делает то же UX (карточка «всплывает»), без layout shift.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Car detail audit CD-3 — CarCard + CarTrustBlock motion → m + CLS fix`. Связанный коммит: `b1bd44c` (P-3, исходная миграция секций главной).
 
 ### 2026-04-29 — Car detail audit CD-2: correctness + perf cleanup
 
@@ -229,6 +238,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Car detail audit CD-3 closed.** CarCard.tsx и CarTrustBlock.tsx мигрированы с raw `motion` на `m` (LazyMotion-compatible) — закрывает gap для car detail entry path, оставленный P-3. CarCard hover:scale-[1.02] заменён на hover:-translate-y-1 — устраняет CLS на «Other cars» grid. Adjacent компоненты (NoscutCard, EncarClient и др.) ещё используют raw motion — зарегистрированы как Technical Debt MA-4. См. ADR `[2026-04-29] Car detail audit CD-3 — CarCard + CarTrustBlock motion → m + CLS fix`.
 - [x] **2026-04-29 — Car detail audit CD-2 closed.** Пять корректировок в `src/app/catalog/cars/[id]/page.tsx` и `src/components/catalog/CarGallery.tsx`: (A1) `getAllCars` обёрнут в `React.cache()` для dedup per-request reads — экономит ~275ms. (A2) Schema.org `priceCurrency` отражает `car.currency` для Korea/Japan, не всегда CNY. (A3) Schema.org `description` — truncated excerpt из `car.description` (300 chars, word-boundary). (B5) Thumb-images lazy-load кроме первого. (C2) Удалён `[overflow-wrap:anywhere]` с трёх description-блоков (сохранён на h1). Визуально страница идентична. См. ADR `[2026-04-29] Car detail audit CD-2 — correctness + perf cleanup`.
 - [x] **2026-04-29 — Car detail audit CD-1 closed.** Horizontal overflow on `/catalog/cars/[id]` mobile fixed via `min-w-0` на двух grid items в `page.tsx`. Корневая причина: grid item default min-width: auto + nested flex/overflow-x-auto child = parent expansion past viewport. Diagnostic command (`scrollWidth vs clientWidth + getBoundingClientRect traversal`) сохранён в ADR для будущих audit'ов. Открыта серия Car detail audit (Vasily обозначил страницу как «больше всего визуальных багов»). См. ADR `[2026-04-29] Car detail audit CD-1 — horizontal overflow fix` и новое правило `R-FE-3` в `rules.md`.
 - [x] **2026-04-29 — Mobile audit series CLOSED (12/12 resolved).** Implemented: P-1+P-2 (image optimizer + hero-bg compression), P-3 (LazyMotion + m migration), P-4 (HowItWorks unified responsive), P-5+P-9 (viewport meta + safe-area inset), P-6 (FloatingMessengers auto-hide), P-12 (Testimonials scroll signal + width fix). Verified/deferred: P-7 (verified visually), P-10 (conscious deferral), P-11 (verified code), P-8 (researched, deferred). Open Technical Debt от серии: IaC-1, MA-1, MA-2, MA-3. См. ADR `[2026-04-29] Mobile audit series — final summary`.
@@ -496,6 +506,19 @@
 - Появляется задача добавить ещё 5+ секций на главную (увеличит bundle).
 
 **Связанная документация:** vercel/next.js issues #61066, #58238, #66414 (limitation подтверждён командой Next.js); App Router docs section "Lazy Loading" (workaround pattern).
+
+### MA-4 — Remaining raw motion imports project-wide
+
+**Что:** P-3 (Mobile audit, commit `b1bd44c`) перевёл 10 секций главной с `motion` на `m`. CD-3 (commit этого финального коммита серии Car detail audit) добавил CarCard + CarTrustBlock. Остаются raw `import { motion } from "framer-motion"` в:
+- `src/components/noscut/NoscutCard.tsx` (рендерится на главной + `/catalog/noscut/*`)
+- `src/app/tools/encar/EncarClient.tsx`
+- возможно других файлах — нужен полный audit `grep -rn 'from "framer-motion"' src/`
+
+**Почему техдолг:** функционально работает (LazyMotion в MotionProvider обрабатывает любые motion-элементы потомков), но bundle размер на страницах с этими компонентами раздувается до полного framer-motion (~34 KB) при первом заходе. После завершения миграции можно включить `strict` mode в LazyMotion для защиты от регрессий — тогда любой случайный raw `motion` будет бросать runtime error.
+
+**Возможное решение:** единым промптом-серией mige все оставшиеся компоненты — pattern идентичен CD-3 (replace import, rename JSX-теги). После — отдельный тщательный grep audit + включение `strict` на LazyMotion в MotionProvider.
+
+**Стоимость отсрочки:** низкая. Bundle-impact на пользователях посещающих `/catalog/noscut` и `/tools/encar`. Открывать когда: будет связанная задача в этих файлах, или Lighthouse регрессия на bundle size, или запланированная "bundle hygiene" сессия.
 
 ## Strategic initiatives
 

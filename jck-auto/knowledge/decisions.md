@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.70
-  @lines:       4823
+  @version:     1.71
+  @lines:       4850
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,33 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Car detail audit CD-3 — CarCard + CarTrustBlock motion → m + CLS fix
+
+**Контекст.** Mobile audit P-3 (commit `b1bd44c`) перевёл 10 секций главной с raw `motion` на LazyMotion-compatible `m`, сократив framer-motion bundle ~34 KB → ~4.6 KB. CarCard.tsx и CarTrustBlock.tsx в P-3 явно отложены — оба не на hot path главной. Сейчас, в Car detail audit серии, оба они работают на странице `/catalog/cars/[id]`: CarCard рендерится в «Other cars» секции (3 карточки на mobile), CarTrustBlock — mid-page как trust/guarantees блок. При прямом landing на car detail страницу из поисковика (без предварительного захода на главную) первый запрос тащил полный framer-motion (~34 KB) — полностью отменяя выигрыш P-3 для этого entry path.
+
+Дополнительное наблюдение: в CarCard hover-стиль `hover:scale-[1.02] hover:shadow-md`. `scale-[1.02]` увеличивает карточку на 2% при hover'е, что может сдвигать соседние карточки в grid'е (CLS — Cumulative Layout Shift, метрика Core Web Vitals). На «Other cars» grid'е 3-4 карточек эффект visible при hover-навигации между ними. Замена на `-translate-y-1` (-4px вертикальный лифт) сохраняет размер карточки и устраняет CLS.
+
+**Решение.** Два хирургических изменения:
+
+- **CarCard.tsx**: (1) `import { motion } from "framer-motion"` → `import * as m from "framer-motion/m"`. (2) `<motion.div>` / `</motion.div>` → `<m.div>` / `</m.div>`. (3) В inner-div className заменён `hover:scale-[1.02] hover:shadow-md` на `hover:-translate-y-1 hover:shadow-md`. Условие `${!isModalOpen ? '...' : ''}` и остальные классы — байт-в-байт. `group-hover:scale-105` на inner Image сохранён (intentional dual-hover effect: card lifts + photo zooms).
+
+- **CarTrustBlock.tsx**: (1) тот же import-replacement. (2) `<motion.div>` / `</motion.div>` → `<m.div>` / `</m.div>` внутри `.map()` over trustItems. Все motion-props (initial / whileInView / viewport / transition) — байт-в-байт.
+
+Никаких других изменений в этих компонентах. После миграции framer-motion не тащится при заходе на car detail, потому что MotionProvider уже обёрнут вокруг `<main>` в layout.tsx, а LazyMotion + `m` импорт активирует только нужный feature-set (~4.6 KB).
+
+**Альтернативы.**
+- **Полный project-wide миграция в одном промпте.** Отклонено: scope слишком широкий (NoscutCard, EncarClient, возможно другие). Карty детали серии — CarCard и CarTrustBlock; остальное — отдельная серия / промпт. Зарегистрировано как MA-4.
+- **LazyMotion `strict` mode сейчас.** Отклонено: пока NoscutCard и EncarClient ещё используют raw `motion`, включение `strict` бросит runtime error на `/catalog/noscut` и `/tools/encar`. Включать после полного закрытия MA-4.
+- **Полностью убрать анимации с этих компонентов.** Отклонено: UX-регрессия (fade-in cards, trust block items дают важный perception cue «contenu loaded»).
+- **Заменить hover:scale на CSS transition без framer-motion.** Отклонено overengineering: CSS hover + Tailwind utility (`hover:-translate-y-1`) — нативный браузерный hover, не зависит от framer-motion вообще; smooth перевод через `transition-all duration-200` уже на родителе.
+
+**Последствия.**
+- (+) P-3 bundle-выигрыш расширен на car detail entry path. Прямой заход с поиска на `/catalog/cars/[id]` больше не тянет полный framer-motion.
+- (+) CLS на «Other cars» grid'е устранён. Pattern `hover:-translate-y-1` для card-hover становится рекомендуемым в проекте.
+- (−) Adjacent компоненты (`NoscutCard`, `EncarClient`) по-прежнему используют raw motion — bundle на их страницах не оптимизирован. Зарегистрировано как Technical Debt MA-4 с явным reopen-trigger (Lighthouse регрессия / связанная задача / запланированная bundle-hygiene сессия).
+- (Knowledge) Pattern «card hover via translate, не scale» зафиксирован в этом ADR. При создании новых card-компонентов — использовать `hover:-translate-y-N` как baseline, не `hover:scale-N`. Скейл оправдан только когда карточка вне grid'а или grid с явным buffer'ом.
+- Серия Car detail audit: CD-1 ✓, CD-2 ✓, CD-3 ✓; CD-4 (Vehicle schema upgrade + BreadcrumbList + thumb aria-labels) planned.
 
 ## [2026-04-29] Car detail audit CD-2 — correctness + perf cleanup
 

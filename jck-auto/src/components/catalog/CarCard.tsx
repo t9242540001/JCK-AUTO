@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import type { Car } from "@/types/car";
 import {
   formatPrice,
@@ -35,13 +35,13 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
   ];
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.1 }}
     >
-      <div className={`relative overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-200 ${!isModalOpen ? 'hover:scale-[1.02] hover:shadow-md' : ''}`}>
+      <div className={`relative overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all duration-200 ${!isModalOpen ? 'hover:-translate-y-1 hover:shadow-md' : ''}`}>
         <Link
           href={`/catalog/cars/${car.id}`}
           className="group block"
@@ -123,6 +123,6 @@ export default function CarCard({ car, index = 0 }: CarCardProps) {
           </div>
         )}
       </div>
-    </motion.div>
+    </m.div>
   );
 }
