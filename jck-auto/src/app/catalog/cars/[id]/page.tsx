@@ -99,7 +99,7 @@ export default async function CarDetailPage({ params }: PageProps) {
 
   const productJsonLd = {
     "@context": "https://schema.org",
-    "@type": "Product",
+    "@type": "Vehicle",
     name: `${brand} ${car.model} ${car.year}`,
     description: car.description
       ? truncateForSchema(car.description, 300)
@@ -108,6 +108,25 @@ export default async function CarDetailPage({ params }: PageProps) {
     brand: { "@type": "Brand", name: brand },
     model: car.model,
     vehicleModelDate: String(car.year),
+    // Vehicle-specific fields (Schema.org Vehicle subtype). Drivetrain
+    // and engine power deferred to CD-DEBT-1 due to enum/unit ambiguity.
+    mileageFromOdometer: {
+      "@type": "QuantitativeValue",
+      value: car.mileage,
+      unitCode: "KMT",
+    },
+    vehicleEngine: {
+      "@type": "EngineSpecification",
+      fuelType: car.fuelType,
+      engineDisplacement: {
+        "@type": "QuantitativeValue",
+        value: car.engineVolume,
+        unitCode: "LTR",
+      },
+    },
+    vehicleTransmission: car.transmission === "AT" ? "Automatic" : "Manual",
+    bodyType: car.bodyType,
+    color: car.color,
     offers: {
       "@type": "Offer",
       price: car.priceRub || car.price,
@@ -117,11 +136,40 @@ export default async function CarDetailPage({ params }: PageProps) {
     },
   };
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Главная",
+        item: "https://jckauto.ru",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Каталог",
+        item: "https://jckauto.ru/catalog",
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: `${brand} ${car.model} ${car.year}`,
+        item: `https://jckauto.ru/catalog/cars/${car.id}`,
+      },
+    ],
+  };
+
   return (
     <div className="bg-white pb-12 pt-24 sm:pb-16">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <div className="mx-auto max-w-7xl px-4">
         {/* Breadcrumbs */}
