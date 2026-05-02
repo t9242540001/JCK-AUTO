@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-05-02
-  @version:     1.78
-  @lines:       5031
+  @version:     1.79
+  @lines:       5229
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,58 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-05-02] CAT-3 — hover effects audit на /catalog (verified, no change needed)
+
+**Status:** Accepted. **Confidence:** high.
+
+**Контекст.** В рамках CAT-* page-by-page audit для /catalog проверены hover-эффекты на category cards (`hover:border-primary/70`, `hover:border-primary` на двух Link-карточках в Category cards секции) и country tabs внутри `CatalogFilters` (`hover:bg-border` на табах выбора страны). Verification двухуровневая: (1) browser-first diagnostic на Samsung Galaxy S20 Ultra 412px viewport — `Viewport=412px, Document=412px, Overflow=0px`, DevTools Console clean; (2) code-инспекция Tailwind-классов в `src/app/catalog/page.tsx` и `src/components/catalog/CatalogFilters.tsx` — все hover-стили являются border-color + background-color transitions, ни один не использует transform / scale / translate.
+
+**Решение.** Никаких code changes не требуется. Border-color и background-color transitions не сдвигают bounding box элемента, не push'ат соседей в grid/flex layout — CLS-риск отсутствует. На touch-устройствах Tailwind 4 по умолчанию gating'ит `hover:` variants через `(hover: hover)` media query — стили не применяются на устройствах без hover capability, sticky-hover ghost-стили на тапе не появляются. Эталон поведения — MA-1 (Countries hover-only effects на главной), где аналогичный класс hover-decoration был оставлен без code change по той же причине.
+
+**Альтернативы.**
+- **Явно обернуть hover-стили в `@media (hover: hover)` через CSS.** Отвергнуто: Tailwind 4 уже делает это за нас на уровне utility generator'а. Дублирующий wrapper — overengineering, нулевая пользовательская выгода, лишний CSS noise.
+- **Заменить hover на `group-hover` с явным focus-visible mirror.** Отвергнуто: focus-visible уже работает через дефолтный browser outline на Link/button — отдельный custom focus-стиль вне scope CAT-3 и относится к Strategic initiative #4 (Accessibility migration).
+- **Удалить hover-эффекты целиком.** Отвергнуто: hover-feedback на desktop — стандартный UX-сигнал «это интерактивный элемент». Удаление ухудшит desktop affordance без compensating mobile-выигрыша.
+
+**Последствия.**
+- CAT-3 закрыт без code change по тому же шаблону, что P-7 / P-10 / P-11 в Mobile audit closing cleanup. Будущие сессии при чтении roadmap'а видят явное закрытие, не возвращаются к hover-аудиту /catalog.
+- Если в будущем появится новый hover-эффект с transform/scale на /catalog — этот ADR подсказывает причину, по которой текущие effects были признаны safe; новый transform-effect требует отдельной CLS-проверки.
+- (Knowledge) Border/background hover на Link/Button-cards — safe-by-default pattern в Tailwind 4 проектах. Применимо ко всему сайту.
+
+**Ссылки.** Этот коммит. Precedent ADRs: `[2026-04-29] Mobile audit closing cleanup — P-7, P-10, P-11` (P-10 — те же reasoning'и для Countries hover на главной), Technical Debt MA-1 (та же категория hover-decoration без code change).
+
+## [2026-05-02] CAT-* series — final summary
+
+**Контекст.** Серия CAT-* запущена 2026-05-02 после закрытия Tools audit series (2026-04-29). Scope = page-by-page audit /catalog для частых ошибок, найденных в предыдущих сессиях (motion deadcode, BreadcrumbList JSON-LD gap, hover audit). Реестр сложился из четырёх пунктов и решился органически: 2 implementation prompts + 1 verified-no-change + 1 deferred-as-strategic.
+
+**Что реализовано (2 / 4 промптов с code change + 1 verified + 1 deferred).**
+
+- **CAT-1a** (commit `29df1ed`): удалён dead `import { motion } from "framer-motion"` в `src/components/catalog/CatalogClient.tsx` — единственная line removed, no behavior change. Pure deadcode cleanup.
+
+- **CAT-1b** (commit `227d16c`): добавлен `BreadcrumbList` JSON-LD на `src/app/catalog/page.tsx` (2-level: Главная → Каталог). Pattern идентичен TS-5 + CD-4. Закрыл BreadcrumbList coverage gap для main entry pages (4/4: /tools/auction-sheet, /tools/encar, /catalog/cars/[id], /catalog).
+
+- **CAT-3** (verified, no change): hover effects на category cards и country tabs /catalog — border/background transitions без CLS-риска, Tailwind 4 hover variant gates на touch-устройствах. Browser-first diagnostic 412px: overflow=0, console clean. См. ADR `[2026-05-02] CAT-3 — hover effects audit на /catalog (verified, no change needed)`.
+
+- **CAT-2** (deferred): ItemList JSON-LD на server-rendered first page /catalog для Rich snippet carousel. Researched в чате при закрытии серии, признано enhancement (не common-error fix, не regression) — выпадает из scope CAT-* page-by-page audit. Перенесено в Strategic initiative #5.
+
+**Methodology lessons (3 урока).**
+
+1. **Чистый первый browser-first замер — допустимый исход.** В CD-1 diagnostic recipe нашёл root cause overflow за 30 секунд; в CAT-* такой же recipe вернул `overflow=0` на первом замере. Lesson: **не выдумывать проблем при чистом первом замере.** Серия может пойти в обычный audit-flow (motion deadcode, JSON-LD gap, hover review) без CD-1-style root-cause-first phase. Это не делает серию менее полезной — она просто короче.
+
+2. **Короткая серия (4 пункта) валидна.** Tools audit (5 пунктов) и Mobile audit (12 пунктов) задали ожидание «крупная серия». CAT-* — 4 пункта, из которых 2 реальных code commits и 2 без правок (verified + deferred). Lesson: **масштаб audit-серии зависит от состояния страницы**, не от ритуала. Если страница в хорошем состоянии, короткая серия с явными close-причинами лучше, чем растягивание ради «крупного» summary.
+
+3. **Deferral как четвёртый класс резолюции.** До сих пор close-причины были: implemented / verified-visually / verified-code / researched-and-deferred-to-Technical-Debt. CAT-2 ввёл четвёртый класс — deferred-to-Strategic-initiative. Разница: Technical Debt — баг или регрессия, отложенная по приоритету. Strategic initiative — enhancement, требующий research/discovery до prompt'а. Lesson: **место deferred-пункта зависит от его природы**, не от удобства реестра. ItemList — enhancement, его место в Strategic initiatives #5, не в TD.
+
+**Численные итоги серии.**
+- 4 пункта реестра (CAT-1a, CAT-1b, CAT-2, CAT-3).
+- 2 коммита кода (`29df1ed` CAT-1a, `227d16c` CAT-1b).
+- 3 новых ADR в decisions.md (`CAT-1b BreadcrumbList`, `CAT-3 hover audit verified`, этот final summary).
+- 1 новый Strategic initiative #5 (ItemList JSON-LD).
+- DevTools console errors на /catalog: 0.
+- Document overflow на 412px viewport (/catalog): 0.
+
+**Ссылки.** Этот коммит. Precedent ADRs: `[2026-04-29] Tools audit series — final summary`, `[2026-04-29] Mobile audit series — final summary`, `[2026-04-29] Mobile audit closing cleanup — P-7, P-10, P-11`. Серия охватывает коммиты `29df1ed` (CAT-1a) → `227d16c` (CAT-1b) → этот финальный.
 
 ## [2026-05-02] CAT-1b — BreadcrumbList JSON-LD на /catalog
 
