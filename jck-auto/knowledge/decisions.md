@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.75
-  @lines:       4988
+  @version:     1.76
+  @lines:       5031
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,49 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Tools audit TS-4 — EncarClient flex-row overflow fix
+
+**Контекст.** Diagnostic per R-FE-3 recipe (DevTools console snippet) на /tools/encar после успешного анализа Genesis GV70 при viewport 412px:
+
+```
+Viewport: 412px, Document: 428px, Overflow: 16px
+```
+
+Top contributor через `getBoundingClientRect()` traversal: `SPAN.text-right width=299` в dealer-блоке. Code-инспекция `EncarClient.tsx` нашла три flex-justify-between row-pattern'а без `min-w-0` защиты на value-side spans:
+
+1. Vehicle info grid `.map()` row — `<div className="flex justify-between text-sm">` с `<span>{value}</span>` (длинный single-token VIN — 17 chars без пробелов — растягивает).
+2. Power row — `<div className="flex justify-between text-sm">` с `<span className="flex items-center gap-1.5 ...">{power text + AI badge}</span>`.
+3. Dealer block — три row'а (Имя / Автосалон / Город) — `<span className="text-right ...">{dealerName / dealerFirm / city}</span>`. Korean dealer names + Russian transliteration легко превышают 30 chars.
+
+Cost breakdown row (`{cost.breakdown.map()}`) уже имел корректную защиту (`min-w-0 flex-1` + `shrink-0`) — pre-CD-2 wisdom. Auction-sheet diagnostic при том же viewport: `Document=412px, Overflow=0px` — clean, не входит в TS-4 scope.
+
+**Решение.** Добавить `min-w-0` и `[overflow-wrap:anywhere]` на value-side spans в трёх locations + `gap-3` на 2 row для visual breathing:
+
+- **Vehicle info row**: `gap-3` на row, на value-span `min-w-0 text-right [overflow-wrap:anywhere]` (плюс существующие `font-medium text-text`).
+- **Power row**: `gap-3` на row, на value-span (с `flex items-center gap-1.5`) добавлен `min-w-0`. БЕЗ `[overflow-wrap:anywhere]` — power-text содержит пробелы и скобки, обычный flex-shrink с `min-w-0` достаточен.
+- **Dealer block** (3 rows × identical pattern): row className unchanged (gap-4 уже был), на value-span добавлен `min-w-0 [overflow-wrap:anywhere]` (плюс существующие `text-right font-medium text-text`).
+
+Left label spans — UNCHANGED во всех трёх locations (короткие Russian labels naturally не expand row).
+
+**Альтернативы.**
+- **`break-all` на value spans.** Отклонено: слишком агрессивно, ломает Russian dealer names mid-character (например, "Си-стар" → "Си-ста\nр"). `[overflow-wrap:anywhere]` ломает только когда нет word boundary — для VIN это symbol-level, для имён it tries word-boundary first.
+- **`truncate` с ellipsis.** Отклонено: скрывает VIN и часть dealer name'а — пользователь теряет данные. Wrap better preserves информацию.
+- **Новое правило R-FE-x для flex-items.** Отклонено: R-FE-3 уже описывает grid-item трап и упоминает "any grid item containing flex/scroll children". Flex-item — тот же CSS mechanism с другим parent'ом. Дублирующее правило — overengineering.
+- **Refactor layout to grid с auto-columns.** Отклонено: too broad scope, требует переписи всех trail-rows. Flex с min-w-0 — стандартный fix, минимальный change footprint.
+
+**Последствия.**
+- (+) `Document = Viewport` на /tools/encar 412px (overflow 0). Long values (VIN, Korean dealer names, city + region) wrap внутри их span на word boundary где возможно или character boundary для single-token content.
+- (+) Pattern reusable: для любого будущего flex-row в проекте, где value side может содержать unpredictable-length user/API content — добавить `min-w-0` + при необходимости `[overflow-wrap:anywhere]`.
+- (+) Visual breathing: gap-3 между label и value на vehicle info + power rows. Dealer rows уже имели gap-4 (pre-existing).
+- (−) `[overflow-wrap:anywhere]` на VIN может разорвать его mid-character (например, `KMHL14JA0KA123\n45678`). Для VIN word-boundary не существует, alternative — truncate или scroll. Wrap is least-worst для preserving data.
+- (Knowledge) Flex-item min-width: auto trap покрыт R-FE-3 — никакого дополнительного правила. Если в будущем такой же баг проявится — R-FE-3 + diagnostic recipe найдут его за 30 секунд.
+
+**Relation to CD-2.** CD-2 явно УБРАЛ `[overflow-wrap:anywhere]` из 3 description-блоков на car detail page (длинные русские прозы, где mid-syllable breaks выглядели уродливо). TS-4 явно ДОБАВЛЯЕТ это же utility на короткие mixed-content value spans (VIN, dealer names, city) на /tools/encar. Два решения не противоречат — они применяются к разным content categories:
+- **CD-2 case**: Russian prose paragraph (50-200 chars), мостно содержит word-boundary breaks возможны → `break-words` достаточно, `[overflow-wrap:anywhere]` лишний и ugly.
+- **TS-4 case**: Short value (5-50 chars), часто single token (VIN) или mixed Korean/Russian (dealer name) — word boundaries могут отсутствовать → нужен character-level fallback.
+
+Консistent правило: используйте `break-words` для prose, добавляйте `[overflow-wrap:anywhere]` только когда контент может быть single-token длиной > viewport breakpoint. Не зафиксировано как formal rule в `rules.md` (узкий case, R-FE-3 покрывает корневой mechanism); future Claude через эти два ADR может вывести правило при необходимости.
 
 ## [2026-04-29] Tools audit TS-3 — EncarClient image optimization
 

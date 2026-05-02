@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.49
-  @lines:       636
+  @version:     1.50
+  @lines:       646
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Tools audit TS-4: EncarClient flex-row overflow fix
+
+- **Сделано:** диагностика по R-FE-3 recipe на /tools/encar (412px viewport, Genesis GV70 result page) выявила `Document=428px, Overflow=16px` — top contributor `SPAN.text-right width=299` в dealer-блоке. Code-инспекция нашла три flex-justify-between row-pattern'а без `min-w-0` защиты на value-side spans: vehicle info `.map()` row, power row, dealer block (3 rows: Имя / Автосалон / Город). Применил pattern: `min-w-0 + [overflow-wrap:anywhere]` на value-span'ы (4 места), `min-w-0` на power-row span (без overflow-wrap, потому что значение содержит пробелы и скобки), плюс `gap-3` на 2 row'а для visual breathing. Cost breakdown row уже имел корректную защиту (`min-w-0 flex-1` + `shrink-0`) — не тронут. Auction-sheet проверен diagnostic'ом на 412px — `Overflow=0`, не входит в TS-4 scope.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge: `documentElement.scrollWidth === clientWidth` true на 412px, длинные значения (VIN, dealer name/firm, city) wrap'ятся внутри span без расширения row, /tools/auction-sheet остаётся unchanged (sanity check) | **Следующий шаг:** TS-5..TS-N серии Tools audit (если планируются), либо переключение на NoscutCard для закрытия MA-4.
+- **Контекст:** R-FE-3 (введён в CD-1) описывает grid-item min-width auto trap; flex-item имеет тот же CSS mechanism (default `min-width: auto = min-content`) с другим parent'ом. R-FE-3 уже упоминает "any grid item containing flex" — flex-item сам по себе закрывается тем же правилом. Новое правило не нужно.
+- **Relation to CD-2:** CD-2 УБРАЛ `[overflow-wrap:anywhere]` из 3 description-блоков (длинные русские прозы — mid-syllable breaks выглядели уродливо). TS-4 ДОБАВЛЯЕТ это же utility на короткие mixed-content value spans (VIN, dealer names, city) — paragraph-ugly mid-syllable concerns не применяются к value-span scale. Два решения не противоречат — разные content categories. Документировано в TS-4 ADR.
+- **Структурный урок:** при добавлении новых flex-row patterns в проект автоматически проверять что value-side spans, которые могут содержать unpredictable-length content (user data, external API responses) — имеют `min-w-0` защиту. Pattern легко повторим: `gap-N` на row, `min-w-0` на value-span, `[overflow-wrap:anywhere]` если контент может содержать single tokens длиннее ~20 chars (URLs, VINs, IDs, имена без пробелов).
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Tools audit TS-4 — EncarClient flex-row overflow fix`. Связанные: R-FE-3 (CD-1), CD-2 (Russian-prose decision).
 
 ### 2026-04-29 — Tools audit TS-3: EncarClient image optimization
 
@@ -275,6 +284,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Tools audit TS-4 closed.** EncarClient.tsx flex-justify-between rows защищены от horizontal overflow: vehicle info grid, power row, dealer block (3 rows). Добавлены `min-w-0 + [overflow-wrap:anywhere]` на value spans (VIN, dealer name/firm/city), `gap-3` на 2 rows для visual breathing. Cost breakdown unchanged (уже корректен). Auction-sheet unchanged (zero overflow). R-FE-3 grid-item trap rule применяется equally к flex-items — нового правила не требуется. См. ADR `[2026-04-29] Tools audit TS-4 — EncarClient flex-row overflow fix`.
 - [x] **2026-04-29 — Tools audit TS-3 closed.** EncarClient hero photo и lightbox теперь используют Next.js Image Optimizer с AVIF/WebP конверсией. `ci.encar.com` whitelisted в `next.config.ts` `images.remotePatterns`. Mobile 4G users получают ~50-80% smaller photo bytes per request; UX (lightbox open/close, escape, aria) — байт-в-байт. См. ADR `[2026-04-29] Tools audit TS-3 — EncarClient image optimization`.
 - [x] **2026-04-29 — Tools audit TS-2 closed.** EncarClient.tsx и ResultView.tsx (auction-sheet) мигрированы с raw `motion` на `m` (LazyMotion-compatible) — extends P-3 + CD-3 bundle wins to tools entry paths. NoscutCard.tsx остаётся последним raw-motion файлом (tracked under MA-4). Pattern идентичен CD-3 (один import + один JSX tag pair rename per файл). См. ADR `[2026-04-29] Tools audit TS-2 — EncarClient + ResultView motion → m`.
 - [x] **2026-04-29 — Tools audit TS-1 closed.** Both `/tools/auction-sheet` и `/tools/encar` теперь сигналят completion analysis через 4 канала: smooth scroll-into-view, ARIA live region (role=status, persistent в DOM), `document.title` mutation, CSS ring-flash animation. Honors `prefers-reduced-motion`. Pattern документирован как R-FE-4 в `rules.md`. Открыта серия Tools audit (Vasily mobile UX feedback — юзеры не понимали, когда анализ завершён). См. ADR `[2026-04-29] Tools audit TS-1 — async completion signal`.
