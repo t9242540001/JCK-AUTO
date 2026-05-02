@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle, Zap, X } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 import TelegramAuthBlock from "@/components/TelegramAuthBlock";
@@ -207,7 +207,7 @@ export default function EncarClient() {
           key={flashKey}
           className="completion-flash"
         >
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Главное фото */}
           {result.photoUrls[0] && (
             <button
@@ -438,7 +438,7 @@ export default function EncarClient() {
               />
             </div>
           )}
-        </motion.div>
+        </m.div>
         </div>
       )}
 

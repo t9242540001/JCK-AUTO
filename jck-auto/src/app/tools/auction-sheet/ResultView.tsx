@@ -8,7 +8,7 @@
 
 "use client";
 
-import { motion } from "framer-motion";
+import * as m from "framer-motion/m";
 import { AlertTriangle, Download, RefreshCw, Send } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 import TelegramAuthBlock from "@/components/TelegramAuthBlock";
@@ -54,7 +54,7 @@ export default function ResultView({
     result.inspectionValidUntil !== null;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       {/* 1. Auction & Grade */}
       <div className="rounded-2xl border border-border bg-surface p-6">
         <h3 className="font-heading text-lg font-semibold text-text">Аукцион и оценка</h3>
@@ -214,7 +214,7 @@ export default function ResultView({
         onDownloadPdf={onDownloadPdf}
         onReset={onReset}
       />
-    </motion.div>
+    </m.div>
   );
 }
 
