@@ -13,10 +13,13 @@
  *   `pm2 startOrReload ecosystem.config.js` as soon as the
  *   emergency passes, to restore the committed state.
  *
- * @updated 2026-04-22
+ * @updated 2026-05-02
  * @changed 2026-04-22 — mcp-gateway entry corrected: script now
  *   points to real start.sh on VDS, speculative args removed.
  *   Б-11 close remains valid (env unchanged).
+ * @changed 2026-05-02 — added yandex-metrika-mcp entry for
+ *   NEW-1.1 (Streamable HTTP wrapper for Yandex Metrika OAuth
+ *   API access).
  */
 module.exports = {
   apps: [
@@ -78,6 +81,37 @@ module.exports = {
         FILESYSTEM_ROOTS: '/var/www/jckauto',
       },
       max_restarts: 10,
+      autorestart: true,
+    },
+    // ─── yandex-metrika-mcp (Yandex Metrika MCP for Claude.ai Custom Connector) ───
+    // Wraps atomkraft/yandex-metrika-mcp (stdio-based) in Streamable HTTP transport
+    // via locally-installed supergateway. Listens on internal port 8765. Exposed
+    // to Anthropic cloud via nginx /mcp/metrika/ proxy (configured separately, see
+    // NEW-1.2 prompt). Source for OAuth token (YANDEX_API_KEY) is .env.local on
+    // VDS — Vasily places it there manually via SSH; it MUST NOT enter git or chat.
+    //
+    // First-time install steps live in knowledge/infrastructure.md → "Yandex Metrika
+    // MCP — install steps" section.
+    //
+    // @rule: Token rotation requires full restart cycle:
+    //   1. Edit .env.local with new value.
+    //   2. `set -a; source .env.local; set +a` to load into shell env.
+    //   3. `pm2 delete yandex-metrika-mcp`
+    //   4. `pm2 startOrReload ecosystem.config.js --only yandex-metrika-mcp`
+    //   `pm2 restart` does NOT re-read env, same trap as bot/.env.local rule.
+    //
+    // @rule: This entry is NOT included in deploy.yml `--only` list — it lives
+    //   outside the site/bot deploy cycle. Manual reload on VDS only.
+    {
+      name: 'yandex-metrika-mcp',
+      cwd: '/var/www/jckauto/mcp-servers/yandex-metrika-mcp',
+      script: 'node_modules/.bin/supergateway',
+      args: '--port 8765 --outputTransport streamableHttp --stdio "node /var/www/jckauto/mcp-servers/yandex-metrika-mcp/build/index.js"',
+      interpreter: 'none',
+      env: {
+        YANDEX_API_KEY: process.env.YANDEX_API_KEY,
+      },
+      max_restarts: 5,
       autorestart: true,
     },
   ],
