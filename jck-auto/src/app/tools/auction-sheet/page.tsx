@@ -75,6 +75,31 @@ const faqJsonLd = {
   })),
 };
 
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Главная",
+      item: "https://jckauto.ru",
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Сервисы",
+      item: "https://jckauto.ru/tools",
+    },
+    {
+      "@type": "ListItem",
+      position: 3,
+      name: "AI расшифровка аукционного листа",
+      item: "https://jckauto.ru/tools/auction-sheet",
+    },
+  ],
+};
+
 const steps = [
   { icon: Upload, title: "Загрузите фото", desc: "Перетащите или выберите фото аукционного листа" },
   { icon: Cpu, title: "AI анализирует", desc: "Qwen Vision распознаёт и переводит все данные" },
@@ -86,6 +111,7 @@ export default function AuctionSheetPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
       <div className="min-h-screen bg-white pb-20 pt-28">
         {/* Hero */}
