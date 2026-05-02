@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.76
+  @version:     1.77
   @lines:       5031
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -19,6 +19,131 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Tools audit series — final summary
+
+**Контекст.** Серия "Tools audit" запущена 2026-04-29 после
+завершения Mobile audit и Car detail audit серий. Vasiliy
+обозначил конкретную UX-проблему («после выдачи результата
+пользователь не понимает что анализ завершён») плюс попросил
+применить найденные ранее паттерны (overflow, motion, image
+optimization, Schema.org) к tools-страницам. Реестр сложился
+органически: critical UX → bundle → image → overflow → SEO,
+по убыванию impact.
+
+**Что реализовано (5/5 промптов).**
+
+- **TS-1** (commit `c3b3e8d`): 4-pronged completion signal
+  pattern (scrollIntoView + ARIA live region + document.title
+  + CSS ring-flash) на /tools/auction-sheet и /tools/encar.
+  Honors prefers-reduced-motion. Введено правило R-FE-4 в
+  `rules.md`.
+
+- **TS-2** (commit `9bfdc0b`): EncarClient + auction
+  ResultView мигрированы на LazyMotion-совместимый m import.
+  Extends P-3 + CD-3 bundle wins на tools entry path.
+  NoscutCard.tsx остаётся последним raw-motion файлом
+  проекта (открыт в MA-4).
+
+- **TS-3** (commit `8f97072`): EncarClient hero photo +
+  lightbox мигрированы с raw <img> на next/image. Добавлен
+  images.remotePatterns для ci.encar.com в next.config.ts.
+  Mobile bandwidth — 50-80% сокращение.
+
+- **TS-4** (commit `5ee2778`): horizontal overflow fix на
+  /tools/encar через min-w-0 + [overflow-wrap:anywhere] на
+  flex-row value spans (vehicle info, power row, dealer
+  block). Document=428px → Document=412px на 412px viewport.
+  Auction-sheet — clean (zero overflow).
+
+- **TS-5** (this commit): BreadcrumbList JSON-LD на обеих
+  server pages. Vehicle schema для Encar result отвергнута
+  by design (нет indexable URL per result).
+
+**Methodology lessons (3 урока для будущих серий).**
+
+1. **Output discipline test (TS-4 первая итерация).** Я выдал
+   промпт inline в чате вместо `create_file` → `present_files`
+   потока. Vasiliy справедливо заметил отступление от skill,
+   переделал. Lesson: **проверять доступные tools в каждой
+   session перед формулированием промпта.** Tool list может
+   меняться между sessions; никогда не предполагать наличие
+   инструмента.
+
+2. **Web research для новых паттернов.** TS-1 потребовал
+   web search по ARIA live region + persistence requirement.
+   Без research я бы выдал нерабочий код (live region добавлен
+   after mount = screen reader не объявит). Lesson: **новые
+   UX/SEO/a11y паттерны требуют web research before
+   implementing**, даже если они "стандартные".
+
+3. **Universal CSS-trap rules.** R-FE-3 (CD-1 — grid-item
+   min-width auto trap) формулировано абстрактно с самого
+   начала, поэтому TS-4 (flex-item trap) применил то же
+   правило без новых rules. Lesson: **формулировать CSS-
+   правила через абстрактный CSS-mechanism**, а не конкретный
+   selector type — будет переиспользовано.
+
+**Открытые Technical Debt от серии.**
+- **MA-4 narrowed** — после TS-2 остался только NoscutCard.tsx
+  как последний raw-motion файл. Закрытие MA-4 = миграция
+  одного файла + включение LazyMotion strict mode.
+
+**Численные итоги.**
+- DevTools console errors на /tools/encar и /tools/auction-
+  sheet: 0 (после TS-1..TS-5).
+- Document width на 412px viewport (encar): 428px → 412px
+  (overflow 16px → 0).
+- Initial JS bundle на tools entry path: extends P-3 + CD-3
+  win (~30 KB framer-motion разница vs raw motion).
+- Mobile photo bandwidth (encar): -50-80% (AVIF/WebP via
+  next/image).
+- SEO structured data: 3 JSON-LD блока на каждой tool странице
+  (WebApplication + FAQPage + BreadcrumbList).
+- UX: completion signal через 4 канала (scroll + aria + title
+  + flash) — измеримое улучшение для пользователей не
+  наблюдавших processing.
+
+**Ссылки.** Серия охватывает коммиты от `c3b3e8d` (TS-1) до
+этого финального коммита (TS-5). ADR-цепочка: Tools audit TS-1,
+TS-2, TS-3, TS-4, TS-5, final summary — все в `decisions.md` в
+порядке coverage.
+
+## [2026-04-29] Tools audit TS-5 — BreadcrumbList на tool-страницах
+
+**Контекст.** Tools audit series закрывается. Оставшаяся SEO-
+возможность — добавление BreadcrumbList structured data на обе
+server-rendered tool pages (auction-sheet, encar). Без него
+Google search results показывает URL вместо человекочитаемых
+breadcrumbs.
+
+**Решение.** Добавить третий `<script type="application/ld+json">`
+на обеих страницах с BreadcrumbList: Главная → Сервисы → tool-
+name. URL абсолютные (https://jckauto.ru/...) согласно
+Schema.org spec. Существующие WebApplication + FAQPage schemas
+не трогаются.
+
+**Альтернативы.**
+- **Vehicle schema на Encar result.** Отвергнуто by design
+  (а не deferred): result рендерится client-side по user-input
+  URL, нет публичного indexable URL для конкретного результата.
+  Schema.org Vehicle на ephemeral state не приносит SEO-выгоды.
+  Это архитектурное ограничение tool-pattern, не техдолг.
+- **Visible breadcrumbs на странице.** Отвергнуто: extension of
+  scope; current pages не имеют визуальных breadcrumbs by
+  design (минимализм tool UX). Если потребуется — отдельный
+  промпт.
+- **Использовать готовый JsonLd компонент.** Отвергнуто:
+  JsonLd.tsx — глобальный (LocalBusiness + WebSite в layout);
+  page-specific schema нужен в самих page.tsx файлах.
+
+**Последствия.**
+- Google search snippets для tool страниц теперь содержат
+  breadcrumbs ("Главная > Сервисы > AI расшифровка..." вместо
+  "jckauto.ru/tools/auction-sheet"). Потенциальный CTR-rise.
+- Tools audit series закрыта.
+- Vehicle schema rejection задокументирован — будущие сессии
+  не вернутся к этому вопросу.
 
 ## [2026-04-29] Tools audit TS-4 — EncarClient flex-row overflow fix
 

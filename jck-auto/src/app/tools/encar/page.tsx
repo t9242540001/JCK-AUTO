@@ -55,6 +55,31 @@ const faqJsonLd = {
   })),
 };
 
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Главная",
+      item: "https://jckauto.ru",
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Сервисы",
+      item: "https://jckauto.ru/tools",
+    },
+    {
+      "@type": "ListItem",
+      position: 3,
+      name: "Анализатор Encar.com",
+      item: "https://jckauto.ru/tools/encar",
+    },
+  ],
+};
+
 const steps = [
   { icon: Link2, title: "Вставьте ссылку", desc: "Скопируйте ссылку на авто с Encar.com" },
   { icon: Search, title: "Загружаем данные", desc: "Получаем характеристики напрямую из Encar" },
@@ -66,6 +91,7 @@ export default function EncarPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
       <div className="min-h-screen bg-white pb-20 pt-28">
         <div className="mx-auto max-w-3xl px-4 text-center">

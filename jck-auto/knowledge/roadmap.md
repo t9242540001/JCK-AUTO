@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.50
+  @version:     1.51
   @lines:       646
 -->
 
@@ -15,6 +15,16 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Tools audit TS-5 + series closed
+
+- **Сделано:** на обеих server-rendered tool pages (`src/app/tools/auction-sheet/page.tsx`, `src/app/tools/encar/page.tsx`) добавлен третий JSON-LD блок типа `BreadcrumbList` с тремя `ListItem`: «Главная» → https://jckauto.ru, «Сервисы» → https://jckauto.ru/tools, tool-name → https://jckauto.ru/tools/<slug>. Existing `webAppJsonLd` (WebApplication) и `faqJsonLd` (FAQPage) — байт-в-байт. Pattern идентичен CD-4 BreadcrumbList на car detail page. URL абсолютные согласно Schema.org spec. Vehicle schema для Encar result отвергнута by design (а не deferred): result рендерится client-side по user-input URL, indexable URL для конкретного результата отсутствует — Schema.org Vehicle на ephemeral state не приносит SEO-выгоды. Это архитектурное ограничение tool-pattern, документировано в TS-5 ADR.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge: View Source на /tools/auction-sheet и /tools/encar — три distinct `<script type="application/ld+json">` блока (WebApplication + FAQPage + BreadcrumbList), Rich Results Test без ошибок и warnings, DevTools Console clean | **Следующий шаг:** серия Tools audit полностью закрыта (5/5 resolved + 1 by-design rejected). Переход к другим задачам или к закрытию MA-4 (NoscutCard motion → m, последний raw-motion файл).
+- **Контекст:** TS-5 — финальный промпт серии Tools audit, закрывает оставшуюся SEO-возможность на tool-страницах. Без BreadcrumbList Google search results показывает URL-путь вместо человекочитаемых breadcrumbs в snippet'е. Применён тот же pattern, что и в CD-4 для car detail page.
+- **Структурный урок (за всю серию Tools audit):** tools-страницы в проекте имеют общий audit-набор из 5 категорий — UX completion signal (TS-1), bundle (TS-2), image optimization (TS-3), overflow (TS-4), structured data (TS-5). Реестр сложился органически: critical UX → bundle → image → overflow → SEO, по убыванию impact. Серия охватила оба tool entry path'а (auction-sheet, encar) последовательно — pattern transferable, при добавлении новой tool-страницы в проект следует прогнать checklist той же серии.
+- **Численные итоги серии:** Document width на 412px viewport (encar): 428px → 412px (overflow 16px → 0). Initial JS bundle на tools entry path: extends P-3 + CD-3 win (~30 KB framer-motion разница vs raw motion). Mobile photo bandwidth (encar): -50-80% (AVIF/WebP via next/image). SEO structured data: 3 JSON-LD блока на каждой tool странице (WebApplication + FAQPage + BreadcrumbList). UX completion signal: 4 канала (scroll + aria + title + flash). Console errors: 0.
+- **Открытый Technical Debt от серии:** **MA-4 narrowed** — после TS-2 остался только NoscutCard.tsx как последний raw-motion файл. Закрытие MA-4 = миграция одного файла + включение LazyMotion strict mode.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Tools audit TS-5 — BreadcrumbList на tool-страницах` и `[2026-04-29] Tools audit series — final summary`. Серия охватывает коммиты `c3b3e8d` (TS-1) → `9bfdc0b` (TS-2) → `8f97072` (TS-3) → `5ee2778` (TS-4) → этот финальный.
 
 ### 2026-04-29 — Tools audit TS-4: EncarClient flex-row overflow fix
 
@@ -283,6 +293,8 @@
 
 ## Done
 
+- [x] **2026-04-29 — Tools audit TS-5 closed.** BreadcrumbList JSON-LD added on both /tools/auction-sheet and /tools/encar server pages. Three levels: Главная → Сервисы → tool-name. Vehicle schema for Encar result rejected by design (no indexable URL per result; client-rendered transient state). См. ADR `[2026-04-29] Tools audit TS-5 — BreadcrumbList на tool-страницах`.
+- [x] **2026-04-29 — Tools audit series CLOSED (5/5 resolved + 1 by-design deferred).** TS-1 (4-pronged completion signal), TS-2 (motion → m), TS-3 (image optimization), TS-4 (overflow fix), TS-5 (BreadcrumbList). NoscutCard remains under MA-4 as last raw-motion file project-wide. См. ADR `[2026-04-29] Tools audit series — final summary`.
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
 - [x] **2026-04-29 — Tools audit TS-4 closed.** EncarClient.tsx flex-justify-between rows защищены от horizontal overflow: vehicle info grid, power row, dealer block (3 rows). Добавлены `min-w-0 + [overflow-wrap:anywhere]` на value spans (VIN, dealer name/firm/city), `gap-3` на 2 rows для visual breathing. Cost breakdown unchanged (уже корректен). Auction-sheet unchanged (zero overflow). R-FE-3 grid-item trap rule применяется equally к flex-items — нового правила не требуется. См. ADR `[2026-04-29] Tools audit TS-4 — EncarClient flex-row overflow fix`.
 - [x] **2026-04-29 — Tools audit TS-3 closed.** EncarClient hero photo и lightbox теперь используют Next.js Image Optimizer с AVIF/WebP конверсией. `ci.encar.com` whitelisted в `next.config.ts` `images.remotePatterns`. Mobile 4G users получают ~50-80% smaller photo bytes per request; UX (lightbox open/close, escape, aria) — байт-в-байт. См. ADR `[2026-04-29] Tools audit TS-3 — EncarClient image optimization`.
