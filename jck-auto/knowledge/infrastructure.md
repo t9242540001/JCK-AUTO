@@ -2,9 +2,9 @@
   @file:        knowledge/infrastructure.md
   @project:     JCK AUTO
   @description: Server config, PM2 processes (now driven by committed ecosystem.config.js), deploy procedures, constraints, per-endpoint nginx overrides
-  @updated:     2026-04-23
-  @version:     1.11
-  @lines:       ~421
+  @updated:     2026-05-02
+  @version:     1.12
+  @lines:       ~480
 -->
 
 # Infrastructure
@@ -177,6 +177,78 @@ sequence for any update is `pm2 delete` + `pm2 start` as above.
 Ручной перезапуск нужен только при: смене токена бота, смене переменных
 окружения вне цикла деплоя, изменении `ecosystem.config.js` без
 ребилда сайта.
+
+## Yandex Metrika MCP — install steps
+
+Этот MCP-сервер оборачивает Yandex Metrika API для доступа из Claude.ai Custom Connector. Запускается как PM2-процесс `yandex-metrika-mcp` на внутреннем порту 8765 (Streamable HTTP). Установка — однократная операция per-VDS-instance; после неё процесс управляется через `ecosystem.config.js` так же, как остальные PM2-процессы. OAuth-токен (`metrika:read` scope) обязателен — без него MCP вернёт 401 на любой запрос.
+
+**Prerequisites:**
+
+- SSH-доступ к VDS.
+- `YANDEX_API_KEY` (OAuth-токен Yandex Metrika со scope `metrika:read`) — у Vasily.
+- Counter ID `106847609` для jckauto.ru (передаётся атомкрафтовским MCP'ом через API-параметр на каждом инструменте, embed'инг в env не требуется — указано здесь для справки).
+
+**One-time install commands** (выполнять последовательно на VDS):
+
+```bash
+# 1. Clone the fork into mcp-servers directory
+cd /var/www/jckauto
+git clone https://github.com/t9242540001/yandex-metrika-mcp mcp-servers/yandex-metrika-mcp
+
+# 2. Install dependencies (npm install, NOT npm ci — fork has no package-lock.json on first clone)
+cd mcp-servers/yandex-metrika-mcp
+npm install
+
+# 3. Install supergateway as local dev dependency for HTTP wrapping
+npm install supergateway
+
+# 4. Build atomkraft TypeScript sources to build/index.js
+npm run build
+
+# 5. Add token to .env.local (replace <TOKEN> with actual OAuth token)
+#    NEVER paste this command with the actual token into chat, screenshots,
+#    or non-encrypted storage. Only run it directly on VDS shell.
+echo "YANDEX_API_KEY=<TOKEN>" >> /var/www/jckauto/app/jck-auto/.env.local
+
+# 6. Load env into shell, register PM2 entry from committed ecosystem.config.js
+cd /var/www/jckauto/app/jck-auto
+set -a
+source .env.local
+set +a
+pm2 startOrReload ecosystem.config.js --only yandex-metrika-mcp
+
+# 7. Persist PM2 state across reboots
+pm2 save
+```
+
+**Verification commands:**
+
+```bash
+# Process is online and uptime > 0
+pm2 list | grep yandex-metrika-mcp
+
+# Logs show supergateway listening on :8765
+pm2 logs yandex-metrika-mcp --lines 30 --nostream
+
+# Local smoke test — Streamable HTTP endpoint responds
+curl -i -X POST http://localhost:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke-test","version":"1.0"}}}'
+# Expected: HTTP 200 with JSON-RPC response containing serverInfo and protocolVersion.
+```
+
+**Token rotation.** Канонический порядок задокументирован как `@rule` в `ecosystem.config.js` (entry `yandex-metrika-mcp`). Кратко — `pm2 restart` НЕ перечитывает env, нужен полный delete + startOrReload цикл:
+
+1. Отредактировать `.env.local` с новым значением `YANDEX_API_KEY`.
+2. `set -a; source .env.local; set +a` — загрузить новое значение в shell env.
+3. `pm2 delete yandex-metrika-mcp` — снести старый процесс со старым env-snapshot'ом.
+4. `pm2 startOrReload ecosystem.config.js --only yandex-metrika-mcp` — поднять с новым env.
+
+**Troubleshooting:**
+
+- **"supergateway not found"** в логах PM2 → пропущен step 3, выполнить `npm install supergateway` в `/var/www/jckauto/mcp-servers/yandex-metrika-mcp`.
+- **"YANDEX_API_KEY undefined"** в логах supergateway → env не был загружен в shell перед `pm2 startOrReload`. Повторить step 6 явно: `set -a; source .env.local; set +a` затем `pm2 delete yandex-metrika-mcp && pm2 startOrReload ecosystem.config.js --only yandex-metrika-mcp`.
+- **"401 Unauthorized"** от Yandex API в ответах MCP → токен истёк или отозван. Запустить процедуру ротации токена выше.
 
 ## Cron Jobs
 
