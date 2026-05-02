@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-02
-  @version:     1.52
-  @lines:       694
+  @version:     1.53
+  @lines:       746
 -->
 
 # Roadmap
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-05-02 — Strategy pivot: register conversion analysis + automation tasks
+
+- **Сделано:** Page-by-page audit /catalog (CAT-* series) официально заморожен после закрытия первой страницы; остальные страницы (Калькулятор, Customs, Каталог ноускатов, News, Blog, About) audit'иться по находкам не систематически. Новый стратегический фокус — превращение маркетингового конвейера в инструмент продаж. Зарегистрированы 5 новых задач: NEW-1 (Yandex Metrika API integration — enabler), NEW-2 (Conversion analysis + fixes — главная активная работа), NEW-3 (Bot subscription tracking от /tools/*), NEW-4 (новые article-types: модели, сравнения), NEW-5 (Content factory для соцсетей — Strategic initiative #6). Создана новая секция `## Active strategic work` в roadmap.md между `## In Progress` и `## Planned — Site` — содержит NEW-1 + NEW-2.
+- **Прервались на:** регистрация плана завершена | **Следующий шаг:** старт NEW-1 — discovery prompt по skill research-protocol для исследования Yandex Metrika API endpoints, OAuth flow, локального cache architecture.
+- **Контекст:** пивот произошёл после закрытия CAT-* серии. Vasily обозначил, что page-by-page audit не приносит business value пока не понятно, где именно отвал в воронке. Решение — сначала измерить (NEW-1 → NEW-2), потом фиксить точечно по данным. Принцип «никаких скринов, всё через API» зафиксирован — данные должны быть доступны программно, чтобы анализ был повторяемым.
+- **Структурный урок:** page-by-page audit — валидный подход для известных классов багов (overflow, motion bundle, image optimization), но требует доказательства, что эти классы — узкое место. После CAT-1 (где Console чист и overflow=0 на 412px) стало видно, что CAT-* не поймает реальные блокеры конверсии. Lesson: перед запуском systematic audit-серии — проверить через данные, что аудит-категория действительно объясняет наблюдаемую проблему.
+- **Ссылки:** этот коммит. Связанные ADR: `[2026-05-02] CAT-* series — final summary`. Следующая работа — NEW-1 discovery.
 
 ### 2026-05-02 — CAT-* series closed (page-by-page audit /catalog)
 
@@ -505,11 +513,42 @@
 - [~] Merge all branches into main
 - [~] Regenerate bot token in BotFather (Step 0 — manual, pending)
 
+## Active strategic work
+
+> Multi-prompt strategic series currently being executed. Each entry stays here until closure, then moves to Done.
+
+### NEW-1 — Yandex Metrika API integration
+
+**Status:** Discovery.
+
+**Цель:** Реализовать автоматический pull данных из Яндекс.Метрики через Counter API + Reporting API без скриншотов и ручного экспорта. Это enabler для NEW-2 (анализ конверсии): без программного доступа к данным анализ конверсии — одноразовая активность; с интеграцией он становится повторяемым процессом, питающим решения по продукту.
+
+**Зависимости:** unblocks NEW-2 (Conversion analysis + fixes).
+
+**What needs research:** (1) какие endpoints Reporting API покрывают нужные срезы — воронка catalog → car → lead, mobile/desktop split, поведение на /tools/*, источники трафика → конверсия; (2) модель авторизации — OAuth flow + counter ID, где хранить refresh-token, как обновлять access-token; (3) rate limits API и стратегия pagination для исторических данных; (4) формат локального хранилища — daily JSON snapshots в storage/metrika/ vs SQLite vs аггрегация на лету; (5) webvisor data — отдельный API endpoint, или приходит вместе с обычными отчётами.
+
+**Следующий шаг:** discovery prompt по skill research-protocol — 4-фазное исследование Metrika API endpoints, OAuth flow, и архитектуры локального cache. После discovery — план серии implementation-промптов.
+
+### NEW-2 — Conversion analysis and fixes
+
+**Status:** Blocked on NEW-1.
+
+**Цель:** Найти и устранить причины низкой конверсии в заявки на сайте jckauto.ru. На текущий момент трафик есть, заявок мало — гипотезы где отвал нужно проверить через данные Метрики, не через предположения.
+
+**Зависимости:** blocked on NEW-1 (Yandex Metrika API integration). Без автоматического pull данных серия откладывается.
+
+**What needs research:** (1) воронка catalog → car detail → click «Оставить заявку» → отправка формы — где главные точки отвала; (2) mobile vs desktop split — после серии Mobile audit (12/12 закрыто 2026-04-29) мобила должна показывать улучшение; если хуже desktop — найти конкретные баги; (3) /tools/auction-sheet и /tools/encar — приносят ли вообще заявки, или просто «полезный сервис без конверсии»; (4) каналы трафика → конверсия по каналу — есть ли источники с высоким объёмом и нулевыми заявками; (5) поведенческие паттерны через webvisor — где сессии заканчиваются без действия; (6) entry pages с высоким bounce.
+
+**Параллельные баги:** при любом аудите находки фиксятся в той же сессии, не откладываются. Это явное правило этой серии — не накапливать TD во время conversion-работы.
+
+**Следующий шаг:** ждём закрытия NEW-1. После — discovery prompt по skill research-protocol с реальными данными воронки на руках. Затем план серии fix-промптов.
+
 ## Planned — Site
 
 - [ ] Mobile responsiveness — full page-by-page audit
 - [ ] Register in Yandex.Webmaster and Google Search Console
 - [ ] Site: unify CTA style across conversion surfaces. Target pattern is **inline buttons** with site link + LeadFormTrigger ("Оставить заявку"), as used on `/tools/encar` result view. Audit candidates: all `/services`-labelled pages (/tools/*), car detail pages, noscut detail pages, any other result view that currently shows a plain text link or a lone phone button. Consistency gain: users always see the same "get-in-touch" affordance regardless of which tool they use.
+- [ ] **NEW-4: Новые article-types в news-pipeline.** Расширить existing генератор статей в `src/services/articles/generator.ts` двумя новыми article kinds: (a) «Описание популярной модели» — характеристики + плюсы/минусы + цена под ключ + наша рекомендация; формат подходит для commercial intent SEO («обзор Toyota RAV4», «что взять Hyundai Tucson или Kia Sportage»); (b) «Сравнение моделей» — side-by-side таблица 2-3 модели + вердикт; формат для conversion-driven content. Использует существующий pipeline (DeepSeek text + DashScope cover), новые prompt templates для двух типов. **Зависимости:** после NEW-2 (анализ конверсии может изменить приоритет — какие модели и сравнения максимально востребованы аудиторией).
 
 ## Planned — Bot
 
@@ -517,6 +556,7 @@
 - [ ] AI consultant (Claude API + knowledge base)
 - [ ] Bot: add PDF download for auction-sheet and encar results, matching the website's PDF export. Goal: feature parity between bot and site. Investigate whether existing PDF generator (from `/api/tools/*/pdf` routes) can be reused server-side and streamed to Telegram.
 - [ ] Bot: clarify queue and rate-limit semantics for auction-sheet and encar in the bot — currently unclear whether the bot enforces the same async queue / 2-minute cooldown contract as the website, or whether it bypasses them. If bypassed, system overload is possible under concurrent bot+site traffic. Audit and, if needed, route bot calls through the same queue + rate-limiter layer used by `/api/tools/*`.
+- [ ] **NEW-3: Bot subscription tracking from /tools/* result views.** Гипотеза: пользователи /tools/auction-sheet и /tools/encar получают результат на сайте, видят CTA вернуться к боту (или должны его видеть), но связка «использовал инструмент → подписался на бота» не отслеживается или сломана. **What needs investigation:** (a) что записывается в `botStats.ts` сейчас — per-command stats есть, но per-user-source attribution — неизвестно; (b) `pendingSource: Map` в request.ts — связан ли с tracking подписки или только с lead source; (c) есть ли вообще CTA «продолжить через бота / получать обновления» на result-views /tools/auction-sheet и /tools/encar; (d) если CTA есть — какой URL ведёт в бота (есть ли deep-link с source-параметром). **Outcome ожидаемый:** либо подтверждение, что связка работает (тогда задача сводится к dashboard'у со статистикой), либо identification места разрыва (тогда T2-фикс).
 
 ## Planned — Infrastructure
 
@@ -692,3 +732,15 @@ Current site has multiple `<div onClick>`, `<span onClick>`, `<li onClick>`-styl
 **Cost of deferral.** Низкая. Текущий BreadcrumbList уже даёт breadcrumb-snippet в SERP для /catalog. ItemList — дополнительный Rich snippet type, не блокирующий existing SEO win. Каталог сейчас индексируется как обычная listing-страница, traffic не теряется без ItemList — теряется только потенциал carousel-presentation в SERP.
 
 **When to open.** При следующей итерации SEO-улучшений каталога. Альтернативно: когда Search Console покажет, что breadcrumb-snippet от CAT-1b активен и стабилен (signal что Google принимает наш JSON-LD на listing-страницах) — тогда есть высокая уверенность, что ItemList тоже будет принят. Третий триггер: при добавлении новых типов listing-страниц (например, /catalog/noscut получит свой ItemList; /tools — если когда-нибудь станет реальным каталогом инструментов).
+
+### 6. Content factory — ТГ-группа / Instagram / YouTube
+
+Автоматизированный content pipeline по принципу news-pipeline (RSS → DeepSeek → covers → JSON), но для социальных каналов компании. Цель — превратить маркетинговый сток (новости + блог + каталог) в постоянный поток постов в трёх каналах: ТГ-группа, Instagram, YouTube. Каждый канал имеет свой формат, ритм, и тип визуала.
+
+**Status:** Idea. Discovery deferred until NEW-2 (Conversion analysis) closes — анализ конверсии может изменить приоритет каналов (например, выяснится, что Instagram даёт 0 трафика и фокусироваться на нём бессмысленно).
+
+**What needs research before first prompt:** (a) аудит существующих социалок — что активно, что заглохло, какие audience metrics; (b) выбор приоритетного канала для MVP — один канал, не три сразу; (c) формат контента per channel — для ТГ-группы достаточно текст + лёгкая картинка, для Instagram нужен carousel или Reel, для YouTube — видео (что критично — генерация видео или просто превью?); (d) расписание и лимиты публикаций per channel; (e) метрики успеха — engagement, переходы на сайт, attributions от соцсетей к заявкам.
+
+**Cost of deferral:** медленная — соцсети работают долгосрочно, упущенная неделя не критична. Но без них компания зависит только от поиска и прямых переходов — диверсификация трафика отсутствует.
+
+**When to open:** после закрытия NEW-2 (conversion analysis даёт данные о текущих каналах трафика и conversion-impact) или по явному решению Vasily запустить параллельно.
