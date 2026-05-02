@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import TelegramAuthBlock from "@/components/TelegramAuthBlock";
 import UploadZone from "./UploadZone";
 import ProcessingViews from "./ProcessingViews";
@@ -32,6 +32,9 @@ export default function AuctionSheetClient() {
   const [dragOver, setDragOver] = useState(false);
   const [usedCount, setUsedCount] = useState<number>(0);
   const [isLimitReached, setIsLimitReached] = useState<boolean>(false);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const liveRegionRef = useRef<HTMLDivElement>(null);
+  const [flashKey, setFlashKey] = useState<number>(0);
 
   // Mirror queue/processing data into local state for prop passing to
   // ProcessingViews. The hook owns the source of truth; this is a copy.
@@ -80,6 +83,36 @@ export default function AuctionSheetClient() {
         break;
     }
   }, [job.state]);
+
+  // 4-pronged completion signal: scroll, ARIA announce, document title,
+  // visual flash. See R-FE-4 in rules.md.
+  useEffect(() => {
+    if (state !== "result") return;
+
+    if (liveRegionRef.current) {
+      liveRegionRef.current.textContent =
+        "Анализ завершён. Расшифровка готова.";
+    }
+
+    requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    const originalTitle = document.title;
+    document.title = "Готово · Расшифровка аукционного листа | JCK AUTO";
+
+    setFlashKey((k) => k + 1);
+
+    return () => {
+      document.title = originalTitle;
+      if (liveRegionRef.current) {
+        liveRegionRef.current.textContent = "";
+      }
+    };
+  }, [state]);
 
   const handleFile = useCallback((f: File) => {
     if (f.size > 10 * 1024 * 1024) {
@@ -272,13 +305,19 @@ export default function AuctionSheetClient() {
       )}
 
       {state === "result" && result && (
-        <ResultView
-          result={result}
-          meta={meta}
-          usedCount={usedCount}
-          onDownloadPdf={handleDownloadPdf}
-          onReset={clearFile}
-        />
+        <div
+          ref={resultRef}
+          key={flashKey}
+          className="completion-flash"
+        >
+          <ResultView
+            result={result}
+            meta={meta}
+            usedCount={usedCount}
+            onDownloadPdf={handleDownloadPdf}
+            onReset={clearFile}
+          />
+        </div>
       )}
 
       {/* Error */}
@@ -298,6 +337,8 @@ export default function AuctionSheetClient() {
           }}
         />
       )}
+
+      <div ref={liveRegionRef} role="status" className="sr-only" />
     </div>
   );
 }

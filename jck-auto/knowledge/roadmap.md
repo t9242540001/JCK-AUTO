@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.46
-  @lines:       607
+  @version:     1.47
+  @lines:       617
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Tools audit TS-1: async completion signal
+
+- **Сделано:** в обоих client'ах `/tools/auction-sheet/AuctionSheetClient.tsx` и `/tools/encar/EncarClient.tsx` добавлен 4-pronged completion signal при переходе state в "result": (1) smooth `scrollIntoView` к result-блоку через `requestAnimationFrame` (mobile-critical, honors `prefers-reduced-motion` автоматически); (2) ARIA live region (`role="status"`, persistent в DOM, empty на mount, инжектируется текст «Анализ завершён. ...» — для screen reader пользователей); (3) `document.title` mutation на «Готово · ... | JCK AUTO» (для users на inactive tabs); (4) CSS visual flash на result-контейнере через `.completion-flash` utility class (~600ms gold-tone ring). В `globals.css` новые `@keyframes ring-flash`, `.completion-flash` utility, `@media (prefers-reduced-motion: reduce)` guard. Cleanup восстанавливает title при unmount.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge (mobile DevTools 414px, прокрутить вниз во время processing'а, увидеть смартскролл + flash + tab title; macOS reduce-motion → flash off, scroll instant; VoiceOver announce «Анализ завершён»). | **Следующий шаг:** TS-2..TS-N серии Tools audit (если дальнейшие промпты).
+- **Контекст:** Vasily сообщил, что на mobile после прокрутки во время loading-фазы юзер не видит когда анализ закончен — нет визуального cue, scroll, notification, tab title change. Юзеры могут считать что инструмент завис. TS-1 — первый промпт серии «Tools audit», открывает её закрытием UX-блокера.
+- **Структурный урок:** async UI pattern с inline-result рендером ВСЕГДА требует minimum 3 из 4 каналов signal'а. Pattern зафиксирован как R-FE-4 в `rules.md` для повторного использования на других tools (calculator, customs, future). Особенно важно: **persistence** ARIA live region в DOM. Условный рендер `{state === "result" && <div role="status">...}` НЕ триггерит надёжное screen-reader announcement. Region должен mounted всегда, текст инжектится при событии.
+- **Открытие новой серии:** Tools audit. TS-1 закрыл visible UX-blocker; следующие промпты серии могут включать audit `/tools/calculator`, `/tools/customs`, perf optimizations, A11y improvements specific to tool pages.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Tools audit TS-1 — async completion signal`. Новое правило `R-FE-4` в `rules.md`.
 
 ### 2026-04-29 — Car detail audit CD-4 + series closed
 
@@ -248,6 +257,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Tools audit TS-1 closed.** Both `/tools/auction-sheet` и `/tools/encar` теперь сигналят completion analysis через 4 канала: smooth scroll-into-view, ARIA live region (role=status, persistent в DOM), `document.title` mutation, CSS ring-flash animation. Honors `prefers-reduced-motion`. Pattern документирован как R-FE-4 в `rules.md`. Открыта серия Tools audit (Vasily mobile UX feedback — юзеры не понимали, когда анализ завершён). См. ADR `[2026-04-29] Tools audit TS-1 — async completion signal`.
 - [x] **2026-04-29 — Car detail audit series CLOSED (4/4 resolved).** CD-1 (horizontal overflow + R-FE-3 grid trap rule), CD-2 (correctness: cache, currency, description, lazy thumbs, text wrapping), CD-3 (LazyMotion m migration + CLS fix), CD-4 (Vehicle schema + BreadcrumbList + thumb a11y). Open Technical Debt от серии: CD-DEBT-1. См. ADR `[2026-04-29] Car detail audit series — final summary`.
 - [x] **2026-04-29 — Car detail audit CD-4 closed.** Schema.org Product upgraded до Vehicle с mileage, engine, transmission, bodyType, color (drivetrain и enginePower deferred к CD-DEBT-1 из-за enum/unit ambiguity). BreadcrumbList JSON-LD добавлен на /catalog/cars/[id]. Thumb-кнопки CarGallery получили aria-label и aria-current. См. ADR `[2026-04-29] Car detail audit CD-4 — SEO + a11y`.
 - [x] **2026-04-29 — Car detail audit CD-3 closed.** CarCard.tsx и CarTrustBlock.tsx мигрированы с raw `motion` на `m` (LazyMotion-compatible) — закрывает gap для car detail entry path, оставленный P-3. CarCard hover:scale-[1.02] заменён на hover:-translate-y-1 — устраняет CLS на «Other cars» grid. Adjacent компоненты (NoscutCard, EncarClient и др.) ещё используют raw motion — зарегистрированы как Technical Debt MA-4. См. ADR `[2026-04-29] Car detail audit CD-3 — CarCard + CarTrustBlock motion → m + CLS fix`.

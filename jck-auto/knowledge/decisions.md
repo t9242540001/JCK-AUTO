@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.72
-  @lines:       4904
+  @version:     1.73
+  @lines:       4936
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,38 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Tools audit TS-1 — async completion signal
+
+**Контекст.** Vasily на mobile (DevTools 414px, реальный iPhone) сообщил, что инструменты `/tools/auction-sheet` и `/tools/encar` после процессинга «выглядят как зависшие». Сценарий: юзер загружает фото / вставляет URL, нажимает «Расшифровать»/«Анализировать», во время loading'а прокручивает страницу вниз, ждёт. Когда state переходит в "result", DOM рендерит result-блок инлайн на той же странице — без любого signal'а о завершении. Юзер не видит scroll, не слышит notification, не видит change в tab title, не видит никакого визуального flash. Думает, что инструмент завис, нажимает обновить страницу или уходит.
+
+Веб-стандарты 2026 для async UI completion: minimum 3 из 4 каналов signal'а — scroll, ARIA live region, document.title, visual cue. Каждый канал покрывает разный сценарий (mobile scroll, screen reader, inactive tab, sighted on-page).
+
+**Решение.** Добавить 4-pronged completion signal в оба client'а через единый pattern:
+
+1. **Smooth scrollIntoView** на result-блок через `requestAnimationFrame` после layout. Browser API уважает `prefers-reduced-motion` автоматически — instant scroll вместо smooth.
+2. **ARIA live region** `<div ref={liveRegionRef} role="status" className="sr-only" />` — **persistent в DOM, empty на mount**. Текст инжектится при transition в "result". Условный render не работает — screen reader не announce'ит регион который только что появился.
+3. **document.title mutation** на «Готово · {tool name} | JCK AUTO» с cleanup function для restore.
+4. **CSS visual flash** — `.completion-flash` utility class с `@keyframes ring-flash` (~600ms gold-tone ring). `key={flashKey}` на wrapper-div'е инкрементируется при каждом переходе → re-mount → animation restart. `@media (prefers-reduced-motion: reduce) { .completion-flash { animation: none; } }`.
+
+Pattern зафиксирован как R-FE-4 в `rules.md` для повторного использования на других async UIs.
+
+**Альтернативы.**
+- **Toast notifications.** Отклонено: redundant с visual flash + смещают фокус с самого result'а; добавляют новую UI primitive в проект.
+- **Browser Notifications API.** Отклонено: требует user permission grant, overhead для permission UI, юзер уже на странице (не в background app).
+- **Sound effects.** Отклонено: intrusive, требует user gesture для autoplay, не подходит для tool на mobile в общественном месте.
+- **Refactor state machines в обоих client'ах для centralized state management.** Отклонено: вне scope TS-1; цель — UX fix, не структурный refactor.
+- **Использовать `aria-live` на сам result-блок без separate region.** Отклонено: result-блок появляется условно (`{state === "result" && ...}`); screen reader не announce'ит content который mounts вместе с aria-live attribute. Persistent separate region — рабочий pattern.
+
+**Последствия.**
+- (+) Mobile UX dramatically improved — юзеры видят когда анализ закончен независимо от скролла.
+- (+) Screen reader users слышат announcement при completion. Persistent live region ставит фундамент под другие announcements (например, ошибки) если понадобятся.
+- (+) Inactive-tab users видят «Готово · ...» в tab strip, могут переключиться обратно когда удобно.
+- (+) Pattern reusable: R-FE-4 покрывает любые будущие async UIs (calculator, customs, новые tools).
+- (−) `requestAnimationFrame` + `scrollIntoView` плохо взаимодействует если юзер активно скроллит в момент завершения. Browser-default — interrupts user-initiated scroll smooth. На текущих сценариях acceptable; если станет проблемой, рассмотреть `prefers-reduced-motion`-style guard или ввести setting «hide auto-scroll».
+- (−) `document.title` cleanup polnyaет при unmount component, не при transition в idle. Для full SPA-rebuild (юзер кликнул "Расшифровать ещё") title восстанавливается через cleanup function от useEffect (state ушёл из "result"). Verified path работает.
+- (Knowledge) Pattern «persistent ARIA live region для async UI completion» зафиксирован в R-FE-4 — частая ошибка fresh-developers рендерить region условно. Этот ADR + правило защищают.
+- Открыта серия Tools audit. TS-1 — первый закрытый пункт.
 
 ## [2026-04-29] Car detail audit series — final summary
 
