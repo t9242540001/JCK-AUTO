@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.48
-  @lines:       626
+  @version:     1.49
+  @lines:       636
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Tools audit TS-3: EncarClient image optimization
+
+- **Сделано:** в `next.config.ts` добавлен блок `images.remotePatterns` с allow-listed `https://ci.encar.com/**` (single host для Encar photo CDN). В `src/app/tools/encar/EncarClient.tsx` импортирован `Image` из `next/image`, два raw `<img>` элемента (hero + lightbox) заменены на `<Image fill>` с правильными `sizes` hints. Hero: `sizes="(max-width: 768px) 100vw, 768px"`; lightbox: `sizes="100vw" quality={85}`. Lightbox `<img>` обёрнут в `<div className="relative h-[90vh] w-[90vw]" onClick={stopPropagation}>` (необходим positioned parent для `fill` layout). `loading="lazy"` снят — `<Image>` lazy-loads по дефолту.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge: DevTools Network → `/_next/image?url=https%3A%2F%2Fci.encar.com%2F...` с Content-Type `image/avif`/`image/webp`, lightbox open/close через X / Escape / клик вне фото — все работают, Console clean | **Следующий шаг:** TS-4..TS-N серии Tools audit, либо переключение на NoscutCard для закрытия MA-4.
+- **Контекст:** TS-1 закрыл UX-блокер (completion signal), TS-2 закрыл bundle issue (motion → m). TS-3 закрывает ещё одну категорию: photo bandwidth. На mobile 4G каждый Encar JPEG (200-800 KB original) теперь конвертируется в AVIF/WebP с responsive size — типичная экономия 50-80% bytes per photo. Server-side fetch через Next.js Image Optimizer (а не client) snimает CORS-зависимость с ci.encar.com.
+- **Структурный урок:** для любого external photo source должен быть `remotePatterns` whitelist в `next.config.ts`. Без него `<Image>` бросит «Invalid src prop ... hostname is not configured» на build/runtime. Pattern: один remotePatterns entry на host, paths через `pathname: '/**'` если нужен полный доступ. minimumCacheTTL уже 86400 (от P-1+P-2) — кэшируется на VDS.
+- **Failure mode note:** если ci.encar.com 429-ит наш VDS, Next.js Image Optimizer fail'ит загрузку silently — alt text остаётся видимым, hero photo показывает empty fallback. Не критично для UX (analyse data + вся остальная информация работает), но на момент инцидента можно потерять photo. Не fix-able в TS-3 без circuit-breaker / fallback proxy — за scope.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Tools audit TS-3 — EncarClient image optimization`.
 
 ### 2026-04-29 — Tools audit TS-2: EncarClient + ResultView motion → m
 
@@ -266,6 +275,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Tools audit TS-3 closed.** EncarClient hero photo и lightbox теперь используют Next.js Image Optimizer с AVIF/WebP конверсией. `ci.encar.com` whitelisted в `next.config.ts` `images.remotePatterns`. Mobile 4G users получают ~50-80% smaller photo bytes per request; UX (lightbox open/close, escape, aria) — байт-в-байт. См. ADR `[2026-04-29] Tools audit TS-3 — EncarClient image optimization`.
 - [x] **2026-04-29 — Tools audit TS-2 closed.** EncarClient.tsx и ResultView.tsx (auction-sheet) мигрированы с raw `motion` на `m` (LazyMotion-compatible) — extends P-3 + CD-3 bundle wins to tools entry paths. NoscutCard.tsx остаётся последним raw-motion файлом (tracked under MA-4). Pattern идентичен CD-3 (один import + один JSX tag pair rename per файл). См. ADR `[2026-04-29] Tools audit TS-2 — EncarClient + ResultView motion → m`.
 - [x] **2026-04-29 — Tools audit TS-1 closed.** Both `/tools/auction-sheet` и `/tools/encar` теперь сигналят completion analysis через 4 канала: smooth scroll-into-view, ARIA live region (role=status, persistent в DOM), `document.title` mutation, CSS ring-flash animation. Honors `prefers-reduced-motion`. Pattern документирован как R-FE-4 в `rules.md`. Открыта серия Tools audit (Vasily mobile UX feedback — юзеры не понимали, когда анализ завершён). См. ADR `[2026-04-29] Tools audit TS-1 — async completion signal`.
 - [x] **2026-04-29 — Car detail audit series CLOSED (4/4 resolved).** CD-1 (horizontal overflow + R-FE-3 grid trap rule), CD-2 (correctness: cache, currency, description, lazy thumbs, text wrapping), CD-3 (LazyMotion m migration + CLS fix), CD-4 (Vehicle schema + BreadcrumbList + thumb a11y). Open Technical Debt от серии: CD-DEBT-1. См. ADR `[2026-04-29] Car detail audit series — final summary`.

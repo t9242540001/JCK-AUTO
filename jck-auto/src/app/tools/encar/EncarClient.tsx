@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import * as m from "framer-motion/m";
+import Image from "next/image";
 import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle, Zap, X } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
 import TelegramAuthBlock from "@/components/TelegramAuthBlock";
@@ -216,11 +217,12 @@ export default function EncarClient() {
               className="group relative mx-auto block aspect-[4/3] w-full max-w-md cursor-zoom-in overflow-hidden rounded-2xl bg-neutral-100 transition-shadow hover:shadow-lg"
               aria-label="Открыть фото на весь экран"
             >
-              <img
+              <Image
                 src={result.photoUrls[0]}
                 alt={`${result.make} ${result.model}`}
-                className="h-full w-full object-contain"
-                loading="lazy"
+                fill
+                className="object-contain"
+                sizes="(max-width: 768px) 100vw, 768px"
               />
               <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-2 py-1 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
                 Нажмите, чтобы увеличить
@@ -430,12 +432,19 @@ export default function EncarClient() {
               >
                 <X className="h-6 w-6" />
               </button>
-              <img
-                src={result.photoUrls[0]}
-                alt={`${result.make} ${result.model}`}
-                className="max-h-[90vh] max-w-[90vw] object-contain"
+              <div
+                className="relative h-[90vh] w-[90vw]"
                 onClick={(e) => e.stopPropagation()}
-              />
+              >
+                <Image
+                  src={result.photoUrls[0]}
+                  alt={`${result.make} ${result.model}`}
+                  fill
+                  className="object-contain"
+                  sizes="100vw"
+                  quality={85}
+                />
+              </div>
             </div>
           )}
         </m.div>
