@@ -22,6 +22,25 @@ export const metadata: Metadata = {
   },
 };
 
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Главная",
+      item: "https://jckauto.ru",
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Каталог",
+      item: "https://jckauto.ru/catalog",
+    },
+  ],
+};
+
 export const dynamic = 'force-dynamic';
 
 export default async function CatalogPage() {
@@ -33,6 +52,7 @@ export default async function CatalogPage() {
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {/* Category cards */}
       <section className="bg-white pb-4 pt-24">
         <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:grid-cols-2">

@@ -2,8 +2,8 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
-  @updated:     2026-04-29
-  @version:     1.51
+  @updated:     2026-05-02
+  @version:     1.52
   @lines:       646
 -->
 
@@ -15,6 +15,14 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-05-02 — CAT-1b: BreadcrumbList JSON-LD на /catalog
+
+- **Сделано:** в `src/app/catalog/page.tsx` добавлен `breadcrumbJsonLd` const (после `metadata`, до `export const dynamic = 'force-dynamic'`) и один `<script type="application/ld+json">` element как первый child returned `<>` fragment. Pattern идентичен TS-5 (auction-sheet/encar) и CD-4 (car detail). Структура — 2 ListItems: «Главная» → https://jckauto.ru, «Каталог» → https://jckauto.ru/catalog. Intermediate hub level отсутствует — каталог one level below home, нет промежуточного раздела в URL-иерархии. Существующий `metadata` export, `dynamic = 'force-dynamic'`, body `CatalogPage()` (data fetch, JSX) — байт-в-байт.
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge: View Source на /catalog → один `<script type="application/ld+json">` с BreadcrumbList JSON, Rich Results Test без warnings и errors, DevTools Console clean. | **Следующий шаг:** page-by-page audit BreadcrumbList покрытие main entry pages закрыто (4/4: /tools/auction-sheet, /tools/encar, /catalog/cars/[id], /catalog). Будущий extension — /catalog/noscut (sibling листинг), /blog (если появится breadcrumb-eligible иерархия).
+- **Контекст:** TS-5 (2026-04-29) закрыл BreadcrumbList на tool pages, CD-4 (2026-04-29) — на car detail. /catalog оставался единственной main entry page с полными метаданными, но без structured data breadcrumbs. CAT-1b закрывает gap одним хирургическим промптом.
+- **Структурный урок:** двухуровневые breadcrumbs (Главная → Раздел) — допустимая Schema.org структура, не нужно искусственно вставлять intermediate hub level для unification. Pattern decision: если URL `/X` напрямую под root — 2 ListItems; если URL `/Hub/Item` — 3 ListItems с реально существующим hub (как /tools/X использует /tools).
+- **Ссылки:** этот коммит. ADR `[2026-05-02] CAT-1b — BreadcrumbList JSON-LD на /catalog`. Precedents: TS-5, CD-4.
 
 ### 2026-04-29 — Tools audit TS-5 + series closed
 
@@ -293,6 +301,7 @@
 
 ## Done
 
+- [x] **2026-05-02 — CAT-1b closed.** BreadcrumbList JSON-LD added on /catalog (2-level: Главная → Каталог). Same pattern as TS-5 and CD-4, applied with surgical scope to `src/app/catalog/page.tsx` (one const + one `<script>` element). Existing metadata, dynamic export, и body — байт-в-байт. Page-by-page BreadcrumbList покрытие main entry pages: 4/4. См. ADR `[2026-05-02] CAT-1b — BreadcrumbList JSON-LD на /catalog`.
 - [x] **2026-04-29 — Tools audit TS-5 closed.** BreadcrumbList JSON-LD added on both /tools/auction-sheet and /tools/encar server pages. Three levels: Главная → Сервисы → tool-name. Vehicle schema for Encar result rejected by design (no indexable URL per result; client-rendered transient state). См. ADR `[2026-04-29] Tools audit TS-5 — BreadcrumbList на tool-страницах`.
 - [x] **2026-04-29 — Tools audit series CLOSED (5/5 resolved + 1 by-design deferred).** TS-1 (4-pronged completion signal), TS-2 (motion → m), TS-3 (image optimization), TS-4 (overflow fix), TS-5 (BreadcrumbList). NoscutCard remains under MA-4 as last raw-motion file project-wide. См. ADR `[2026-04-29] Tools audit series — final summary`.
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
