@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-04-29
-  @version:     1.47
-  @lines:       617
+  @version:     1.48
+  @lines:       626
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-04-29 — Tools audit TS-2: EncarClient + ResultView motion → m
+
+- **Сделано:** `src/app/tools/encar/EncarClient.tsx` и `src/app/tools/auction-sheet/ResultView.tsx` мигрированы с raw `import { motion } from "framer-motion"` на `import * as m from "framer-motion/m"` (LazyMotion-compatible). JSX-теги `<motion.div>` / `</motion.div>` переименованы в `<m.div>` / `</m.div>` в каждом файле (по одной паре). Motion-props (`initial`, `animate`, `className`) — байт-в-байт. Pattern идентичен CD-3 (CarCard + CarTrustBlock миграция).
+- **Прервались на:** ожидание визуальной верификации на VDS после auto-merge: оба tool'а рендерятся идентично pre-TS-2, fade-in result-блока работает, TS-1 4-pronged signal продолжает работать, bundle на tools entry path меньше | **Следующий шаг:** TS-3..TS-N серии Tools audit (если планируются), либо переключение на NoscutCard как последний raw-motion файл (закроет MA-4 целиком и позволит включить LazyMotion `strict` mode).
+- **Контекст:** TS-1 (commit `c3b3e8d`) добавил completion signal pattern, но не трогал bundle-проблему. EncarClient + ResultView продолжали тащить полный framer-motion (~34 KB) при cold-cache landing на `/tools/encar` или `/tools/auction-sheet`. TS-2 это исправляет, расширяя выигрыш P-3 (главная) и CD-3 (car detail) на tools entry path.
+- **Структурный урок:** P-3 → CD-3 → TS-2 — частичная систематическая миграция всех client-компонентов с motion на LazyMotion-compatible `m`. Каждая итерация — surgical: один pattern, одна замена. Цена pattern'а (1 строка import + 2-4 JSX-токена tag rename) минимальна, выигрыш bundle большой. Pattern документирован неявно через эти 3 серии — стоит явно зафиксировать после TS-2 или закрытия MA-4.
+- **MA-4 progress:** EncarClient и ResultView (auction) удалены из списка raw-motion holdouts. `NoscutCard.tsx` остаётся последним — рендерится на главной + `/catalog/noscut/*`, не на tools entry path.
+- **Ссылки:** этот коммит. ADR `[2026-04-29] Tools audit TS-2 — EncarClient + ResultView motion → m`. Связанные коммиты: `b1bd44c` (P-3), `5d7806a` (CD-3).
 
 ### 2026-04-29 — Tools audit TS-1: async completion signal
 
@@ -257,6 +266,7 @@
 ## Done
 
 - [x] **2026-04-29 — Mobile audit P-3 закрыт.** Создан MotionProvider (LazyMotion + domAnimation), все 10 секций главной мигрированы с `motion` на `m`. Bundle framer-motion: ~34 KB → ~4.6 KB initial. Анимации работают как до миграции. CarCard/NoscutCard/tools/About/Blog/News — НЕ задеты, мигрируются позже. См. ADR `[2026-04-29] Mobile audit P-3 — LazyMotion + m migration on home page`.
+- [x] **2026-04-29 — Tools audit TS-2 closed.** EncarClient.tsx и ResultView.tsx (auction-sheet) мигрированы с raw `motion` на `m` (LazyMotion-compatible) — extends P-3 + CD-3 bundle wins to tools entry paths. NoscutCard.tsx остаётся последним raw-motion файлом (tracked under MA-4). Pattern идентичен CD-3 (один import + один JSX tag pair rename per файл). См. ADR `[2026-04-29] Tools audit TS-2 — EncarClient + ResultView motion → m`.
 - [x] **2026-04-29 — Tools audit TS-1 closed.** Both `/tools/auction-sheet` и `/tools/encar` теперь сигналят completion analysis через 4 канала: smooth scroll-into-view, ARIA live region (role=status, persistent в DOM), `document.title` mutation, CSS ring-flash animation. Honors `prefers-reduced-motion`. Pattern документирован как R-FE-4 в `rules.md`. Открыта серия Tools audit (Vasily mobile UX feedback — юзеры не понимали, когда анализ завершён). См. ADR `[2026-04-29] Tools audit TS-1 — async completion signal`.
 - [x] **2026-04-29 — Car detail audit series CLOSED (4/4 resolved).** CD-1 (horizontal overflow + R-FE-3 grid trap rule), CD-2 (correctness: cache, currency, description, lazy thumbs, text wrapping), CD-3 (LazyMotion m migration + CLS fix), CD-4 (Vehicle schema + BreadcrumbList + thumb a11y). Open Technical Debt от серии: CD-DEBT-1. См. ADR `[2026-04-29] Car detail audit series — final summary`.
 - [x] **2026-04-29 — Car detail audit CD-4 closed.** Schema.org Product upgraded до Vehicle с mileage, engine, transmission, bodyType, color (drivetrain и enginePower deferred к CD-DEBT-1 из-за enum/unit ambiguity). BreadcrumbList JSON-LD добавлен на /catalog/cars/[id]. Thumb-кнопки CarGallery получили aria-label и aria-current. См. ADR `[2026-04-29] Car detail audit CD-4 — SEO + a11y`.
@@ -531,10 +541,9 @@
 
 ### MA-4 — Remaining raw motion imports project-wide
 
-**Что:** P-3 (Mobile audit, commit `b1bd44c`) перевёл 10 секций главной с `motion` на `m`. CD-3 (commit этого финального коммита серии Car detail audit) добавил CarCard + CarTrustBlock. Остаются raw `import { motion } from "framer-motion"` в:
-- `src/components/noscut/NoscutCard.tsx` (рендерится на главной + `/catalog/noscut/*`)
-- `src/app/tools/encar/EncarClient.tsx`
-- возможно других файлах — нужен полный audit `grep -rn 'from "framer-motion"' src/`
+**Что:** P-3 (Mobile audit, commit `b1bd44c`) перевёл 10 секций главной с `motion` на `m`. CD-3 (commit `5d7806a`) добавил CarCard + CarTrustBlock. TS-2 (этот коммит) добавил EncarClient + ResultView (auction). Остаётся raw `import { motion } from "framer-motion"` в:
+- `src/components/noscut/NoscutCard.tsx` (рендерится на главной + `/catalog/noscut/*` — не на tools entry path)
+- возможно других файлах — нужен полный audit `grep -rn 'from "framer-motion"' src/` при следующем заходе.
 
 **Почему техдолг:** функционально работает (LazyMotion в MotionProvider обрабатывает любые motion-элементы потомков), но bundle размер на страницах с этими компонентами раздувается до полного framer-motion (~34 KB) при первом заходе. После завершения миграции можно включить `strict` mode в LazyMotion для защиты от регрессий — тогда любой случайный raw `motion` будет бросать runtime error.
 

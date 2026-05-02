@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.73
-  @lines:       4936
+  @version:     1.74
+  @lines:       4960
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,30 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Tools audit TS-2 — EncarClient + ResultView motion → m
+
+**Контекст.** TS-1 (commit `c3b3e8d`) добавил 4-pronged completion signal в оба tool client'а, но не трогал bundle-проблему: оба компонента (`EncarClient.tsx` напрямую, `ResultView.tsx` как root компонента) использовали raw `import { motion } from "framer-motion"`. При cold-cache landing на `/tools/encar` или `/tools/auction-sheet` (например, прямой переход с поиска или внешней ссылки) первый запрос тащил полный framer-motion bundle (~34 KB), отменяя выигрыш P-3 (главная) и CD-3 (car detail) для tools entry path.
+
+**Решение.** Двухфайловая миграция, идентичная по паттерну CD-3:
+- `src/app/tools/encar/EncarClient.tsx`: (1) `import { motion } from "framer-motion"` → `import * as m from "framer-motion/m"`. (2) `<motion.div>` / `</motion.div>` → `<m.div>` / `</m.div>` (одна пара, root результат-блока).
+- `src/app/tools/auction-sheet/ResultView.tsx`: те же два изменения; mostion.div root компонента переименован.
+
+Motion props (`initial={{ opacity: 0, y: 10 }}`, `animate={{ opacity: 1, y: 0 }}`, `className="space-y-6"`) — байт-в-байт. После миграции LazyMotion из MotionProvider (уже обёрнут вокруг `<main>` в layout.tsx) обрабатывает `m`-элементы с pre-loaded `domAnimation` features (~4.6 KB вместо ~34 KB).
+
+TS-1 outer wrapper `<div ref={resultRef} key={flashKey} className="completion-flash">` остаётся байт-в-байт; теперь оборачивает `m.div` вместо `motion.div` без других изменений.
+
+**Альтернативы.**
+- **Полная project-wide миграция в одном промпте.** Отклонено: NoscutCard.tsx требует отдельного scope (рендерится на главной + `/catalog/noscut/*` — separate entry-paths, separate testing surface).
+- **Убрать анимации совсем.** Отклонено: fade-in result-блока — важный perception cue «контент появился». Удаление = UX-регрессия.
+- **LazyMotion `strict` mode сразу.** Отклонено: NoscutCard ещё использует raw motion → strict бросит runtime error на главной и `/catalog/noscut/*`. Включаем после полного закрытия MA-4.
+
+**Последствия.**
+- (+) P-3 + CD-3 bundle-выигрыш расширен на tools entry path. Прямой landing с поиска на `/tools/encar` или `/tools/auction-sheet` больше не тянет полный framer-motion.
+- (+) TS-1 completion signal pattern продолжает работать — внешний wrapper не зависит от типа inner-tag (motion.div vs m.div).
+- (−) NoscutCard.tsx остаётся последним raw-motion holdout. MA-4 не закрыт; `strict` mode в LazyMotion остаётся deferred.
+- (Knowledge) После TS-2 остался один файл до полной чистки motion-imports проекта. Pattern «3-step systematic LazyMotion migration» (P-3 → CD-3 → TS-2 → закрывающая NoscutCard миграция) — может быть зафиксирован как методологический урок при закрытии MA-4.
+- Серия Tools audit: TS-1 ✓, TS-2 ✓; дальнейшие пункты по мере выявления.
 
 ## [2026-04-29] Tools audit TS-1 — async completion signal
 
