@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-04-29
-  @version:     1.30
-  @lines:       240
+  @version:     1.31
+  @lines:       257
 -->
 
 # Critical Rules
@@ -238,3 +238,20 @@ CSS Grid items default to `min-width: auto` (= `min-content`). When a grid item 
 Run this in Chrome DevTools Console with viewport at the smallest target (360px). Top entries by `right` reveal the chain of overflow contributors.
 
 **Cost of violation:** car detail page CD-1 incident (2026-04-29) — Document = 840px on 375px viewport, root cause hidden across page.tsx + CarGallery + CSS Grid spec interaction. Without the diagnostic recipe, debugging would require manual inspection of every nested container.
+
+### R-FE-4 — Async completion signal pattern
+
+Long-running async UI (file upload + AI processing, external API analysis, etc.) where the result renders inline on the same page MUST signal completion via at least 3 of these 4 channels:
+
+1. **Smooth scrollIntoView** to the result container (mobile-critical; honors `prefers-reduced-motion` automatically).
+2. **ARIA live region** with `role="status"` — PERSISTENT in DOM, empty on mount, text injected on completion. Without persistence, screen readers may miss the announcement.
+3. **document.title** mutation to "Готово · ..." while in result state, restored on cleanup. Visible to users on inactive tabs.
+4. **Visual flash** — short CSS animation on the result container (e.g. `ring-flash 0.6s`). Wrap in `@media (prefers-reduced-motion: reduce) { animation: none; }`.
+
+**Why all four:** mobile users may have scrolled away (need scroll); screen reader users get nothing visual (need aria-live); inactive-tab users won't see scroll or flash (need title); reduced-motion users may have flash disabled (others still work).
+
+**Trigger pattern:** single `useEffect([state])` that fires when state transitions to result. Use `requestAnimationFrame` before `scrollIntoView` so layout is stable. Cleanup function restores title.
+
+**DOM placement of live region:** persistent `<div ref={liveRegionRef} role="status" className="sr-only" />` near root of client component. NEVER conditionally render — that breaks announcement.
+
+**Cost of violation:** TS-1 incident (2026-04-29) — Vasily reported `/tools/auction-sheet` and `/tools/encar` appeared hung on mobile because no completion signal existed. Users thought processing was still running.

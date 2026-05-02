@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Search, Loader2, Download, RefreshCw, Send, AlertTriangle, CheckCircle, XCircle, Zap, X } from "lucide-react";
 import { CONTACTS } from "@/lib/constants";
@@ -56,6 +56,9 @@ export default function EncarClient() {
   const [manualUnit, setManualUnit] = useState<"hp" | "kw">("hp");
   const [descExpanded, setDescExpanded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const liveRegionRef = useRef<HTMLDivElement>(null);
+  const [flashKey, setFlashKey] = useState<number>(0);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -68,6 +71,38 @@ export default function EncarClient() {
       document.body.style.overflow = prevOverflow;
     };
   }, [lightboxOpen]);
+
+  // 4-pronged completion signal: scroll, ARIA announce, document title,
+  // visual flash. See R-FE-4 in rules.md.
+  useEffect(() => {
+    if (state !== "result") return;
+
+    if (liveRegionRef.current) {
+      const summary = result
+        ? `${result.make} ${result.model} ${result.year}`
+        : "результат готов";
+      liveRegionRef.current.textContent = `Анализ завершён. ${summary}.`;
+    }
+
+    requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    const originalTitle = document.title;
+    document.title = "Готово · Анализ Encar | JCK AUTO";
+
+    setFlashKey((k) => k + 1);
+
+    return () => {
+      document.title = originalTitle;
+      if (liveRegionRef.current) {
+        liveRegionRef.current.textContent = "";
+      }
+    };
+  }, [state, result]);
 
   const handleAnalyze = async (overridePower?: number) => {
     if (!url.trim()) return;
@@ -167,6 +202,11 @@ export default function EncarClient() {
 
       {/* Результат */}
       {state === "result" && result && (
+        <div
+          ref={resultRef}
+          key={flashKey}
+          className="completion-flash"
+        >
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Главное фото */}
           {result.photoUrls[0] && (
@@ -399,6 +439,7 @@ export default function EncarClient() {
             </div>
           )}
         </motion.div>
+        </div>
       )}
 
       {/* Ошибка */}
@@ -427,6 +468,8 @@ export default function EncarClient() {
           )}
         </div>
       )}
+
+      <div ref={liveRegionRef} role="status" className="sr-only" />
     </div>
   );
 }
