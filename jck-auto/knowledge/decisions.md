@@ -2,8 +2,8 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
-  @updated:     2026-04-29
-  @version:     1.77
+  @updated:     2026-05-02
+  @version:     1.78
   @lines:       5031
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
@@ -19,6 +19,27 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-05-02] CAT-1b — BreadcrumbList JSON-LD на /catalog
+
+**Status:** Accepted. **Confidence:** high.
+
+**Контекст.** /catalog — последняя из main entry-point страниц без BreadcrumbList structured data. Метаданные (title, description, OG, canonical) уже корректные, но Google SERP для /catalog показывает URL-путь вместо человекочитаемых breadcrumbs. Тот же паттерн уже применён в TS-5 (`[2026-04-29] Tools audit TS-5 — BreadcrumbList на tool-страницах`) для /tools/auction-sheet и /tools/encar (3 уровня каждый), и в CD-4 (`[2026-04-29] Car detail audit CD-4 — SEO + a11y`) для /catalog/cars/[id] (3 уровня).
+
+**Решение.** Добавить один `<script type="application/ld+json">` блок на /catalog с BreadcrumbList из **двух** ListItems: «Главная» → https://jckauto.ru, «Каталог» → https://jckauto.ru/catalog. URL абсолютные согласно Schema.org spec. Существующий `metadata` export, `dynamic = 'force-dynamic'`, и body `CatalogPage()` не трогаются — единственная правка JSX — `<script>` element как первый child returned `<>` fragment.
+
+**Альтернативы.**
+- **Three-level breadcrumb (Главная → Каталог автомобилей → Авто).** Отвергнуто: каталог — единый раздел с одним listing'ом, intermediate hub не существует в URL-структуре. Добавление виртуального уровня сломает соответствие breadcrumbs ↔ URL и запутает Google.
+- **Имя position 2 = «Каталог автомобилей» (full).** Отвергнуто: short form «Каталог» матчит navigation menu и produce'ит compact SERP breadcrumb. Длинная форма уже в `<title>` метаданных — дублирование не нужно.
+- **Включить отдельные категории как ListItems (Авто / Ноускаты).** Отвергнуто: ноускаты — sibling раздел /catalog/noscut, не child /catalog. Breadcrumbs описывают URL hierarchy, не UI grouping.
+- **JsonLd компонент (centralized).** Отвергнуто: тот же reasoning, что в TS-5 — page-specific schema живёт рядом со страницей; глобальный JsonLd.tsx используется для LocalBusiness + WebSite в layout.
+
+**Последствия.**
+- Google SERP-snippets для /catalog теперь содержат breadcrumbs «Главная > Каталог» вместо «jckauto.ru/catalog». Потенциальный CTR-rise.
+- Page-by-page audit BreadcrumbList покрытие: 4/4 main entry pages (/tools/auction-sheet, /tools/encar, /catalog/cars/[id], /catalog).
+- Pattern reusable: при добавлении новой listing-style страницы (например, /blog/category) — те же 2 ListItems с adjusted name + URL.
+
+**Ссылки.** Этот коммит. Precedents: TS-5 ADR (3-level tools pages), CD-4 ADR (3-level car detail).
 
 ## [2026-04-29] Tools audit series — final summary
 
