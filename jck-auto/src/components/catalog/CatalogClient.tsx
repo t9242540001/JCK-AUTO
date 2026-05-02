@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
 import { Send } from "lucide-react";
 import type { Car } from "@/types/car";
 import { CONTACTS } from "@/lib/constants";
