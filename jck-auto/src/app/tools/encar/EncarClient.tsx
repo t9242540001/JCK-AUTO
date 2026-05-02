@@ -241,16 +241,16 @@ export default function EncarClient() {
                     ["КПП", result.transmission], ["Кузов", result.bodyType],
                     ["Цвет", result.color], ["VIN", result.vin],
                   ].filter(([, v]) => v).map(([label, value]) => (
-                    <div key={label as string} className="flex justify-between text-sm">
+                    <div key={label as string} className="flex justify-between gap-3 text-sm">
                       <span className="text-text-muted">{label}</span>
-                      <span className="font-medium text-text">{value}</span>
+                      <span className="min-w-0 text-right font-medium text-text [overflow-wrap:anywhere]">{value}</span>
                     </div>
                   ))}
                   {/* Мощность */}
                   {result.enginePower && (
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between gap-3 text-sm">
                       <span className="text-text-muted">Мощность</span>
-                      <span className="flex items-center gap-1.5 font-medium text-text">
+                      <span className="flex min-w-0 items-center gap-1.5 font-medium text-text">
                         {result.enginePowerKw ? `${result.enginePowerKw} кВт (${result.enginePower} л.с.)` : `${result.enginePower} л.с.`}
                         {result.enginePowerSource === 'ai' && result.enginePowerConfidence && (
                           <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${confidenceBadge(result.enginePowerConfidence).cls}`}>
@@ -304,19 +304,19 @@ export default function EncarClient() {
                 {result.dealerName && (
                   <div className="flex justify-between gap-4 text-sm">
                     <span className="text-text-muted">Имя</span>
-                    <span className="text-right font-medium text-text">{result.dealerName}</span>
+                    <span className="min-w-0 text-right font-medium text-text [overflow-wrap:anywhere]">{result.dealerName}</span>
                   </div>
                 )}
                 {result.dealerFirm && (
                   <div className="flex justify-between gap-4 text-sm">
                     <span className="text-text-muted">Автосалон</span>
-                    <span className="text-right font-medium text-text">{result.dealerFirm}</span>
+                    <span className="min-w-0 text-right font-medium text-text [overflow-wrap:anywhere]">{result.dealerFirm}</span>
                   </div>
                 )}
                 {result.city && (
                   <div className="flex justify-between gap-4 text-sm">
                     <span className="text-text-muted">Город</span>
-                    <span className="text-right font-medium text-text">{result.city}</span>
+                    <span className="min-w-0 text-right font-medium text-text [overflow-wrap:anywhere]">{result.city}</span>
                   </div>
                 )}
               </div>
