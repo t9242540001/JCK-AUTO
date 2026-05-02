@@ -35,6 +35,17 @@ const nextConfig: NextConfig = {
         search: '',
       },
     ],
+    // External Encar.com photo CDN. Single host, /pic*/ paths.
+    // Used by /tools/encar hero photo + lightbox. Server-side fetch
+    // by Next.js Image Optimizer — no client CORS dependency. Cached
+    // for 86400s on VDS per minimumCacheTTL above.
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'ci.encar.com',
+        pathname: '/**',
+      },
+    ],
   },
   async redirects() {
     return [

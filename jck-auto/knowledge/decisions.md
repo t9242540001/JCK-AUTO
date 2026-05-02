@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — append-only
   @updated:     2026-04-29
-  @version:     1.74
-  @lines:       4960
+  @version:     1.75
+  @lines:       4988
   @note:        File exceeds the 200-line knowledge guideline.
                 Accepted: ADR logs are append-only history;
                 splitting by date harms searchability. If file
@@ -19,6 +19,34 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-04-29] Tools audit TS-3 — EncarClient image optimization
+
+**Контекст.** На странице `/tools/encar` после успешного анализа отображается одно external фото (`result.photoUrls[0]`) — hero + lightbox. Оба места использовали raw HTML `<img>` элементы, полностью обходя Next.js Image Optimizer. На mobile 4G пользователи скачивали оригинальные JPEG'и (типично 200-800 KB на фото) без AVIF/WebP конверсии, без responsive sizes, без оптимизации beyond `loading="lazy"`. В `src/lib/encarClient.ts` `ENCAR_PHOTO_BASE = 'https://ci.encar.com'` подтверждён как single host для всех Encar photo URLs; `next.config.ts` от P-1+P-2 уже имеет `formats: ['image/avif', 'image/webp']`, `qualities: [75, 85]`, `minimumCacheTTL: 86400`, но без `remotePatterns` для external источников.
+
+**Решение.** Двухчастный fix:
+
+1. **`next.config.ts`**: добавлен `images.remotePatterns: [{ protocol: 'https', hostname: 'ci.encar.com', pathname: '/**' }]` после существующего `localPatterns`. Comment-блок поясняет: server-side fetch Next.js Optimizer'ом (no client CORS), кэшируется per `minimumCacheTTL`. Single host policy (только ci.encar.com) — без wildcards, минимизирует attack surface.
+
+2. **`src/app/tools/encar/EncarClient.tsx`**: `import Image from "next/image"`, два raw `<img>` элемента заменены на `<Image fill>`:
+   - **Hero**: `<Image src={...} alt={...} fill className="object-contain" sizes="(max-width: 768px) 100vw, 768px" />` внутри существующего `<button>` с `relative` (positioned parent для `fill`). `<span>` overlay сохранён.
+   - **Lightbox**: `<img>` заменён на `<div className="relative h-[90vh] w-[90vw]" onClick={stopPropagation}><Image fill className="object-contain" sizes="100vw" quality={85} /></div>` — wrapper div нужен для `relative` + положение, `onClick` stopPropagation перенесён на wrapper (на самом `<Image>` не работает onClick прямо).
+
+`loading="lazy"` снят — `<Image>` lazy-loads по умолчанию для non-priority фото. `quality={85}` в lightbox матчит существующий `qualities: [75, 85]` allowlist.
+
+**Альтернативы.**
+- **Оставить raw `<img>` с `decoding="async" fetchpriority="low"`.** Отклонено: даёт декодирующий выигрыш в render path, но не уменьшает bytes — пользователь всё равно качает 200-800 KB JPEG.
+- **Server-side proxy / cache layer вне Next.js Image (custom route с sharp).** Отклонено: дублирует функциональность Next.js Optimizer'а, добавляет maintenance burden, никаких уникальных features (мы уже на VDS, и Optimizer там же).
+- **`<Image unoptimized={true} />`.** Отклонено: defeats the purpose. Бессмысленно использовать `next/image` без оптимизации.
+- **Альтернативный photo CDN (Cloudinary, Vercel Blob).** Отклонено: добавляет third-party dep + cost. Encar предоставляет фото через свой CDN в high quality; Next.js Optimizer на VDS даёт нам конверсию + кэш бесплатно.
+
+**Последствия.**
+- (+) Mobile bandwidth dramatically reduced: AVIF на Chrome / WebP на старых браузерах = 50-80% меньше bytes per Encar photo.
+- (+) VDS Image Optimizer cache populates с одним entry per Encar carid. При повторных анализах одной и той же машины (например, юзер сравнивает варианты) — instant cache hit.
+- (+) `remotePatterns` pattern documented в `next.config.ts` comment'ом для будущих external photo sources (если когда-нибудь подключим second car-listing site).
+- (−) **Failure mode**: если `ci.encar.com` начнёт 429-ить наш VDS (rate-limit), Next.js Image Optimizer fail'ит загрузку silently — `alt` text остаётся видимым (а11y не теряется), но hero photo показывает empty fallback. UX impact ограничен, но на момент инцидента можно потерять photo display. Не fix-able в TS-3 — потребует circuit-breaker + retry-with-backoff layer. За scope.
+- (−) Image Optimizer добавляет server-side load на VDS (sharp processing). Для одного-photo-на-tool это negligible, но если в будущем добавим отображение всех photoUrls галереей — стоит мониторить CPU.
+- Серия Tools audit: TS-1 ✓ (UX completion signal), TS-2 ✓ (bundle), TS-3 ✓ (photo bandwidth). Дальнейшие пункты по мере выявления.
 
 ## [2026-04-29] Tools audit TS-2 — EncarClient + ResultView motion → m
 
