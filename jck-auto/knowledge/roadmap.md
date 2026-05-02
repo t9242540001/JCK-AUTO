@@ -4,7 +4,7 @@
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-02
   @version:     1.52
-  @lines:       646
+  @lines:       694
 -->
 
 # Roadmap
@@ -15,6 +15,15 @@
 
 > Журнал последних сессий. Новые записи на верх. После 10 записей — старые
 > переносятся в roadmap-archive-N.md.
+
+### 2026-05-02 — CAT-* series closed (page-by-page audit /catalog)
+
+- **Сделано:** серия CAT-* для /catalog закрыта четырьмя резолюциями: CAT-1a (commit `29df1ed`) — удалён dead `motion` import в `CatalogClient.tsx`; CAT-1b (commit `227d16c`) — добавлен `BreadcrumbList` JSON-LD на `src/app/catalog/page.tsx` (2-level Главная → Каталог); CAT-3 — hover effects audit verified-no-change (border/background transitions без CLS-риска, Tailwind 4 hover variant gates на touch); CAT-2 — ItemList JSON-LD deferred как Strategic initiative #5 (enhancement, не common-error fix, выпадает из scope page-by-page audit). Browser-first diagnostic 412px показал чистый overflow=0 + console clean на первом же замере — серия пошла обычным audit-flow без CD-1-style root-cause-first.
+- **Прервались на:** все 4 пункта закрыты документировано, code деплоен и merged. | **Следующий шаг:** переход к следующей странице по очереди page-by-page audit (Strategic initiative #2) — следующий кандидат /tools/calculator.
+- **Контекст:** серия открылась 2026-05-02 после закрытия Tools audit (2026-04-29). Scope = частые ошибки, найденные в предыдущих сессиях (motion deadcode, BreadcrumbList JSON-LD gap, hover audit). Реестр — 4 пункта, две имплементации + одна verified + одна deferred.
+- **Структурный урок:** короткая audit-серия (4 пункта) валидна. Не каждая серия должна быть размером Mobile audit (12) или Tools audit (5). Масштаб зависит от состояния страницы — если первый browser-first замер чистый, серия идёт обычным flow без выдумывания проблем. Также введён четвёртый класс close-причины: deferred-to-Strategic-initiative (для enhancement-пунктов, в отличие от deferred-to-Technical-Debt для багов/регрессий).
+- **Численные итоги:** 4 items, 2 commits (`29df1ed`, `227d16c`), 3 новых ADR (CAT-1b, CAT-3 verified, final summary), 1 новый Strategic initiative #5, console errors на /catalog: 0, document overflow на 412px: 0.
+- **Ссылки:** этот коммит. ADRs: `[2026-05-02] CAT-* series — final summary`, `[2026-05-02] CAT-3 — hover effects audit на /catalog (verified, no change needed)`, `[2026-05-02] CAT-1b — BreadcrumbList JSON-LD на /catalog`. Precedents: Tools audit series final summary (2026-04-29), Mobile audit closing cleanup (2026-04-29).
 
 ### 2026-05-02 — CAT-1b: BreadcrumbList JSON-LD на /catalog
 
@@ -301,6 +310,8 @@
 
 ## Done
 
+- [x] **2026-05-02 — CAT-* series CLOSED (4/4: 2 implemented, 1 verified-no-change, 1 deferred to Strategic initiative).** CAT-1a (motion deadcode, commit `29df1ed`), CAT-1b (BreadcrumbList JSON-LD, commit `227d16c`), CAT-3 (hover audit verified-no-change), CAT-2 (ItemList JSON-LD deferred as Strategic initiative #5). См. ADR `[2026-05-02] CAT-* series — final summary`.
+- [x] **2026-05-02 — CAT-3 closed (verified, no code change).** Hover effects на category cards и country tabs /catalog проверены: border-color transitions без CLS-риска, Tailwind 4 hover variant gates на touch-устройствах. Browser-first diagnostic 412px: overflow=0, Console clean. См. ADR `[2026-05-02] CAT-3 — hover effects audit на /catalog (verified, no change needed)`.
 - [x] **2026-05-02 — CAT-1b closed.** BreadcrumbList JSON-LD added on /catalog (2-level: Главная → Каталог). Same pattern as TS-5 and CD-4, applied with surgical scope to `src/app/catalog/page.tsx` (one const + one `<script>` element). Existing metadata, dynamic export, и body — байт-в-байт. Page-by-page BreadcrumbList покрытие main entry pages: 4/4. См. ADR `[2026-05-02] CAT-1b — BreadcrumbList JSON-LD на /catalog`.
 - [x] **2026-04-29 — Tools audit TS-5 closed.** BreadcrumbList JSON-LD added on both /tools/auction-sheet and /tools/encar server pages. Three levels: Главная → Сервисы → tool-name. Vehicle schema for Encar result rejected by design (no indexable URL per result; client-rendered transient state). См. ADR `[2026-04-29] Tools audit TS-5 — BreadcrumbList на tool-страницах`.
 - [x] **2026-04-29 — Tools audit series CLOSED (5/5 resolved + 1 by-design deferred).** TS-1 (4-pronged completion signal), TS-2 (motion → m), TS-3 (image optimization), TS-4 (overflow fix), TS-5 (BreadcrumbList). NoscutCard remains under MA-4 as last raw-motion file project-wide. См. ADR `[2026-04-29] Tools audit series — final summary`.
@@ -665,3 +676,19 @@ Current site has multiple `<div onClick>`, `<span onClick>`, `<li onClick>`-styl
 - **Acceptance criteria** — automated check (eslint-plugin-jsx-a11y `click-events-have-key-events` rule + `interactive-supports-focus` rule) reports zero violations after migration. Plus manual smoke-test of Tab → Enter activation across each migrated surface.
 
 **Closes:** the long tail of UX issues in С-2 family — cursor-pointer fix is the visible symptom; this initiative addresses the root accessibility gap.
+
+### 5. ItemList JSON-LD on /catalog for Rich snippet
+
+**What.** Schema.org `ItemList` structured data на server-rendered first page of /catalog cars, чтобы Google генерировал carousel-snippet «Автомобили в наличии — Toyota RAV4, Hyundai Tucson, …» в SERP для commercial intent queries вроде «купить авто из Кореи», «авто из Японии в наличии», «Hyundai из Кореи цена». Существующий BreadcrumbList JSON-LD (CAT-1b) даёт breadcrumb-snippet; ItemList — отдельный enrichment, дополняющий, не замещающий.
+
+**Status:** Idea. Researched в чате при закрытии CAT-* серии 2026-05-02, deferred от scope page-by-page audit потому что enhancement (новый Rich snippet type), не common-error fix или regression. Серия CAT-* предназначалась для частых ошибок в существующих паттернах, ItemList выходит за этот scope.
+
+**What needs research before first prompt:**
+- Точное число cars в server-render первой страницы при `dynamic = 'force-dynamic'`. ItemList должен содержать только cars, реально присутствующие в initial HTML — иначе Google пометит mismatch'ем. Если caталог пагинируется client-side, нужен явный server-side slice (например, первые N) для structured data.
+- Какие поля `Car` входят в каждый `ListItem` — кандидаты: `name` (mark + model + year), `image` (первое фото из gallery), `url` (`/catalog/cars/{id}`), `offers.price` (priceRub если есть, иначе native + currency), `brand`, `model`, `vehicleModelDate`. Совместимость с CD-4 Vehicle schema на детальной странице важна — фактический ItemList на /catalog должен ссылаться на canonical URL карточки, где живёт детальный Vehicle JSON-LD.
+- Как взаимодействует ItemList с client-side filtering. После применения фильтров пользователем DOM меняется, но JSON-LD блок в `<head>`/initial HTML остаётся прежним. Google индексирует initial render — этого достаточно. Но нужно проверить, что filtering НЕ удаляет JSON-LD из DOM каким-то re-render'ом.
+- Ожидаемый rich-snippet preview через Rich Results Test (https://search.google.com/test/rich-results) до production deploy. Должен показать «Carousel» eligible status с zero warnings и zero errors.
+
+**Cost of deferral.** Низкая. Текущий BreadcrumbList уже даёт breadcrumb-snippet в SERP для /catalog. ItemList — дополнительный Rich snippet type, не блокирующий existing SEO win. Каталог сейчас индексируется как обычная listing-страница, traffic не теряется без ItemList — теряется только потенциал carousel-presentation в SERP.
+
+**When to open.** При следующей итерации SEO-улучшений каталога. Альтернативно: когда Search Console покажет, что breadcrumb-snippet от CAT-1b активен и стабилен (signal что Google принимает наш JSON-LD на listing-страницах) — тогда есть высокая уверенность, что ItemList тоже будет принят. Третий триггер: при добавлении новых типов listing-страниц (например, /catalog/noscut получит свой ItemList; /tools — если когда-нибудь станет реальным каталогом инструментов).
