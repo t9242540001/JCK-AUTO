@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-05-02
-  @version:     2.07
+  @version:     2.08
   @lines:       55
 -->
 
@@ -41,9 +41,30 @@
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
-| [tools.md](tools.md) | /tools/* API endpoints: auction-sheet async-only contract (POST 202 + job polling), pipeline (Pass 0 classifier + 3 parallel OCR + DeepSeek Step 2 180s/2 retries), Sharp compression, nginx per-endpoint 200s/15MB, rate limiting, diagnostics + job status endpoint + stats endpoint, parse schema extended (10 new fields including VIN), client-side types/helpers modularization in progress, UploadZone extracted, ProcessingViews extracted + 429 body extended, ErrorView extracted (С-7 closed), ResultView extracted with new fields UI, series complete | 2026-04-18 |
+| [tools-auction-sheet.md](tools-auction-sheet.md) | Auction Sheet Analyzer API — async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR (3 passes) + DeepSeek Step 2 parse, DashScope fallback chain, rate limiting (3 anon lifetime / 10 daily auth), nginx per-endpoint timeouts (200s / 15MB body), HEIC support, diagnostic curl | 2026-05-02 |
 | [bugs.md](bugs.md) | Open / verify-status / won't-fix bugs — site and bot. Closed entries → bugs-archive-1.md. Auto-archive trigger at 250 lines. | 2026-05-02 |
 | [bugs-archive-1.md](bugs-archive-1.md) | Archive 1 of bugs.md — 11 closed bug entries (С-1, С-2, С-8, Б-4, Б-6, Б-9, Б-11, Б-12, Б-13, Б-14, Б-15). Read-only reference, NOT read at session start by default | 2026-05-02 |
+
+## Per-tool documentation convention
+
+Each `/tools/*` API has its own knowledge file named `tools-{slug}.md` —
+e.g., `tools-auction-sheet.md` for `/tools/auction-sheet`. Files are
+created on demand: when a tool's documentation outgrows brief reference
+(over ~50 lines of operational details, business logic, or pipeline
+architecture). Tools currently documented in this convention:
+
+- **tools-auction-sheet.md** — `/tools/auction-sheet` API (Japanese auction sheet AI decoder).
+
+Tools NOT yet under the convention (their docs live in legacy single-purpose files or are not yet documented):
+
+- `/tools/encar` — see `encar-analyzer.md`.
+- `/tools/calculator` — see `calculator.md`.
+- `/tools/customs` — see `customs-reference.md`.
+- `/tools/noscut` — see `noscut-spec.md`, `noscut-plan.md`.
+
+When promoting any of these to the per-tool convention, rename the legacy
+file to `tools-{slug}.md` via `git mv`, update INDEX.md description and
+this section, and run cross-reference discovery via grep on the old name.
 
 ## Quick Links
 

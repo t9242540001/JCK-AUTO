@@ -1,15 +1,20 @@
 <!--
-  @file:        knowledge/tools.md
+  @file:        knowledge/tools-auction-sheet.md
   @project:     JCK AUTO
-  @description: API tools documentation — auction-sheet async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), job status + admin stats endpoints
-  @updated:     2026-04-18
-  @version:     1.14
-  @lines:       ~340
+  @description: Auction Sheet Analyzer API — async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR + DeepSeek parse, DashScope fallback chain, nginx per-endpoint overrides (200s / 15MB), rate limiting, diagnostics
+  @updated:     2026-05-02
+  @version:     1.15
+  @lines:       ~388
+  @note:        Per-tool convention: each /tools/* API gets its own
+                tools-{slug}.md file. Auction Sheet was the first file in
+                this series (renamed from tools.md to tools-auction-sheet.md
+                in KC-5, 2026-05-02). Future per-tool files: tools-encar.md,
+                tools-calculator.md, tools-customs.md, etc — created on
+                demand when each tool's documentation grows beyond brief
+                reference. See INDEX.md for current registry.
 -->
 
-# Tools API — /tools/*
-
-## Auction Sheet Analyzer
+# Auction Sheet Analyzer
 
 **Route:** `POST /api/tools/auction-sheet`  
 **File:** `src/app/api/tools/auction-sheet/route.ts`  
