@@ -20,6 +20,10 @@
  * @changed 2026-05-02 — added yandex-metrika-mcp entry for
  *   NEW-1.1 (Streamable HTTP wrapper for Yandex Metrika OAuth
  *   API access).
+ * @changed 2026-05-02 — extended mcp-gateway FILESYSTEM_ROOTS
+ *   to include /opt/ai-knowledge-system, /etc/nginx,
+ *   /var/log/nginx (NEW-1.X-pre1A). DENY_PATHS deny-list added
+ *   in mcp_server.py manually on VDS as paired manual-ops step.
  */
 module.exports = {
   apps: [
@@ -78,7 +82,7 @@ module.exports = {
       script: '/opt/ai-knowledge-system/server/start.sh',
       interpreter: 'bash',
       env: {
-        FILESYSTEM_ROOTS: '/var/www/jckauto',
+        FILESYSTEM_ROOTS: '/var/www/jckauto:/opt/ai-knowledge-system:/etc/nginx:/var/log/nginx',
       },
       max_restarts: 10,
       autorestart: true,
