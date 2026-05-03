@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-05-02
-  @version:     2.06
-  @lines:       54
+  @version:     2.07
+  @lines:       55
 -->
 
 # Knowledge Base — JCK AUTO
@@ -13,7 +13,8 @@
 
 | File | Description | Updated |
 |------|-------------|---------|
-| [infrastructure.md](infrastructure.md) | Server, PM2 (3 processes — driven by committed `ecosystem.config.js` as single source of truth), deploy commands, nginx (default 60s + per-endpoint overrides for /api/tools/auction-sheet: 200s timeout + 15MB body), Cloudflare Worker tg-proxy (4 routing modes, NOW in git at `worker/`, auto-deploy via `cloudflare/wrangler-action@v3`, placement pinned via `[placement] mode = "smart"` + `region = "gcp:europe-west1"`), VDS provider network restrictions, mcp-gateway env declared in ecosystem (closes Б-11) | 2026-04-23 |
+| [infrastructure.md](infrastructure.md) | Server identity, PM2 processes (driven by committed ecosystem.config.js), cron jobs, deploy pipeline, runtime constraints, CI/CD, active bugs. Network config (nginx, Cloudflare, Yandex MCP install) → networking.md | 2026-05-02 |
+| [networking.md](networking.md) | Network architecture — nginx config (location blocks, per-endpoint timeouts, SSL), Cloudflare Worker tg-proxy (4 routing modes, deploy via worker/wrangler.toml), provider network restrictions, Yandex Metrika MCP install procedure | 2026-05-02 |
 | [deploy.md](deploy.md) | Deploy pipeline: two-slot build, self-healing, runtime log observability, diagnostic order | 2026-04-14 |
 | [architecture.md](architecture.md) | Stack, file navigator, URL structure, key relationships + queue + client async flow (poll + session restore) | 2026-04-18 |
 | [integrations.md](integrations.md) | External APIs: DashScope, DeepSeek (180s timeout / 2 retries), CBR, Google Drive, Telegram, rate limits + admin access env | 2026-04-18 |

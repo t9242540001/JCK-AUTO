@@ -371,7 +371,7 @@ tail -100 /var/log/nginx/error.log | grep "upstream timed out"
   остаётся в `route.ts`.
 
 Full per-endpoint config и backup path — см.
-`knowledge/infrastructure.md` → "Per-endpoint nginx overrides".
+`knowledge/networking.md` → "Per-endpoint nginx overrides".
 
 Пока nginx был 60 с, ограничение закрывалось комбинацией: Sharp-сжатие
 (`route.ts`) + `REQUEST_TIMEOUT_MS = 60_000` на попытку в `dashscope.ts`
