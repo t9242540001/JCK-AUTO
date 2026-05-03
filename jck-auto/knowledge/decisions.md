@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — active section, append-only
   @updated:     2026-05-02
-  @version:     1.80
+  @version:     1.81
   @lines:       ~770
   @note:        Active section: 16 ADRs from 2026-04-29 onward.
                 Older entries (81 ADRs from 2026-01..2026-04-28) → see
@@ -20,6 +20,220 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-05-02] NEW-1 series — final summary (Yandex Metrika MCP integration end-to-end)
+
+**Status:** Accepted. **Confidence:** high.
+
+**Контекст.** NEW-1 серия открыта 2026-05-02 как enabler для NEW-2 (conversion analysis с реальными данными Метрики). Цель — программный read-доступ к Yandex Metrika data jckauto.ru из Claude.ai через MCP Custom Connector, без скриншотов и ручного экспорта. 6 sub-промптов: NEW-1.1 (PM2 entry + supergateway install), NEW-1.X-pre1A (FILESYSTEM_ROOTS extension в ecosystem.config.js), NEW-1.X-pre1B (DENY_PATHS в mcp_server.py), NEW-1.2-A (nginx snippet в repo), NEW-1.2-B (manual deploy on VDS), NEW-1.4 (Custom Connector setup в Claude.ai).
+
+**Архитектура (финальная):**
+```
+Claude.ai (Anthropic Cloud, IP range 160.79.104.0/21 + 2607:6bc0::/48)
+  → HTTPS jckauto.ru/mcp/metrika
+  → nginx (allow-list filter, /etc/nginx/snippets/mcp-yandex-metrika.conf)
+  → proxy_pass http://localhost:8765/mcp
+  → supergateway (Streamable HTTP transport)
+  → stdio MCP atomkraft/yandex-metrika-mcp (fork в t9242540001)
+  → Yandex Metrika API (OAuth с YANDEX_API_KEY из .env.local)
+```
+
+**End-to-end verification:** nginx access log на VDS показал три request типа от Anthropic IP 160.79.106.37 → 200 OK + 202 Accepted + 200 OK 15484 bytes ответ — это полный MCP handshake (initialize → notifications/initialized → tools/list).
+
+**Открытые items зарегистрированы:**
+- OAuth token rotation override — отдельный ADR ниже.
+- Build directory в fork — TD-KC-3.
+- TS2353 косметика — TD-KC-4.
+- `.env.local` permissions / source-fragility — TD-KC-1, TD-KC-2.
+- LightRAG cleanup в mcp_server.py — TD-KC-9.
+
+**Альтернативы (отвергнуты):**
+- Local Claude Desktop integration — отвергнут (Vasily не использует терминал ежедневно, Node не установлен).
+- Yandex Webmaster MCP — отложен (пока не нужен).
+
+**Последствия.** Future-Claude сессии в новых чатах могут вызывать `yandex-metrika:*` tools для запроса counter/visits/conversion data. Это разблокирует NEW-2 (главная business-задача проекта). Также open access к /etc/nginx/, /var/log/nginx/, /opt/ai-knowledge-system/ через расширенный FILESYSTEM_ROOTS — упрощает диагностику.
+
+**Source.** NEW-1 series, 2026-05-02. 6 commits: `417707b`, `fdcb6af`, `8440a83`, `8c78ffd`, NEW-1.2-B (manual), NEW-1.4 (UI).
+
+---
+
+## [2026-05-02] KC series — knowledge cleanup methodology and outcomes
+
+**Status:** Accepted. **Confidence:** high.
+
+**Контекст.** В середине NEW-1 series Vasily обратил внимание, что 8 файлов knowledge/ превышают 200-line guideline (skill `knowledge-structure` Section 6): decisions.md (5229 lines, 26× over), roadmap.md (746, 3.7×), rules.md (257, 1.3×), bugs.md (409, 2×), noscut-fixes.md (469, 2.3×), infrastructure.md (493, 2.5×), tools.md (388, 2×), deploy.md (171, within). Auto-archive triggers зафиксированные в шапках (decisions: «when file >600 lines», roadmap: «после 10 записей переносить в archive») ни разу не сработали за 6 недель.
+
+**Решение.** Запустить серию из 6 cleanup промптов (KC-1..KC-6) с разными strategies per-file. NEW-1.3 (closing batch для NEW-1) отложен до завершения KC, потом совмещён с KC-7 в этом промпте.
+
+**Применённые strategies:**
+
+| File | Strategy | Outcome |
+|---|---|---|
+| decisions.md | Split by date-cutoff (2026-04-29) | active 777 lines, archive-1 4503 lines |
+| roadmap.md | Split by date-cutoff + whitelist (v2.0 migration entry) | active 511 lines, archive-2 280 lines |
+| bugs.md | Split by status (closed → archive) | active 145 lines, archive-1 306 lines |
+| infrastructure.md | Split by domain (server vs network) | infrastructure 289 lines + networking.md 227 lines |
+| tools.md | Rename for per-tool convention | tools-auction-sheet.md 393 lines + INDEX convention section |
+| noscut-fixes.md | Full archival (completed ТЗ) | noscut-fixes-archive-1.md (read-only) |
+| rules.md | DEFERRED — TD-KC-8 | unchanged 257 lines |
+| deploy.md | Within guideline | unchanged 171 lines |
+
+**Структурные уроки:**
+
+1. **Auto-archive triggers без enforcement = декларация без эффекта.** Декларативная formula `If file grows past X lines, archive` ни разу не сработала. Решение: новое правило R-PROC-1 в rules.md фиксирует actionable trigger phrasing с конкретными числами + явным action verb.
+
+2. **AC counts требуют MCP-верификации до написания промпта.** Три раза подряд предсказанные numbers промахивались. Lesson: для AC counts использовать `wc -l` / `grep -c` через MCP до написания промпта, не prediction-style. Memory item #28 уже фиксировал похожий принцип; уточнили scope.
+
+3. **`Goal over steps` Karpathy rule работает.** В KC-1 Claude Code увидел discrepancy между моими AC counts и canonical boundary instruction, не подгонял файл под numbers, следовал boundary, в отчёте показал actual numbers. Это эталонное поведение.
+
+4. **Content Preservation в archive файлах non-negotiable.** Cross-references в decisions-archive-1.md / roadmap-archive-1.md / bugs-archive-1.md содержат refs которые на момент записи были корректными. Изменять их — нарушение Section 9 skill `knowledge-structure`. Pointer chains (active → archive через INDEX и через @note) решают navigation problem без edit'ов.
+
+5. **`git mv` обязателен для preservation истории.** В KC-5 (tools.md → tools-auction-sheet.md) и KC-6 (noscut-fixes.md → noscut-fixes-archive-1.md) использован `git mv` который git auto-detects via similarity threshold. Без этого history breaks для tooling (`git log --follow`, blame).
+
+**Альтернативы (отвергнуты):**
+- Thematic split decisions.md (по subsystems) — нарушает chronological audit trail.
+- Split rules.md по доменам — re-architecture (T3), отложен как TD-KC-8.
+- Полная сохранение всего без archive — игнорирует skill 200-line guideline и реальный access pattern (90% reads — top of file).
+
+**Последствия.** Knowledge state теперь в guideline или near-compliance. Future sessions читают шапку файла + relevant content без drowning в 5000-line files. Auto-archive triggers actionable (R-PROC-1). Created 5 archive files (decisions-archive-1, roadmap-archive-2, bugs-archive-1, networking.md как split, noscut-fixes-archive-1).
+
+**Source.** KC series, 2026-05-02. 6 commits per KC, плюс этот closing batch.
+
+---
+
+## [2026-05-02] R-PROC-1 — Knowledge auto-archive triggers must be actionable
+
+**Status:** Accepted. **Confidence:** high.
+
+**Контекст.** До KC-7 шапки knowledge файлов содержали declarative auto-archive triggers: `decisions.md` шапка («If file grows past ~600 lines, archive entries older than one year»), `roadmap.md` Recent Activity helper («После 10 записей — старые переносятся в roadmap-archive-N.md»). Эти triggers ни разу не сработали за 6 недель. Файлы продолжали расти бесконтрольно (decisions.md → 5229 lines, 8.7× over trigger). Причины: (а) trigger не имеет actionable verb — кто и как должен его проверять; (б) проверка требует counting вручную в каждой сессии; (в) метрика размытая («one year» в стабильном проекте — слишком много).
+
+**Решение — R-PROC-1 в rules.md.** Каждый knowledge файл с потенциалом неконтролируемого роста (decisions.md, roadmap.md, bugs.md) должен иметь auto-archive trigger в шапке с тремя обязательными элементами:
+
+1. **Конкретная количественная метрика** — например, "exceeds 1000 lines" или "exceeds 10 entries", не "grows large".
+2. **Явный action verb** — "run a knowledge-cleanup pass to move...", не "archive...".
+3. **Целевая граница** — что переносится (oldest entries past N-day cutoff), куда (next archive file).
+
+При следующей session start ритуале (Section 11.6 skill knowledge-structure) Claude обязан проверить @lines в шапках файлов: если превышает trigger, инициировать knowledge-cleanup перед основной работой.
+
+**Альтернативы.** Не делать R-PROC-1, надеяться на periodic self-discipline — отвергнут (исторические данные показали что не работает). Делать automated tooling (CI script) — отложен, T3 scope.
+
+**Последствия.** В шапках decisions.md, roadmap.md, bugs.md теперь есть actionable triggers («exceeds 1000 lines», «exceeds 10 entries OR 400 lines», «exceeds 250 lines»). Future-Claude обязан проверить эти триггеры на session start и trigger'нуть cleanup при превышении.
+
+**Source.** KC series methodology, 2026-05-02. R-PROC-1 в rules.md (этот коммит).
+
+---
+
+## [2026-05-02] R-OPS-1 — Rollback commands в manual ops с if-condition
+
+**Status:** Accepted. **Confidence:** high.
+
+**Контекст.** В NEW-1.2-B Шаг 5 (manual ops для nginx deploy) я выдал команды:
+
+```
+sed -i '/anchor/a\new-line' file
+grep -c "anchor" file
+grep -c "new-line" file
+# ... happy-path expectation: оба возвращают 1
+
+# Если получил 2 для второй команды — выполни откат:
+sed -i '0,/new-line/{/new-line/d;}' file
+```
+
+Vasily выполнил весь блок включая rollback команду, потому что: (а) inline rollback оформлен как обычная bash-команда (не визуально отделён); (б) если-условие в тексте перед командой ("Если получил 2") — слабый сигнал по сравнению с готовой команды; (в) copy-paste pattern на VDS — атомарный, обычно весь блок копируется разом.
+
+Результат: rollback выполнен на success'ном результате, пришлось повторить шаг.
+
+**Решение — R-OPS-1 в rules.md.** Rollback команды в manual ops инструкциях оформляются одним из трёх способов:
+
+1. **If-block с проверкой условия** (предпочтительный):
+   ```bash
+   if [ "$(grep -c 'pattern' file)" -gt 1 ]; then
+     sed -i ...rollback...
+   fi
+   ```
+2. **Отдельный визуально выделенный callout-блок** — заголовок «ROLLBACK — выполнять только если...», следующий за happy-path блоком, обёрнутый в визуальный divider.
+3. **Дополнительный manual confirmation step** — «Перед запуском rollback команды ниже подтверди условие в чат».
+
+Никогда не выдавать rollback как plain bash-команду рядом с happy-path-командой без явной защиты.
+
+**Альтернативы.** Полагаться на if-условия в тексте инструкции — отвергнут (proven fail-mode из NEW-1.2-B). Не выдавать rollback вообще — отвергнут (rollback нужен для recovery).
+
+**Последствия.** Все будущие manual ops инструкции используют один из трёх паттернов R-OPS-1. R-OPS-1 закрывает class инцидентов «Vasily случайно выполнил rollback на success».
+
+**Source.** NEW-1.2-B инцидент, 2026-05-02. R-OPS-1 в rules.md (этот коммит).
+
+---
+
+## [2026-05-02] R-OPS-2 — Manual ops .txt files без markdown bash блоков
+
+**Status:** Accepted. **Confidence:** high.
+
+**Контекст.** В первой версии NEW-1.X-pre1B (.txt manual ops инструкция для патча mcp_server.py) я выдал блок с тройными бэктиками вокруг heredoc. Vasily скопировал весь блок включая обрамляющие тройные бэктики ````bash` и `````. Bash увидел `` ` `` как command-substitution syntax, попытался выполнить кусок Python кода как shell-команды. Каскад ошибок syntax error, command not found. Heredoc остался незакрытым, terminal завис в `>` prompt waiting for `PATCH_EOF`.
+
+Pattern recognition: markdown ```bash блоки в .txt файлах опасны для copy-paste, потому что:
+1. Плейн-текст файлы не рендерят markdown — пользователь видит сырые бэктики.
+2. Копируется всё как есть, включая визуальные обрамления.
+3. Bash интерпретирует `` ` `` как command substitution syntax.
+
+**Решение — R-OPS-2 в rules.md.** Manual ops инструкции, выдаваемые через `.txt` файлы, не используют тройные бэктики ```bash вокруг shell-команд. Команды выдаются одним из трёх способов:
+
+1. **Plain text** — команда на отдельной строке без обрамления.
+2. **Heredoc inside heredoc** — `cat > /tmp/script.sh << 'EOF' ... EOF` для multi-line scripts с явным end-marker.
+3. **Repo-delivered scripts** — для сложных multi-line операций положить script в repo через Claude Code, Vasily через `git pull` + `python3 path/to/script.py` (применено в NEW-1.X-pre1B-script revision, патч-script лёг в `scripts/infra-patch-mcp-deny.py`).
+
+**Альтернативы.** Использовать markdown в .txt файлах с предупреждением — отвергнут (proven fail-mode). Использовать только plain text — слишком ограничивает structure.
+
+**Последствия.** Все будущие manual ops .txt файлы свободны от markdown bash блоков. Сложные операции delivery'ются через repo. R-OPS-2 закрывает class инцидентов «heredoc + бэктики».
+
+**Source.** NEW-1.X-pre1B первая версия инцидент, 2026-05-02. R-OPS-2 в rules.md (этот коммит).
+
+---
+
+## [2026-05-02] OAuth token rotation override (Yandex Metrika MCP)
+
+**Status:** Accepted. **Confidence:** medium-high.
+
+**Контекст.** Дважды в течение NEW-1 series Vasily случайно вставил префикс Yandex OAuth токена в чат. Префикс был визиблен в копированных команд из manual ops инструкций (один раз — в `echo $YANDEX_API_KEY` для verification, другой — в шаге load-into-shell). Полная строка токена (54 символа) НЕ утекла, только префикс ~30 символов.
+
+Стандартная security best practice — ротировать токен после любого случая утечки в untrusted channel. Однако в данном случае:
+
+1. Префикс OAuth токена (без полной длины + checksum) недостаточен для compromise — Yandex API проверяет полную строку.
+2. Чат claude.ai — encrypted in transit, retained Anthropic с access controls (не public Slack/email/etc).
+3. Ротация требует: создания нового токена в Yandex OAuth UI, обновления `.env.local` на VDS, `pm2 delete + startOrReload yandex-metrika-mcp`. ~10 минут operational time.
+4. Вся серия NEW-1 проходит через сегодняшнюю сессию; ротация в середине series создаёт extra coupling и risk.
+
+**Решение.** Override: продолжаем использовать текущий токен без ротации в рамках этой сессии. После закрытия NEW-1 (этот коммит) и в follow-up сессии — Vasily может ротировать в spare time, не как urgent. Документация ротации зафиксирована в networking.md → Yandex Metrika MCP — install steps → Token rotation.
+
+**Альтернативы.** Полная ротация немедленно — отвергнута (cost > benefit при partial leak). Игнорировать — отвергнута (всё-таки фиксируем как note в decisions.md для audit trail).
+
+**Последствия.** Текущий токен остаётся active. При future leak любой part'и токена — обязательная ротация. Rule: при copy-paste токена в чат — ротировать в течение 24 часов.
+
+**Source.** NEW-1.X-pre1B, NEW-1.4 manual ops инциденты, 2026-05-02.
+
+---
+
+## [2026-05-02] MCP-instances clarification — JCK AUTO Files и VDS Files это два инстанса одного кода
+
+**Status:** Accepted. **Confidence:** high.
+
+**Контекст.** В userMemories item #25 (до KC-7) была формулировка предполагающая, что `JCK AUTO Files` MCP и `VDS Files` MCP — два разных продукта. Vasily в этой сессии указал на неточность: это **один и тот же** `mcp_server.py` код, развёрнутый на двух разных серверах с разными настройками FILESYSTEM_ROOTS.
+
+**Архитектура (актуальная):**
+
+| MCP коннектор | Сервер | URL | FILESYSTEM_ROOTS |
+|---|---|---|---|
+| JCK AUTO Files | jckauto.ru (94.250.249.104) | https://jckauto.ru/mcp | /var/www/jckauto + /etc/nginx + /var/log/nginx + /opt/ai-knowledge-system (after pre1A) |
+| VDS Files | yurassistent.ru (другой VDS Vasily) | https://yurassistent.ru/vds-mcp/mcp | другой root, неизвестно точное значение |
+
+`mcp_server.py` файл живёт в `/opt/ai-knowledge-system/server/mcp_server.py` на jckauto.ru. На yurassistent.ru — другой инстанс того же кода (или близкий fork) в другой path. После pre1B (DENY_PATHS) изменения применились ТОЛЬКО на jckauto.ru версию; yurassistent.ru версия не затронута этой сессией.
+
+**Решение.** Memory item #25 обновлён. infrastructure.md (новый KC-4 split → networking.md PM2 secition) → mcp-gateway entry уточняет local path. networking.md → Yandex Metrika MCP install — clarifies что install procedure только для jckauto.ru.
+
+**Альтернативы.** Слить в один инстанс — не подходит (разные projects, разные FS roots). Скрыть detail — отвергнут (это foundational architecture knowledge).
+
+**Последствия.** Future-Claude чтения memory + networking.md теперь имеют точную картину. При работе над VDS Files MCP (на yurassistent.ru проекте) — разделение чёткое.
+
+**Source.** Vasily clarification mid-session, 2026-05-02. Memory item #25 updated.
 
 ## [2026-05-02] decisions.md archived — KC-1 (cleanup series)
 

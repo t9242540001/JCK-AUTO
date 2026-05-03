@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-02
-  @version:     1.54
+  @version:     1.55
   @lines:       ~310
 -->
 
@@ -17,6 +17,20 @@
 > when this section exceeds 10 entries OR roadmap.md exceeds 400 lines,
 > run a knowledge-cleanup pass to move oldest entries (older than the
 > 7-day cutoff) into roadmap-archive-N.md.
+
+### 2026-05-02 — KC + NEW-1 series CLOSED — knowledge cleanup + Yandex Metrika MCP end-to-end
+
+- **Сделано:** Параллельно закрыты две серии. **NEW-1 series** (Yandex Metrika MCP integration): atomkraft/yandex-metrika-mcp форкнут в t9242540001, supergateway оборачивает stdio→Streamable HTTP на :8765, расширены FILESYSTEM_ROOTS mcp-gateway на /etc/nginx + /var/log/nginx + /opt/ai-knowledge-system, добавлены DENY_PATHS+DENY_GLOBS в mcp_server.py для блокировки .env*/ssh-keys/etc, nginx /mcp/metrika с Anthropic-IP allow-list, Custom Connector в Claude.ai подключён. End-to-end verified: nginx access log показал Anthropic IP 160.79.106.37 → POST /mcp/metrika → 200 OK + 15484 bytes tools/list ответ. **KC series** (knowledge-cleanup, 6 prompts): decisions.md (5229→777 строк), roadmap.md (746→511), bugs.md (409→145), infrastructure.md (493→289 + networking.md как новый файл), tools.md→tools-auction-sheet.md (rename + per-tool convention в INDEX), noscut-fixes.md→noscut-fixes-archive-1.md (full archival). 8 файлов превышавших 200-line guideline сокращены до соответствия (или близко к нему) с acknowledged-overrides.
+- **Прервались на:** обе серии закрыты, knowledge state чист. | **Следующий шаг:** NEW-2 (conversion analysis с реальными данными Метрики через подключённый Custom Connector) — главная business-задача, разблокирована end-to-end Yandex Metrika integration. Альтернативно — pre2 (LightRAG cleanup из mcp_server.py — отложен как NEW-1.5).
+- **Контекст:** сессия началась с разворачивания Yandex Metrika MCP (NEW-1) и обнаружила knowledge-size кризис на середине: 8 файлов превышали 200-line guideline, decisions.md в 26× больше limit'а, auto-archive triggers (зафиксированные в шапках декларативно) ни разу не сработали за 6 недель. Решение: остановить NEW-1.3 (closing batch для NEW-1) и сначала провести full knowledge cleanup (KC-1..KC-6), потом закрыть оба разом. Этот промпт — финальный батч.
+- **Структурный урок №1 — auto-archive triggers без enforcement = декларация без эффекта.** Шапки decisions.md (`If file grows past ~600 lines, archive...`) и roadmap.md (`После 10 записей — старые переносятся...`) не сработали ни разу. Trigger проверяется только если кто-то его явно проверяет; без actionable rule с конкретными метриками — silent decay. Ввели R-PROC-1 в rules.md.
+- **Структурный урок №2 — AC counts требуют MCP-проверки до написания промпта.** Три раза подряд (KC-1: 17 vs 24 actual ADRs; KC-2: target 310 lines vs 511 actual; KC-3: `Status: Closed` pattern не существует в файле, реально `[Closed YYYY-MM-DD]` в title) мои предсказанные числа в AC промахивались на 30-70%. Урок: считать через `wc -l` / `grep -c` на VDS до написания промпта, не пытаться prediction-style.
+- **Структурный урок №3 — `Goal over steps` rule сработал безупречно в KC-1.** Claude Code увидел discrepancy в моих AC counts, не подгонял файл под мои числа, следовал canonical boundary instruction (line 749/750 by date 2026-04-29), и в отчёте честно показал actual numbers. Это правильное поведение — Karpathy rule работает.
+- **Структурный урок №4 — manual ops дисциплина.** В сессии произошли два инцидента: (1) heredoc + markdown ```bash блоки в .txt инструкциях → bash syntax errors, исправлено через delivery patch script через repo (NEW-1.X-pre1B-script). (2) Inline rollback команда без if-condition в NEW-1.2-B Шаг 5 → Vasily случайно выполнил rollback при success'ном результате. Оба урока зафиксированы как R-OPS-1, R-OPS-2 в rules.md.
+- **Структурный урок №5 — два инстанса MCP-кода.** Memory inaccuracy обнаружена: `JCK AUTO Files` MCP и `VDS Files` MCP — это **один и тот же** `mcp_server.py` код, развёрнутый на двух разных серверах (jckauto.ru с FILESYSTEM_ROOTS=/var/www/jckauto/...; yurassistent.ru с другим FILESYSTEM_ROOTS). Это не два разных продукта. Исправлено в memory item #25.
+- **Структурный урок №6 — OAuth токен hygiene.** Дважды в сессии Vasily случайно вставил префикс Yandex OAuth токена в чат (копируя примеры команд с реальными значениями). Override решение: продолжаем без ротации (audit показал что префикс одного токена недостаточен для compromise; полная строка не утекла). Зафиксировано в decisions.md ADR.
+- **Численные итоги.** decisions.md: 5229→777 (-85%). roadmap.md: 746→511 (-31%). bugs.md: 409→145 (-65%). infrastructure.md: 493→289 (-41%). tools.md→tools-auction-sheet.md (rename). noscut-fixes.md→noscut-fixes-archive-1.md (rename). Создано 5 новых файлов: decisions-archive-1.md, roadmap-archive-2.md, bugs-archive-1.md, networking.md, noscut-fixes-archive-1.md (последние два — переименования с архивированием). Yandex Metrika MCP: 1 новый PM2 entry, 1 новый nginx snippet, 1 patch script для mcp_server.py, 1 Custom Connector в Claude.ai, end-to-end pipeline проверен.
+- **Ссылки:** этот коммит. NEW-1 commits: `417707b` (NEW-1.1), `fdcb6af` (pre1A), `8440a83` (pre1B script), `8c78ffd` (NEW-1.2-A nginx). KC commits: `6b4e8a8` (KC-1), `dc47036` (KC-2), `40e168a` (KC-3), `141f651` (KC-4), `5b73b19` (KC-5), `7e6c39f` (KC-6), этот (KC-7). Связанные ADR в decisions.md (этим коммитом добавлены): NEW-1 series final summary, KC series methodology, R-PROC-1 rule registration, R-OPS-1/R-OPS-2 rules, OAuth rotation override, MCP-instances clarification.
 
 ### 2026-05-02 — KC-2: roadmap.md split into active + archive-2
 
@@ -243,6 +257,8 @@
 
 ## Done
 
+- [x] **2026-05-02 — KC series CLOSED (6/6 — knowledge cleanup).** decisions.md, roadmap.md, bugs.md split (active + archive); infrastructure.md split into infrastructure + networking; tools.md → tools-auction-sheet.md rename + per-tool convention; noscut-fixes.md → noscut-fixes-archive-1.md (completed ТЗ archived). 8 files over 200-line guideline brought into compliance or near-compliance with acknowledged overrides. New rule R-PROC-1 in rules.md enforces actionable auto-archive triggers (replaces declarative ones that never fired). См. ADR `[2026-05-02] KC series — knowledge cleanup methodology and outcomes`.
+- [x] **2026-05-02 — NEW-1 series CLOSED (6/6 — Yandex Metrika MCP end-to-end).** NEW-1.1 PM2 entry yandex-metrika-mcp + supergateway, NEW-1.X-pre1A FILESYSTEM_ROOTS extended, NEW-1.X-pre1B DENY_PATHS in mcp_server.py, NEW-1.2 nginx /mcp/metrika snippet + deploy, NEW-1.4 Custom Connector в Claude.ai. End-to-end verified via nginx access log: Anthropic Custom Connector POST /mcp/metrika → 200 OK + 15484 bytes tools/list. Future-Claude теперь имеет read-доступ к Yandex Metrika data jckauto.ru через `yandex-metrika:*` tools. См. ADR `[2026-05-02] NEW-1 series — final summary` и связанные ADR.
 - [x] **2026-05-02 — CAT-* series CLOSED (4/4: 2 implemented, 1 verified-no-change, 1 deferred to Strategic initiative).** CAT-1a (motion deadcode, commit `29df1ed`), CAT-1b (BreadcrumbList JSON-LD, commit `227d16c`), CAT-3 (hover audit verified-no-change), CAT-2 (ItemList JSON-LD deferred as Strategic initiative #5). См. ADR `[2026-05-02] CAT-* series — final summary`.
 - [x] **2026-05-02 — CAT-3 closed (verified, no code change).** Hover effects на category cards и country tabs /catalog проверены: border-color transitions без CLS-риска, Tailwind 4 hover variant gates на touch-устройствах. Browser-first diagnostic 412px: overflow=0, Console clean. См. ADR `[2026-05-02] CAT-3 — hover effects audit на /catalog (verified, no change needed)`.
 - [x] **2026-05-02 — CAT-1b closed.** BreadcrumbList JSON-LD added on /catalog (2-level: Главная → Каталог). Same pattern as TS-5 and CD-4, applied with surgical scope to `src/app/catalog/page.tsx` (one const + one `<script>` element). Existing metadata, dynamic export, и body — байт-в-байт. Page-by-page BreadcrumbList покрытие main entry pages: 4/4. См. ADR `[2026-05-02] CAT-1b — BreadcrumbList JSON-LD на /catalog`.
@@ -424,6 +440,16 @@
 **Возможное решение:** один T2 промпт-пакет на все 7 пунктов после получения данных по power-unit и составления drivetrain-enum mapping table.
 
 **Стоимость отсрочки:** низкая. Открывать когда: будет связанная задача в car detail page, или появится систематическая работа по design tokens, или Lighthouse SEO score < 95.
+
+- **TD-KC-1** — `.env.local` file permissions = 644 (стандарт Linux), should be 600 для secrets. Trigger: при следующем cleanup-pass на VDS — `chmod 600 /var/www/jckauto/app/jck-auto/.env.local`.
+- **TD-KC-2** — `set -a; source .env.local` падает с `service_account,: command not found` на JSON значениях с запятыми (Google service account key). Workaround: для multi-line JSON значений — `export VAR="$(cat -)"` или per-key load. Не блокирует, но нужен явный workaround в documentation.
+- **TD-KC-3** — `build/` директория закоммичена в fork atomkraft/yandex-metrika-mcp. Pre-compiled JS в repo — не идиоматично, нужен `.gitignore` + CI build step. При update fork с upstream — может конфликтовать.
+- **TD-KC-4** — `transports: ['stdio']` в atomkraft wrangler.toml даёт TS2353 косметическую ошибку (runtime игнорирует). Если apply'им upstream patches — придётся либо игнорировать TypeScript errors, либо исправлять в fork. Сейчас `tsc --noEmit` на этой codebase не запускается в CI.
+- **TD-KC-5** — `vds-files-mcp/server.py` (legacy название старого MCP сервера на yurassistent.ru) подлежит миграции в IaC-1 (когда созреет). Сейчас manually-deployed без version-control.
+- **TD-KC-6** — Сейчас 2 «infra-» файла в `scripts/` (`infra-patch-mcp-deny.py`, `infra-mcp-yandex-metrika.conf`). При появлении 3-го — выделить в отдельную директорию (`infra/` или `scripts/infra/`). Это начало IaC-1 миграции.
+- **TD-KC-7** — `/root/.pm2/logs` не в FILESYSTEM_ROOTS mcp-gateway, поэтому pm2-логи не читаются через JCK AUTO Files MCP. При диагностике приходится использовать SSH или просить Vasily копировать логи. Решение — добавить `/root/.pm2/logs` в FILESYSTEM_ROOTS (отдельный T1 промпт).
+- **TD-KC-8** — `rules.md` split по доменам отложен (deferred from KC-4 master plan). File 257 lines, 28% over guideline, но 14 H2-секций с domain-system (R-FE-*, R-PROC-*, R-OPS-*) делают split нетривиальным — это re-architecture (T3), не date-based archive (T2). Trigger: при превышении 400 lines или domain-confusion ошибках.
+- **TD-KC-9** — LightRAG cleanup в mcp_server.py (NEW-1.5 / pre2) отложен. Hybrid-код (filesystem + LightRAG tools) сейчас работает корректно — LightRAG calls просто возвращают ConnectError на :9621, MCP-клиент это переживает. Но deprecated код в server-файле — code smell. Trigger: при следующем major refactor mcp_server.py или если ConnectError начинает confuses Anthropic Custom Connectors.
 
 ## Strategic initiatives
 

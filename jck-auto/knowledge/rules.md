@@ -2,8 +2,8 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-04-29
-  @version:     1.31
+  @updated:     2026-05-02
+  @version:     1.32
   @lines:       257
 -->
 
@@ -123,6 +123,65 @@
 | Mid-series bug fixes MUST use `@fix YYYY-MM-DD` code marker above the fixed line in the format: `// @fix YYYY-MM-DD: was <old>, correct <new>. <Why/context>. Discovered during <prompt>. ADR pending in <series finalization prompt>.` Marker lives in code permanently | Any file with mid-series bug fix; first precedent: `src/bot/lib/inlineKeyboards.ts` above `noscutResultButtons()` URL line (2026-04-23); ADR `[2026-04-23] Series 2.4 complete` | Without `@fix` marker, the future reader of the code sees an unexplained value and may "clean it up" to what seems canonical, re-introducing the bug. Marker also enables `grep -rn "@fix" src/` for archaeology. bugs.md is NOT used for same-commit fixes — discipline lives in the code + commit + ADR |
 | Files under active series transformation MUST carry `@series N.M (prompt N.M.K) — <description>` marker in their JSDoc header, immediately after `@lastModified`. Forward-only: prior-migrated files are NOT back-filled. Marker is REMOVED in the series finalization prompt | Handler files in `src/bot/handlers/**` during Series 2.4; first use: `src/bot/handlers/noscut.ts` (2.4.6, removed in 2.4.7); ADR `[2026-04-23] Series 2.4 complete` | Marker provides inline context for "why is this file being touched outside a standalone bug fix". If not removed in finalization, lifetime contract is broken and future readers see stale "work in progress" annotations on closed work. Forward-only: back-filling misrepresents closed work as in-progress |
 | Prompt-based commits MUST follow Conventional Commits format: subject ≤72 chars + blank line + body. Compound commits (primary action + secondary changes) MUST detail all changes in body, not just subject. Trailing "Series N.M progress: X/Y" line recommended for series work | Every commit produced by a Claude Code prompt; first structured example: commit `cba938b` (2.4.6); ADR `[2026-04-23] Series 2.4 complete` | Short subjects are scan-friendly in `git log --oneline`. Body captures archaeological context unavailable elsewhere — compound commits with only subject text lose half their content to future archaeology (e.g. `git bisect` on a subject saying "refactor" will not reveal an embedded bug fix). Body is the only permanent record not subject to knowledge file churn |
+
+## Knowledge & Operations Discipline
+
+### R-PROC-1 — Knowledge auto-archive triggers must be actionable
+
+**Rule.** Every knowledge file with growth potential (decisions.md, roadmap.md, bugs.md, или future similar logs) MUST contain an auto-archive trigger в `@note` шапки файла with three mandatory elements:
+
+1. **Concrete quantitative metric** — "exceeds N lines" or "exceeds N entries", not vague phrasing like "grows large" or "becomes too long".
+2. **Explicit action verb** — "run a knowledge-cleanup pass to move...", not declarative "archive...".
+3. **Target boundary** — what gets moved (oldest entries past N-day cutoff), where to (next archive file with explicit name pattern).
+
+**Example (good):**
+```
+@note: Auto-archive trigger: when this file exceeds 1000 lines, run a
+       knowledge-cleanup pass to move oldest entries past a 30-day
+       cutoff into the next archive file (decisions-archive-N.md).
+```
+
+**Example (bad — fails R-PROC-1):**
+```
+@note: Если файл вырастет — архивировать старые записи.
+```
+
+**Enforcement.** На session start (Section 11.6 skill knowledge-structure) Claude проверяет `@lines` и `@note` шапок knowledge файлов. Если value `@lines` > trigger в `@note`, инициирует knowledge-cleanup pass перед основной работой.
+
+**Origin.** ADR `[2026-05-02] R-PROC-1 — Knowledge auto-archive triggers must be actionable`. Closes class инцидентов где declarative triggers не срабатывали (decisions.md grew to 5229 lines despite шапки trigger >600).
+
+---
+
+### R-OPS-1 — Rollback commands в manual ops с явной защитой
+
+**Rule.** Rollback команды в `.txt` manual ops инструкциях оформляются одним из трёх способов; никогда не выдаются как plain bash-команда рядом с happy-path:
+
+1. **If-block с проверкой условия:**
+   ```bash
+   if [ "$(grep -c 'pattern' file)" -gt 1 ]; then
+     sed -i ...rollback...
+   fi
+   ```
+
+2. **Визуально отделённый callout-блок** — отдельный заголовок «ROLLBACK — выполнять только если [условие]», ясно отделённый от happy-path блока (например, через --- divider или явный numbered шаг "Если Шаг N упал — выполни:").
+
+3. **Дополнительный manual confirmation** — текст инструкции просит пользователя подтвердить условие в чат до запуска rollback.
+
+**Origin.** ADR `[2026-05-02] R-OPS-1 — Rollback commands в manual ops с if-condition`. Closes инцидент NEW-1.2-B где Vasily случайно выполнил rollback на success'ном результате.
+
+---
+
+### R-OPS-2 — Manual ops .txt без markdown bash блоков
+
+**Rule.** Файлы manual ops инструкций (`.txt` через `present_files` tool) не используют тройные бэктики ```bash вокруг shell команд. Bash interpreter рассматривает `` ` `` как command-substitution syntax, и copy-paste markdown blocks → каскад syntax errors.
+
+Принимаемые формы:
+
+1. **Plain text** — команда на отдельной строке без обрамления.
+2. **Heredoc** — `cat > /tmp/file << 'EOF' ... EOF` для multi-line scripts (heredoc сам по себе не проблема — проблема только обрамляющие markdown бэктики).
+3. **Repo-delivered scripts** — для сложных multi-line операций положить script в repo через Claude Code, Vasily через `git pull` + `python3 path/to/script.py`. Эта практика применена в NEW-1.X-pre1B (script lives at `scripts/infra-patch-mcp-deny.py`).
+
+**Origin.** ADR `[2026-05-02] R-OPS-2 — Manual ops .txt files без markdown bash блоков`. Closes инцидент NEW-1.X-pre1B первой версии где markdown ```bash вокруг heredoc → bash syntax errors → terminal frozen в незакрытом heredoc.
 
 ## UI Component Rules
 
