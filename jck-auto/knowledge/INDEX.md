@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-05-02
-  @version:     2.08
+  @version:     2.09
   @lines:       55
 -->
 
@@ -39,7 +39,7 @@
 | [telegram-bot.md](telegram-bot.md) | Bot commands, admin IDs, config, limitations, restart commands, bidirectional Worker webhook architecture, correct setWebhook via Worker URL, 401 silent-failure symptom, diagnostic commands, `node_modules/.bin/tsx` startup rationale | 2026-04-10 |
 | [noscut-spec.md](noscut-spec.md) | ТЗ ноускаты: бизнес-логика, структуры данных, URL, компоненты, форма захвата | 2026-04-09 |
 | [noscut-plan.md](noscut-plan.md) | ТЗ ноускаты: этапы реализации, список файлов, порядок промптов | 2026-04-08 |
-| [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
+| [noscut-fixes-archive-1.md](noscut-fixes-archive-1.md) | Archive of completed post-launch ТЗ for /catalog/noscut — 20 issues, 12-prompt plan (all closed 2026-04-28). Read-only reference, NOT read at session start by default | 2026-05-02 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
 | [tools-auction-sheet.md](tools-auction-sheet.md) | Auction Sheet Analyzer API — async-only contract (POST 202 + job polling), Pass 0 classifier + multi-pass OCR (3 passes) + DeepSeek Step 2 parse, DashScope fallback chain, rate limiting (3 anon lifetime / 10 daily auth), nginx per-endpoint timeouts (200s / 15MB body), HEIC support, diagnostic curl | 2026-05-02 |
 | [bugs.md](bugs.md) | Open / verify-status / won't-fix bugs — site and bot. Closed entries → bugs-archive-1.md. Auto-archive trigger at 250 lines. | 2026-05-02 |

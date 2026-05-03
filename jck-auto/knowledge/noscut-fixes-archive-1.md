@@ -1,9 +1,18 @@
 <!--
-  @file:        knowledge/noscut-fixes.md
+  @file:        knowledge/noscut-fixes-archive-1.md
   @project:     JCK AUTO
-  @description: Post-launch fixes: 20 issues across UX, SEO, security, content — 12 prompts plan
-  @updated:     2026-04-09
-  @version:     1.0
+  @description: Archive of completed post-launch ТЗ for /catalog/noscut — 20 issues across UX, SEO, security, content (12-prompt plan, all closed 2026-04-28)
+  @updated:     2026-05-02
+  @version:     1.0 (archived)
+  @lines:       ~470
+  @note:        Read-only archive. NOT read at session start by default. Open
+                only when investigating noscut section's post-launch
+                evolution, or when reusing the 4-axis audit methodology
+                (target-audience + code + AI prompts + SEO) for similar
+                post-launch passes on other sections. All 12 implementation
+                prompts closed 2026-04-28 — see roadmap.md Done bullets and
+                ADR [2026-04-28] noscut-fix. Renamed from noscut-fixes.md
+                in KC-6 (knowledge-cleanup series, 2026-05-02).
 -->
 
 # ТЗ: Исправления раздела ноускатов
