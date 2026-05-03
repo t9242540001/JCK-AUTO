@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-05-02
-  @version:     2.05
-  @lines:       53
+  @version:     2.06
+  @lines:       54
 -->
 
 # Knowledge Base — JCK AUTO
@@ -41,7 +41,8 @@
 | [noscut-fixes.md](noscut-fixes.md) | Post-launch fixes: 20 issues — UX, SEO, security, content. All 12 prompts completed | 2026-04-09 |
 | [tg-integration-plan.md](tg-integration-plan.md) | Telegram Login Widget, bot rate limiting, new bot commands — step-by-step implementation plan | 2026-04-10 |
 | [tools.md](tools.md) | /tools/* API endpoints: auction-sheet async-only contract (POST 202 + job polling), pipeline (Pass 0 classifier + 3 parallel OCR + DeepSeek Step 2 180s/2 retries), Sharp compression, nginx per-endpoint 200s/15MB, rate limiting, diagnostics + job status endpoint + stats endpoint, parse schema extended (10 new fields including VIN), client-side types/helpers modularization in progress, UploadZone extracted, ProcessingViews extracted + 429 body extended, ErrorView extracted (С-7 closed), ResultView extracted with new fields UI, series complete | 2026-04-18 |
-| [bugs.md](bugs.md) | Open bugs tracker — Б-11 closed (mcp-gateway FILESYSTEM_ROOTS env loss after `pm2 delete all` — fixed by ecosystem.config.js declarative env), Б-9 closed (user store race on bot restart), С-1 closed, С-5 user-impact closed (moved to Verify), С-6 closed (cross-tab session leak fixed), С-4 closed (/api/lead hardened), С-3 closed (on-primary CTA variant), Б-1 closed (Cloudflare Smart Placement), Б-2 and Б-3 closed (side-effect of Smart Placement), С-2 open, Б-4, Б-5, Б-6, Б-7, Б-8 open, С-8 open (encar handler timeout), Б-12 closed (articles not publishing since 2026-04-08 — DashScope text-generation timeouts from VDS; fixed by migrating topicGenerator + generator to DeepSeek), Б-13 closed (stale jckauto-bot process survived startOrReload for 13h — pm2 delete required for any ecosystem.config.js field change). Middleware-manifest restart loop (Б-7), Capture workflow verification (Б-8) pending. Б-новый-B closed (series 6/6 — bot leads now carry tool-context source via pendingSource). Б-новый-A closed (series 6/6 — bot menu redesign + BotFather command list synced from code). | 2026-04-27 |
+| [bugs.md](bugs.md) | Open / verify-status / won't-fix bugs — site and bot. Closed entries → bugs-archive-1.md. Auto-archive trigger at 250 lines. | 2026-05-02 |
+| [bugs-archive-1.md](bugs-archive-1.md) | Archive 1 of bugs.md — 11 closed bug entries (С-1, С-2, С-8, Б-4, Б-6, Б-9, Б-11, Б-12, Б-13, Б-14, Б-15). Read-only reference, NOT read at session start by default | 2026-05-02 |
 
 ## Quick Links
 
