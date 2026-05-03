@@ -15,7 +15,7 @@
 > Hypotheses listed only when diagnosis requires choosing between alternatives.
 > Auto-archive trigger: when this file exceeds 250 lines, run a knowledge-cleanup
 > pass to move closed entries into the next archive file.
-> Related: roadmap.md (high-level status), telegram-bot.md (bot architecture), tools.md.
+> Related: roadmap.md (high-level status), telegram-bot.md (bot architecture), tools-auction-sheet.md.
 
 ## Critical (visible to all users, blocks core flows)
 
