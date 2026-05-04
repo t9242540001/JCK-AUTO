@@ -2,8 +2,8 @@
   @file:        knowledge/roadmap.md
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
-  @updated:     2026-05-02
-  @version:     1.55
+  @updated:     2026-05-04
+  @version:     1.56
   @lines:       ~310
 -->
 
@@ -17,6 +17,10 @@
 > when this section exceeds 10 entries OR roadmap.md exceeds 400 lines,
 > run a knowledge-cleanup pass to move oldest entries (older than the
 > 7-day cutoff) into roadmap-archive-N.md.
+
+### 2026-05-04 — CRIT-1 closed — /api/lead rate limit isolation + site audit log
+
+- **CRIT-1 (closed 2026-05-04).** Removed lifetime-3 tools rate-limiter from /api/lead, added route-local 5/15min sliding window, added site-side audit log at `${STORAGE_PATH}/leads/site-leads.log`. Closes the 7-day zero-leads incident (2026-04-27 to 2026-05-04). See ADR `[2026-05-04] CRIT-1`.
 
 ### 2026-05-02 — KC + NEW-1 series CLOSED — knowledge cleanup + Yandex Metrika MCP end-to-end
 
