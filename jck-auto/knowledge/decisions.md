@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — active section, append-only
   @updated:     2026-05-04
-  @version:     1.85
+  @version:     1.86
   @lines:       ~770
   @note:        Active section: 16 ADRs from 2026-04-29 onward.
                 Older entries (81 ADRs from 2026-01..2026-04-28) → see
@@ -149,6 +149,40 @@ This was the trigger; the deeper problem is that cron schedule has been living o
 - Files in `/etc/cron.d/`: rejected. Different format (extra user field), not aligned with current crontab style. Migration would be a separate decision.
 - systemd timers: rejected. Larger refactor, no current pain that timers solve. Cron + committed file covers our needs.
 - Wrapping cron entries in a higher-level scheduler (PM2 cron, node-cron in-process): rejected. Decouples scheduling from process supervision; system cron is the right level for "fire script at time X".
+
+## [2026-05-04] SALES-PERSIST-1 — Client-side localStorage persistence of every lead submit
+
+**Status:** Accepted
+**Confidence:** High
+
+**Context.** CRIT-1 (audit log on /api/lead) catches every lead that reaches the server. It does not catch leads where the fetch fails BEFORE reaching the server: DNS resolution failure on the client device, browser-side request cancellation, tab closed mid-submit, complete network drop on bad mobile connection. In those cases the lead is lost without trace and the user gets generic browser error UI (or just the form sitting frozen).
+
+We need a client-side safety net. Persisting the form snapshot to `localStorage` BEFORE the fetch call ensures the data exists on the user's device even if the network call never completes. This is internal recovery infrastructure: when a user contacts us via support saying "I tried to submit but nothing happened," we ask them to open DevTools → Application → Local Storage → jckauto.ru, find the entry, and forward the JSON. We have the full form data, no retyping needed.
+
+**Decision.**
+1. Add `src/lib/leadPersistence.ts` — pure functions, no React hooks, SSR-safe via `typeof window` guard. Two public functions: `saveBeforeSend(snapshot) → id`, `markConfirmed(id)`.
+2. Wire both `LeadForm.tsx` and `LeadFormModal.tsx`: `saveBeforeSend` runs immediately before the existing `fetch('/api/lead', ...)` call; `markConfirmed` runs on HTTP 2xx response.
+3. Persistence is **indefinite** — no TTL, no auto-cleanup. Storage cost is ~300 bytes per lead. Typical users submit 1-3 leads in their entire history. Far under the 5MB localStorage quota. Quota-exceeded errors are caught and swallowed; the fetch still happens.
+4. **NO UI changes.** No banners, no retries, no user-visible state. Vasily's principle (2026-05-04): "Don't pursue the user. We'll contact them ourselves if their data was saved."
+5. Storage key: `jckauto:leads`. Value: array of PersistedLead objects. Each object: `{ id, timestamp, status: 'unconfirmed' | 'confirmed', data, url, userAgent }`.
+
+**Tradeoffs considered.**
+- Auto-retry of unconfirmed entries: rejected. Vasily explicitly chose minimal complexity. Server-side recovery via support is sufficient for current scale.
+- TTL on entries: rejected for leads (storage cost is negligible). Server-side PM2 logs already have 90-day retention (INFRA-1).
+- Single shared file vs. one entry per key: chose single shared array key. Simpler reads, atomic writes.
+- IndexedDB instead of localStorage: rejected. Sync API of localStorage matches the use case (form submit is small synchronous data); IndexedDB adds async complexity for no benefit at this scale.
+- Server-side endpoint that picks up unconfirmed entries on next visit: deferred. This becomes valuable when we have a sales pipeline tool to auto-route lost leads. Today that infrastructure does not exist; client-only persistence + support-driven recovery is enough.
+
+**Consequences.**
+- Lost-lead recovery rate improves from 0% to ~80% (assumes user contacts support and follows DevTools instructions). For users who don't contact support, lead is still lost — but at least the data exists somewhere.
+- New constraint: every future lead-form component MUST follow the same `saveBeforeSend → fetch → markConfirmed` pattern. Codified as Site Lead Route Rule.
+- localStorage data is plaintext PII (phone, name, message). Acceptable: the user's own data on the user's own device. No new attack surface.
+- Privacy Policy `/privacy` page should mention localStorage usage. Out of scope for this prompt — separate housekeeping prompt.
+
+**Alternatives rejected.**
+- Service Worker offline queue: rejected. Solves the same problem with much higher complexity (SW lifecycle, registration, update flow) and broader scope (would handle other resources). Not warranted by current pain.
+- Server-side queue with client polling for delivery confirmation: rejected. Adds server complexity and operational surface for marginal benefit.
+- Email fallback (mailto: link if fetch fails): rejected. Mobile users almost never have a configured native mail client; fallback would frustrate more users than it saves.
 
 ## [2026-05-02] NEW-1 series — final summary (Yandex Metrika MCP integration end-to-end)
 

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-05-04
-  @version:     1.36
-  @lines:       268
+  @version:     1.37
+  @lines:       295
 -->
 
 # Critical Rules
@@ -73,6 +73,7 @@
 | Every site lead MUST be persisted via `appendSiteLeadLog()` to `${STORAGE_PATH}/leads/site-leads.log` BEFORE the Telegram fetch — by analogy with bot's `appendLeadLog` | `src/app/api/lead/route.ts`; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | Without pre-send audit log, Telegram delivery failures (rate-limit, network, deleted group) lose leads silently. Site-leads.log is the single source of truth for "this lead existed", independent of Telegram outcome. Two log lines per successful lead by design — pre-send (`telegramDelivered: false`) and post-send (`telegramDelivered: true`) |
 | `/api/lead` route-local rate limiter relies on PM2 `instances: 1` for the `jckauto` process — Map state is per-process | `src/app/api/lead/route.ts`; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | If `jckauto` is ever scaled to multi-instance, in-memory Map fragments and rate limit becomes per-instance (ineffective). Migrate to shared store (Redis or file lock) before scaling |
 | `/api/lead` Telegram fetch MUST retry ONCE on AbortError or network error (per-attempt timeout 6s, backoff 800ms). Do NOT retry on HTTP-level failure (4xx/5xx) — only on transport-level | `src/app/api/lead/route.ts` `sendTelegramOnce()` + retry block; ADR `[2026-05-04] SALES-CRIT-2 — fetch retry for Worker flakiness` | Cloudflare Worker `tg-proxy` empirically shows 20% timeout rate (5-curl test 2026-05-04 from VDS). Without retry, ~1 in 5 leads returns 500 to user. Retry drops effective failure rate to ~4%. HTTP-level failures are real errors, not flakiness — retrying them masks bugs |
+| Every client-side lead submit MUST call `saveBeforeSend()` from `@/lib/leadPersistence` BEFORE `fetch('/api/lead')`. On HTTP 2xx response, MUST call `markConfirmed(id)`. NO UI changes — this is internal recovery infrastructure, not a user feature | `src/components/LeadForm.tsx`, `src/components/LeadFormModal.tsx`, `src/lib/leadPersistence.ts`; ADR `[2026-05-04] SALES-PERSIST-1` | Server-side audit log (CRIT-1) does not catch leads where fetch fails on the client side BEFORE reaching the server (DNS, tab close, network drop, browser cancellation). Client-side localStorage is the last-mile safety net for support-driven recovery: user contacts support, opens DevTools, finds the entry, forwards JSON to us |
 
 ## Code Standards
 
@@ -193,6 +194,27 @@
 3. **Repo-delivered scripts** — для сложных multi-line операций положить script в repo через Claude Code, Vasily через `git pull` + `python3 path/to/script.py`. Эта практика применена в NEW-1.X-pre1B (script lives at `scripts/infra-patch-mcp-deny.py`).
 
 **Origin.** ADR `[2026-05-02] R-OPS-2 — Manual ops .txt files без markdown bash блоков`. Closes инцидент NEW-1.X-pre1B первой версии где markdown ```bash вокруг heredoc → bash syntax errors → terminal frozen в незакрытом heredoc.
+
+---
+
+### R-OPS-3 — Chat-rendered text MUST NOT be trusted for file content verification
+
+**Rule.** Outputs traveling through chat interfaces (claude.ai chat, Telegram, Slack, etc.) may have file paths auto-converted to markdown links — e.g. `cleanup-pm2-logs.sh` becomes `[cleanup-pm2-logs.sh](http://cleanup-pm2-logs.sh)`, and that artifact may further nest as `[[cleanup-pm2-logs.sh](http://cleanup-pm2-logs.sh)](http://cleanup-pm2-logs.sh)` on copy-paste. NEVER trust chat-rendered text for verifying file content, crontab entries, or shell commands.
+
+To verify file content unambiguously, use one of:
+
+1. **`od -c file`** or **`xxd file`** — byte-level dump shows exactly what is on disk, no rendering layer.
+2. **`wc -c file`** + **`wc -l file`** — character count + line count are objective.
+3. **MCP `fs_read_file`** — returns raw file content, no chat formatting.
+
+Manual ops involving file paths MUST use one of:
+
+1. **Committed scripts** — one-command form: `bash scripts/foo.sh`. The script body is in git, immune to copy-paste corruption.
+2. **`cat << 'EOF'` heredoc** — single-quoted EOF marker disables shell expansion; markdown auto-links of `.sh`/`.ts`/etc. extensions never reach the running shell.
+
+NEVER paste inline shell commands containing file paths from chat directly into a `crontab -e` editor or interactive shell.
+
+**Origin.** Crontab markdown-injection incident 2026-05-04 (INFRA-1.5): chat copy-paste injected `[[cleanup-pm2-logs.sh](http://cleanup-pm2-logs.sh)](http://cleanup-pm2-logs.sh)` into a real cron entry, then the same artifact appeared in subsequent verification output, masking that the underlying file was actually clean. Root cause: chat clients auto-link `.sh`/`.ts`/etc. file extensions. Cost: ~30 minutes of misdiagnosis before `od -c` and `wc -c` revealed the truth. Closes class of incidents where rendered output disguises actual file state.
 
 ## UI Component Rules
 
