@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JCK AUTO — root crontab
+#
+# This file is the committed source of truth for cron jobs on the JCK AUTO VDS.
+# Apply with: bash scripts/install-crontab.sh
+# Edit via git, never `crontab -e` on VDS. ADR [2026-05-04] INFRA-1.5.
+#
+# Format: minute hour day month weekday command
+# Times are in VDS local time (Asia/Vladivostok, GMT+10).
+# Reminder: 07:00 MSK = 14:00 Vladivostok; 09:00 MSK = 16:00 Vladivostok.
+# (Existing entries below preserve their MSK-vs-Vladivostok semantics from
+# the original 2026-05-04 inventory — interpret minute/hour fields literally
+# as VDS local time. Comments labelled "07:00 MSK" mean 07:00 MSK at the
+# time the entry was authored; if the schedule needs migration to absolute
+# Vladivostok hours, that is a separate prompt.)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# JCK AUTO — новости ежедневно 07:00 МСК
+0 7 * * * cd /var/www/jckauto/app/jck-auto && NEWS_CRON_ENABLED=true /usr/bin/npx tsx -r dotenv/config scripts/generate-news.ts dotenv_config_path=.env.local >> /var/log/jckauto-news.log 2>&1
+
+# JCK AUTO — статьи каждые 3 дня 09:00 МСК
+0 9 */3 * * cd /var/www/jckauto/app/jck-auto && ARTICLES_CRON_ENABLED=true /usr/bin/npx tsx -r dotenv/config scripts/generate-article.ts dotenv_config_path=.env.local >> /var/log/jckauto-articles.log 2>&1
+
+# JCK AUTO — обновление цен ноускатов еженедельно (воскресенье 07:00)
+0 7 * * 0 cd /var/www/jckauto/app/jck-auto && /usr/bin/npx tsx -r dotenv/config scripts/update-noscut-prices.ts dotenv_config_path=.env.local >> /var/log/jckauto-noscut-prices.log 2>&1
+
+# JCK AUTO — INFRA-1: cleanup PM2 logs older than 90 days, quarterly (1st of Jan/Apr/Jul/Oct, 03:30)
+30 3 1 1,4,7,10 * /var/www/jckauto/app/jck-auto/scripts/cleanup-pm2-logs.sh >> /var/log/pm2-cleanup.log 2>&1
