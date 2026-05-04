@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-05-04
-  @version:     1.37
+  @version:     1.38
   @lines:       295
 -->
 
@@ -74,6 +74,7 @@
 | `/api/lead` route-local rate limiter relies on PM2 `instances: 1` for the `jckauto` process — Map state is per-process | `src/app/api/lead/route.ts`; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | If `jckauto` is ever scaled to multi-instance, in-memory Map fragments and rate limit becomes per-instance (ineffective). Migrate to shared store (Redis or file lock) before scaling |
 | `/api/lead` Telegram fetch MUST retry ONCE on AbortError or network error (per-attempt timeout 6s, backoff 800ms). Do NOT retry on HTTP-level failure (4xx/5xx) — only on transport-level | `src/app/api/lead/route.ts` `sendTelegramOnce()` + retry block; ADR `[2026-05-04] SALES-CRIT-2 — fetch retry for Worker flakiness` | Cloudflare Worker `tg-proxy` empirically shows 20% timeout rate (5-curl test 2026-05-04 from VDS). Without retry, ~1 in 5 leads returns 500 to user. Retry drops effective failure rate to ~4%. HTTP-level failures are real errors, not flakiness — retrying them masks bugs |
 | Every client-side lead submit MUST call `saveBeforeSend()` from `@/lib/leadPersistence` BEFORE `fetch('/api/lead')`. On HTTP 2xx response, MUST call `markConfirmed(id)`. NO UI changes — this is internal recovery infrastructure, not a user feature | `src/components/LeadForm.tsx`, `src/components/LeadFormModal.tsx`, `src/lib/leadPersistence.ts`; ADR `[2026-05-04] SALES-PERSIST-1` | Server-side audit log (CRIT-1) does not catch leads where fetch fails on the client side BEFORE reaching the server (DNS, tab close, network drop, browser cancellation). Client-side localStorage is the last-mile safety net for support-driven recovery: user contacts support, opens DevTools, finds the entry, forwards JSON to us |
+| New `<LeadForm>` callers MUST pass a stable `source="<surface-label>"` prop (e.g. "calculator", "noscut-card", "catalog-car-detail"). Legacy fallback `source ?? subject ?? "LeadForm"` exists for backward compatibility but is deprecated for new callers — relying on it collapses source into subject and breaks conversion attribution in site-leads.log | `src/components/LeadForm.tsx`; ADR `[2026-05-04] UNIFY-1` | Without stable source, `grep '"source":"<surface>"' site-leads.log` does not work — analytics on which page generated the lead become impossible. The TD-LEAD-1 audit revealed that ALL pre-UNIFY-1 callers collapse source=subject, making historical attribution data unrecoverable |
 
 ## Code Standards
 

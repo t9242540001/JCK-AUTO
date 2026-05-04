@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Registry of all knowledge files with descriptions and dates
   @updated:     2026-05-04
-  @version:     2.15
+  @version:     2.16
   @lines:       75
 -->
 
@@ -21,7 +21,7 @@
 | [calculator.md](calculator.md) | Customs/price calculation business logic, formulas, rules | 2026-04-08 |
 | [catalog.md](catalog.md) | Google Drive conventions, 5-step sync chain, screenshot priority | 2026-04-08 |
 | [bot.md](bot.md) | Telegram bot commands, admin config, user storage | 2026-04-10 |
-| [roadmap.md](roadmap.md) | Recent Activity (last sessions) + Done (active features completed 2026-04-29+) + In Progress + Active strategic work (NEW-1, NEW-2) + Planned — Site/Bot/Infrastructure/Technical debt + Strategic initiatives. Older entries → roadmap-archive-2.md (dated) and roadmap-archive-1.md (undated historical). Auto-archive trigger at 10 Recent Activity entries OR 400 lines. | 2026-05-02 |
+| [roadmap.md](roadmap.md) | Recent Activity (last sessions) + Done (active features completed 2026-04-29+) + In Progress + Active strategic work (NEW-1, NEW-2) + Planned — Site/Bot/Infrastructure/Technical debt + Strategic initiatives. Older entries → roadmap-archive-2.md (dated) and roadmap-archive-1.md (undated historical). Auto-archive trigger at 10 Recent Activity entries OR 400 lines. | 2026-05-04 |
 | [roadmap-archive-2.md](roadmap-archive-2.md) | Archive 2 of roadmap.md — Recent Activity entries and Done bullets from 2026-04-28 and earlier. Read-only reference, NOT read at session start by default | 2026-05-02 |
 | [roadmap-archive-1.md](roadmap-archive-1.md) | Archive: historical Done entries (one-liners without dates, reference-only). Not read at session start by default | 2026-04-26 |
 | [decisions.md](decisions.md) | Architectural Decision Records (ADR log) — active section. Contains 16 most recent ADRs (2026-04-29 onward) + CRIT-1 + SALES-CRIT-2 + INFRA-1 + INFRA-1.5 + SALES-PERSIST-1 (2026-05-04). Older 81 entries → [decisions-archive-1.md](decisions-archive-1.md). Auto-archive trigger at 1000 lines. | 2026-05-04 |

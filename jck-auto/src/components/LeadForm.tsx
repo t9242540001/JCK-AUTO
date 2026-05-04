@@ -1,11 +1,37 @@
 "use client";
 
-import { useState } from "react";
+/**
+ * @file LeadForm.tsx
+ * @description Canonical inline lead-capture form. Single engine for all
+ *   site lead-form surfaces (homepage CTAs, calculator, encar/auction-sheet,
+ *   noscut card, catalog detail). Used directly inline OR wrapped in
+ *   LeadFormTrigger for modal presentation. Validates phone (and optionally
+ *   name), formats phone input live, persists to localStorage before fetch
+ *   (SALES-PERSIST-1), submits to /api/lead, supports both permanent inline
+ *   success and timed auto-close success modes.
+ *
+ * @rule source vs subject contract:
+ *   - `source` is a stable channel label suitable for grep'ing
+ *     site-leads.log ("calculator", "noscut-card", "catalog-car-detail").
+ *     New callers MUST pass it explicitly.
+ *   - `subject` is the human-readable detail line shown to the manager
+ *     in Telegram ("Расчёт: Toyota Camry 2020 — ≈ 3 200 000 ₽").
+ *   - Legacy fallback `source ?? subject ?? "LeadForm"` exists only for
+ *     pre-UNIFY-1 callers. See ADR [2026-05-04] UNIFY-1.
+ *
+ * @rule data-fm-hide="true" on the form root keeps FloatingMessengers
+ *   FAB hidden while the form is in viewport (handled by FAB itself
+ *   via IntersectionObserver). DO NOT remove the attribute.
+ */
+
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, CheckCircle } from "lucide-react";
 import { saveBeforeSend, markConfirmed } from "@/lib/leadPersistence";
+
+// ─── HELPERS ──────────────────────────────────────────────────────────
 
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -18,7 +44,9 @@ function formatPhone(value: string): string {
   return result;
 }
 
-const leadSchema = z.object({
+// ─── TYPES ────────────────────────────────────────────────────────────
+
+const leadSchemaPhoneOnly = z.object({
   phone: z.string().refine(
     (val) => val.replace(/\D/g, "").length >= 11,
     "Введите телефон",
@@ -27,28 +55,73 @@ const leadSchema = z.object({
   comment: z.string().optional(),
 });
 
-type LeadFormData = z.infer<typeof leadSchema>;
+const leadSchemaWithName = z.object({
+  phone: z.string().refine(
+    (val) => val.replace(/\D/g, "").length >= 11,
+    "Введите телефон",
+  ),
+  name: z.string().min(1, "Введите имя"),
+  comment: z.string().optional(),
+});
+
+// Wider variant — name typed as string. RHF permissive-type pattern:
+// runtime validation is selected per-render via useMemo on `requireName`,
+// but the static type covers both schemas.
+type LeadFormData = z.infer<typeof leadSchemaWithName>;
 
 interface LeadFormProps {
+  /** Free-text human-readable subject shown to the manager in Telegram */
   subject?: string;
+  /** Submit button label */
   ctaLabel?: string;
+  /** Tighter padding for nested cards / sidebar slots */
   compact?: boolean;
+  /**
+   * Stable channel label for site-leads.log analytics ("calculator",
+   * "noscut-card", "catalog-car-detail"). Falls back to `subject` then
+   * "LeadForm" if absent. See ADR [2026-05-04] UNIFY-1.
+   */
+  source?: string;
+  /** When true, name field is required (1+ char). Default false. */
+  requireName?: boolean;
+  /**
+   * "inline" (default) — success state stays visible permanently.
+   * "auto-close" — success UI shows for `autoCloseMs` then `onSuccess`
+   * fires. Used by LeadFormTrigger to close the modal after submit.
+   */
+  successMode?: "inline" | "auto-close";
+  /** Delay before onSuccess fires when successMode="auto-close". Default 3000ms. */
+  autoCloseMs?: number;
+  /** Called after successful submit + autoCloseMs delay (auto-close mode only). */
+  onSuccess?: () => void;
 }
+
+// ─── COMPONENT ────────────────────────────────────────────────────────
 
 export default function LeadForm({
   subject,
   ctaLabel = "Оставить заявку",
   compact = false,
+  source,
+  requireName = false,
+  successMode = "inline",
+  autoCloseMs = 3000,
+  onSuccess,
 }: LeadFormProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const schema = useMemo(
+    () => (requireName ? leadSchemaWithName : leadSchemaPhoneOnly),
+    [requireName],
+  );
 
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<LeadFormData>({
-    resolver: zodResolver(leadSchema),
+    resolver: zodResolver(schema),
     defaultValues: { phone: "" },
   });
 
@@ -63,7 +136,7 @@ export default function LeadForm({
       phone: data.phone,
       name: data.name || undefined,
       message: data.comment || undefined,
-      source: subject || "LeadForm",
+      source: source ?? subject ?? "LeadForm",
       subject: subject || undefined,
     });
     try {
@@ -74,7 +147,7 @@ export default function LeadForm({
           phone: data.phone,
           name: data.name || undefined,
           message: data.comment || undefined,
-          source: subject || "LeadForm",
+          source: source ?? subject ?? "LeadForm",
           subject: subject || undefined,
         }),
       });
@@ -95,6 +168,16 @@ export default function LeadForm({
       setStatus("error");
     }
   };
+
+  // Auto-close: when in auto-close mode and submit succeeded, fire
+  // onSuccess after autoCloseMs. Cleans up if status changes or unmounts.
+  useEffect(() => {
+    if (status !== "success" || successMode !== "auto-close") return;
+    const t = setTimeout(() => {
+      onSuccess?.();
+    }, autoCloseMs);
+    return () => clearTimeout(t);
+  }, [status, successMode, autoCloseMs, onSuccess]);
 
   if (status === "success") {
     return (
@@ -132,6 +215,9 @@ export default function LeadForm({
           placeholder="Ваше имя (необязательно)"
           className={inputCls}
         />
+        {errors.name && (
+          <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>
+        )}
       </div>
 
       <div>
