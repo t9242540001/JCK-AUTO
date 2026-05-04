@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — active section, append-only
   @updated:     2026-05-04
-  @version:     1.84
+  @version:     1.85
   @lines:       ~770
   @note:        Active section: 16 ADRs from 2026-04-29 onward.
                 Older entries (81 ADRs from 2026-01..2026-04-28) → see
@@ -116,6 +116,39 @@ The Worker itself needs separate investigation (likely Smart Placement drift per
 **Alternatives rejected.**
 - Symlink `/root/.pm2/logs` → `/var/log/pm2` to avoid changing PM2 config: rejected. Symlink-based fixes have history of going wrong silently (see two-slot `.next` symlink incidents). Direct path config is more robust.
 - Sentry / external log aggregation: rejected per "All own, on VDS" principle (Vasily 2026-05-04). External SaaS adds cost and dependency.
+
+## [2026-05-04] INFRA-1.5 — Committed crontab management
+
+**Status:** Accepted
+**Confidence:** High
+
+**Context.** During INFRA-1 manual ops on 2026-05-04, the cleanup-pm2-logs cron entry was registered via copy-paste from chat. Markdown auto-formatting in the chat interface had transformed `cleanup-pm2-logs.sh` into a markdown link `[[cleanup-pm2-logs.sh](http://cleanup-pm2-logs.sh)](http://cleanup-pm2-logs.sh)`. The text was pasted literally into the `crontab -e` editor, leaving a broken cron entry on VDS. Caught only by manual review of `crontab -l` output.
+
+This was the trigger; the deeper problem is that cron schedule has been living only on VDS, with no committed source of truth. Three other entries (news, articles, noscut prices) were also discovered today via SSH inventory, were not in any knowledge file, and one (noscut prices) had no header comment. As more crons are added (SALES-MON-1 health checks, SALES-2 daily digest), this drift compounds.
+
+**Decision.**
+1. Add committed file `scripts/crontab.root` containing the full intended root crontab with header comments per entry.
+2. Add idempotent installer `scripts/install-crontab.sh` that backs up the current crontab and replaces it with the committed file. Manual ops on VDS becomes one command: `bash scripts/install-crontab.sh`.
+3. Pattern mirrors `ecosystem.config.js` for PM2 (ADR [2026-04-22]): committed source of truth, idempotent install, never edit on VDS.
+4. Convention codified as Infrastructure Rule in rules.md.
+5. Backup before install: `/root/crontab-backup-{timestamp}.txt`. Rollback path: `crontab /root/crontab-backup-<ts>.txt`.
+
+**Tradeoffs considered.**
+- Drop-in replace vs. merge with existing: chose replace. Merge logic ("keep entries not in file") is fragile and defeats the "single source of truth" purpose. If something on VDS isn't in the committed file, it should be either added to the file or deliberately removed.
+- Validate via `crontab` itself vs. custom parser: chose `crontab`. The system tool is the canonical parser; reimplementing validation invites drift between our parser and cron's.
+- Location `scripts/crontab.root` vs. new `infrastructure/` dir vs. `ops/` dir: chose `scripts/`. Existing directory; this file is one of "things scripts/ contains and orchestrates" alongside the cron-callable .ts and .sh files.
+- Per-environment crontab files (dev/staging/prod): rejected. Single-environment project; no need.
+
+**Consequences.**
+- All future cron edits become a Claude Code prompt → push → one VDS command. No more `crontab -e`.
+- New crons (SALES-MON-1, SALES-2, others) added by editing `scripts/crontab.root` and re-running install.
+- Knowledge `infrastructure.md` always reflects committed file — no drift.
+- One-time: backup of pre-INFRA-1.5 crontab preserved at `/root/crontab-backup-<ts>.txt` after first install.
+
+**Alternatives rejected.**
+- Files in `/etc/cron.d/`: rejected. Different format (extra user field), not aligned with current crontab style. Migration would be a separate decision.
+- systemd timers: rejected. Larger refactor, no current pain that timers solve. Cron + committed file covers our needs.
+- Wrapping cron entries in a higher-level scheduler (PM2 cron, node-cron in-process): rejected. Decouples scheduling from process supervision; system cron is the right level for "fire script at time X".
 
 ## [2026-05-02] NEW-1 series — final summary (Yandex Metrika MCP integration end-to-end)
 

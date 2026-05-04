@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-04
-  @version:     1.58
+  @version:     1.59
   @lines:       ~310
 -->
 
@@ -17,6 +17,10 @@
 > when this section exceeds 10 entries OR roadmap.md exceeds 400 lines,
 > run a knowledge-cleanup pass to move oldest entries (older than the
 > 7-day cutoff) into roadmap-archive-N.md.
+
+### 2026-05-04 — INFRA-1.5 closed — committed crontab management
+
+- **INFRA-1.5 (closed 2026-05-04).** Root crontab moved from VDS-only to committed `scripts/crontab.root` + idempotent installer `scripts/install-crontab.sh`. Pattern mirrors PM2 `ecosystem.config.js`. Triggered by INFRA-1 incident where chat copy-paste injected markdown link syntax into a real cron entry. Inventoried 4 existing crons (news, articles, noscut prices, pm2-cleanup) and documented in `knowledge/infrastructure.md` Cron jobs section. See ADR `[2026-05-04] INFRA-1.5`.
 
 ### 2026-05-04 — INFRA-1 closed — PM2 logs centralized to /var/log/pm2/
 

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: Server identity, PM2 processes (committed ecosystem.config.js), cron, deploy procedures, runtime constraints
   @updated:     2026-05-04
-  @version:     1.14
-  @lines:       ~298
+  @version:     1.15
+  @lines:       ~308
 -->
 
 # Infrastructure
@@ -194,18 +194,28 @@ manually on VDS.
 окружения вне цикла деплоя, изменении `ecosystem.config.js` без
 ребилда сайта.
 
-## Cron Jobs
+## Cron jobs
 
-| Script | Schedule | Log |
-|--------|----------|-----|
-| generate-news.ts | daily 07:00 MSK (cron: `0 4 * * *`) | /var/log/jckauto-news.log |
-| generate-article.ts | every 3 days 09:00 MSK (cron: `0 6 */3 * *`) | /var/log/jckauto-articles.log |
-| update-noscut-prices.ts | Sunday 10:00 MSK (cron: `0 7 * * 0`) | /var/log/jckauto-noscut-prices.log |
+Root crontab is the committed file `scripts/crontab.root`. Apply changes via
+`bash scripts/install-crontab.sh` on VDS. The install script backs up the
+existing crontab before replacement.
 
-```bash
-# Noscut price update cron (add to VDS crontab):
-0 7 * * 0 cd /var/www/jckauto/app/jck-auto && npx tsx -r dotenv/config scripts/update-noscut-prices.ts dotenv_config_path=.env.local >> /var/log/jckauto-noscut-prices.log 2>&1
-```
+@rule: NEVER edit crontab via `crontab -e` on VDS. Changes get lost on next
+install run. All edits go through git → Claude Code → push → manual ops.
+
+Current jobs (as of 2026-05-04 INFRA-1.5):
+
+| Schedule | Script | Log path | Purpose |
+|---|---|---|---|
+| 07:00 MSK daily | scripts/generate-news.ts | /var/log/jckauto-news.log | News digest pipeline |
+| 09:00 MSK every 3rd day | scripts/generate-article.ts | /var/log/jckauto-articles.log | Article generation |
+| 07:00 Sundays (VDS local) | scripts/update-noscut-prices.ts | /var/log/jckauto-noscut-prices.log | Weekly noscut market price refresh |
+| 03:30 quarterly (1st Jan/Apr/Jul/Oct) | scripts/cleanup-pm2-logs.sh | /var/log/pm2-cleanup.log | Delete PM2 logs older than 90 days |
+
+Backups of pre-replacement crontab live at `/root/crontab-backup-<timestamp>.txt`.
+Rollback: `crontab /root/crontab-backup-<ts>.txt`.
+
+ADR: [2026-05-04] INFRA-1.5 — Committed crontab management.
 
 ## Deploy
 

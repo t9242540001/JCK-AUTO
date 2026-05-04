@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-05-04
-  @version:     1.35
-  @lines:       267
+  @version:     1.36
+  @lines:       268
 -->
 
 # Critical Rules
@@ -45,6 +45,7 @@
 | deploy.yml has self-healing: if `.next` is a directory (not symlink), it auto-restores the two-slot setup before building | deploy.yml | Protects against any process that accidentally runs `npm run build` without NEXT_DIST_DIR. Logs `[build] WARNING` when triggered |
 | Cloudflare Worker `tg-proxy` configuration MUST live in `worker/wrangler.toml` with `[placement] mode = "smart"` + `region = "gcp:europe-west1"` — NEVER edit the Worker in Cloudflare Dashboard | `worker/wrangler.toml`, `worker/tg-proxy.js`, `.github/workflows/deploy-worker.yml`, ADR `[2026-04-23] Cloudflare Worker tg-proxy moved to git + Placement Hints` | Dashboard edits are overwritten by the next `wrangler deploy` (auto-triggered on push to `worker/**`). Without `mode = "smart"`, Wrangler 3.90.0 fails with `"placement.mode" is a required field` and no deploy happens. Without `region = "gcp:europe-west1"` (or another explicit region hint), Smart Placement drifts to `local-DME` (Moscow origin edge) on single-source traffic, causing 19.6s outbound latency to `api.telegram.org`. Incident 2026-04-23: plain Dashboard-toggled Smart Placement (per old ADR [2026-04-20]) silently drifted back to `local-DME` 14 hours after a git pull; only the explicit Placement Hint region eliminated the drift vector. Verified production 2026-04-23: `cf-placement: local-ARN`, 0.193s latency. |
 | All PM2 processes MUST write logs to `/var/log/pm2/{name}-{out,error}.log` via `out_file`/`error_file` fields in `ecosystem.config.js`. NOT to PM2 default `~/.pm2/logs/` | `ecosystem.config.js` (4 entries: jckauto, jckauto-bot, mcp-gateway, yandex-metrika-mcp); ADR `[2026-05-04] INFRA-1 — PM2 logs centralization` | `/var/log/pm2/` is inside mcp-gateway `FILESYSTEM_ROOTS` — Claude (strategic partner) reads logs via MCP without SSH. PM2 default `~/.pm2/logs/` is outside FILESYSTEM_ROOTS, every diagnostic costs an SSH round-trip. Pre-INFRA-1 (2026-05-04) this cost ~1 hour during CRIT-1+SALES-CRIT-2 incident response. New PM2 entries MUST follow this convention |
+| Root crontab on VDS MUST be managed via committed `scripts/crontab.root` + `scripts/install-crontab.sh`. NEVER edit via `crontab -e` on VDS — changes get lost on next install run. All cron edits go through git → Claude Code → push → manual `bash scripts/install-crontab.sh` on VDS | `scripts/crontab.root`, `scripts/install-crontab.sh`; ADR `[2026-05-04] INFRA-1.5 — committed crontab` | Pre-INFRA-1.5 the crontab lived only on VDS, was edited via `crontab -e`, was invisible from git or MCP. Today (2026-05-04) a chat copy-paste injected markdown link syntax `[[file.sh](http://file.sh)](http://file.sh)` into a real cron entry — caught only by manual review. Same trap will recur every time a future cron is added unless the source of truth moves to git. Pattern mirrors PM2's ecosystem.config.js convention (ADR [2026-04-22]) |
 
 ## Bot Rate Limiting Rules
 
