@@ -1,32 +1,20 @@
 "use client";
 
-import { useState } from "react";
 import { FileText } from "lucide-react";
-import LeadFormModal from "@/components/LeadFormModal";
+import LeadFormTrigger from "@/components/LeadFormTrigger";
 
 interface CarCtaActionsProps {
   carName: string;
 }
 
 export default function CarCtaActions({ carName }: CarCtaActionsProps) {
-  const [isLeadFormOpen, setIsLeadFormOpen] = useState(false);
-
   return (
-    <>
-      {/* Lead form button */}
-      <button
-        onClick={() => setIsLeadFormOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/20 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-white/30 sm:px-8 sm:py-4 sm:text-base"
-      >
-        <FileText className="h-5 w-5" />
-        Оставить заявку
-      </button>
-
-      <LeadFormModal
-        isOpen={isLeadFormOpen}
-        onClose={() => setIsLeadFormOpen(false)}
-        carName={carName}
-      />
-    </>
+    <LeadFormTrigger
+      triggerLabel="Оставить заявку"
+      triggerVariant="on-primary-soft"
+      triggerIcon={<FileText className="h-5 w-5" />}
+      subject={`Заявка на ${carName}`}
+      source="catalog-car-detail"
+    />
   );
 }
