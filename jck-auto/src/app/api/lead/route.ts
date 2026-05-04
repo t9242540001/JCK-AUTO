@@ -26,6 +26,11 @@
  * @rule        This rate limiter relies on single-process invariant (PM2 `instances: 1`
  *              for the `jckauto` process). If site is ever scaled to multiple instances,
  *              replace the in-memory Map with a shared store (Redis or file lock).
+ * @rule        Telegram fetch is retried ONCE on AbortError or network error. Per-attempt
+ *              timeout is 6s; total worst case ~13s (6 + 800ms backoff + 6). Cloudflare
+ *              Worker `tg-proxy` has empirically observed 20% timeout rate (5-curl test
+ *              2026-05-04). Retry drops effective failure rate to ~4%. If retry also
+ *              fails, return 502 as before. See ADR [2026-05-04] SALES-CRIT-2.
  * @lastModified 2026-05-04
  */
 import { NextResponse } from "next/server";
@@ -44,6 +49,9 @@ const SITE_LEADS_LOG_PATH = join(STORAGE_PATH, "leads", "site-leads.log");
 
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const RATE_LIMIT_MAX_REQUESTS = 5;
+
+const TG_FETCH_TIMEOUT_MS = 6000;       // per-attempt timeout
+const TG_FETCH_RETRY_BACKOFF_MS = 800;  // wait before second attempt
 
 // ─── RATE LIMIT (route-local) ──────────────────────────────────────────
 
@@ -148,6 +156,28 @@ function lastFour(phone: string): string {
   return digits.slice(-4);
 }
 
+/**
+ * Send a single sendMessage POST to the Worker with a per-attempt timeout.
+ * Returns the Response on any HTTP outcome (including non-2xx). Throws
+ * only on AbortError (timeout) or network error (DNS, TLS, connection
+ * reset). Caller decides whether to retry based on thrown error vs
+ * non-ok Response.
+ *
+ * @rule Each call gets its OWN AbortSignal — do NOT reuse across retries.
+ *       AbortSignal.timeout() fires once and cannot be reset.
+ */
+async function sendTelegramOnce(
+  apiUrl: string,
+  payload: { chat_id: string; text: string },
+): Promise<Response> {
+  return fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(TG_FETCH_TIMEOUT_MS),
+  });
+}
+
 // ─── ROUTE — POST ──────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -246,15 +276,21 @@ export async function POST(request: Request) {
       .join("\n");
 
     const apiUrl = `${TG_API_BASE}/bot${BOT_TOKEN}/sendMessage`;
-    const res = await fetch(apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: GROUP_CHAT_ID,
-        text,
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
+    const payload = { chat_id: GROUP_CHAT_ID, text };
+    let attemptedRetry = false;
+    let res: Response;
+    try {
+      res = await sendTelegramOnce(apiUrl, payload);
+    } catch (firstErr) {
+      const errMsg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+      console.warn(`[lead] telegram-attempt-1 failed (retrying): ${errMsg}`);
+      attemptedRetry = true;
+      await new Promise((r) => setTimeout(r, TG_FETCH_RETRY_BACKOFF_MS));
+      // Second attempt — if it also throws, the throw propagates to the
+      // outer try/catch and returns 500 (pre-CRIT-2 behaviour for total
+      // Worker outage).
+      res = await sendTelegramOnce(apiUrl, payload);
+    }
 
     if (!res.ok) {
       const rawBody = await res.text().catch(() => "<no body>");
@@ -270,7 +306,7 @@ export async function POST(request: Request) {
     // Success — append second log line confirming delivery.
     appendSiteLeadLog({ ...baseLogEntry, telegramDelivered: true });
     console.log(
-      `[lead] success ip=${ip} source=${baseLogEntry.source} phone_last4=${lastFour(cleanPhone)}`,
+      `[lead] success ip=${ip} source=${baseLogEntry.source} phone_last4=${lastFour(cleanPhone)}${attemptedRetry ? " (after-retry)" : ""}`,
     );
     return NextResponse.json({ success: true });
   } catch (err: any) {

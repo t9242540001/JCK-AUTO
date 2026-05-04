@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — active section, append-only
   @updated:     2026-05-04
-  @version:     1.82
+  @version:     1.83
   @lines:       ~770
   @note:        Active section: 16 ADRs from 2026-04-29 onward.
                 Older entries (81 ADRs from 2026-01..2026-04-28) → see
@@ -53,6 +53,40 @@ Secondary issue: the site had no audit log of lead attempts. Telegram delivery f
 - Patching `rateLimiter.ts` to add a "leads" mode: rejected — it conflates two unrelated quotas in one module, and the lifetime-3 invariant for tools must NOT be touched (anonymous ip-key records permanent — see existing rule).
 - Sentry/external error tracking instead of file log: rejected — external SaaS conflicts with "All own, on VDS" principle (Vasily 2026-05-04). File log is sufficient for current scale.
 - Skipping audit log in this prompt and adding it later: rejected — the same code path that fixes rate limit must also add the log, otherwise we ship the fix without the second-half lesson from Б-15.
+
+## [2026-05-04] SALES-CRIT-2 — /api/lead fetch retry for Worker flakiness
+
+**Status:** Accepted
+**Confidence:** High
+
+**Context.** After CRIT-1 deployed 2026-05-04, live testing from mobile showed all three lead attempts failing with 500 "Внутренняя ошибка сервера" or LeadFormModal's generic error text. PM2 error log on VDS showed six consecutive `[lead] API error: The operation was aborted due to timeout` entries — the AbortSignal.timeout(10_000) on the fetch to Cloudflare Worker `tg-proxy.t9242540001.workers.dev` was firing.
+
+VDS-side curl test against `<worker>/bot<TOKEN>/getMe` (5 consecutive calls) returned: 200/0.3s, 200/0.1s, **000/15.0s (timeout)**, 200/0.1s, 200/0.1s. 20% transport-level failure rate. CRIT-1 did not introduce this — the lifetime-3 rate limiter previously blocked most users at the gate, so Worker timeouts were statistically invisible. CRIT-1 made the Worker flakiness visible by removing the artificial gate.
+
+The Worker itself needs separate investigation (likely Smart Placement drift per ADR [2026-04-23], possibly TG API edge issues). That investigation is not in this ADR's scope.
+
+**Decision.**
+1. Add a single retry to the `fetch` call in `/api/lead/route.ts`. First attempt timeout 6s (down from 10s), backoff 800ms, second attempt timeout 6s. Total worst-case latency: ~13s (vs. previous 10s).
+2. Retry triggers ONLY on thrown errors (AbortError, network errors — DNS, TLS, connection reset). HTTP-level failures (4xx, 5xx returned in Response) are NOT retried — they indicate real errors, not flakiness.
+3. The success log line includes `(after-retry)` suffix when the second attempt was the one that succeeded. Allows grep-based monitoring of Worker degradation: if `(after-retry)` rate climbs, Worker needs attention.
+4. Per-attempt timeout reduced from 10s to 6s. The user-perceived best case is faster (most leads complete in <1s); only the rare flaky case extends latency. 6s is enough for the 99th percentile of real Worker latency (observed: ~0.1–0.3s for working calls).
+
+**Tradeoffs considered.**
+- Retry vs. fix Worker first: chose retry. Worker fix requires Cloudflare investigation, possibly worker/wrangler.toml changes, possibly redeploy. Retry is one file change with immediate user-facing impact. Worker investigation continues separately.
+- 1 retry vs. N retries: chose 1. Two attempts cover the observed flakiness pattern (independent ~20% events drop to ~4% combined). N>1 would suggest a more systemic problem requiring different approach (queue, async retry, etc.).
+- 6s timeout vs. 10s: chose 6s for first attempt. Working calls complete in <1s; 6s is generous. 10s + 10s for two attempts would push worst case to 21s, beyond user patience.
+- Retry on !res.ok too: rejected. Retrying HTTP-level failures masks bugs (wrong token, wrong chat_id, deleted group). Transport-level failures are flakiness; HTTP-level failures are correctness issues.
+
+**Consequences.**
+- Effective lead failure rate due to Worker flakiness drops from ~20% to ~4%.
+- Worst-case latency for legitimate users grows from 10s to ~13s in the 1-in-5 flaky case. Median latency unchanged (<1s).
+- New monitoring signal: count of `(after-retry)` log lines per day = Worker degradation indicator.
+- New constraint: if the Worker becomes consistently bad (>50% timeout rate), even retry won't help (1 - 0.5² = 0.75 success rate). At that point Worker investigation is mandatory, retry is not the answer.
+
+**Alternatives rejected.**
+- Switching to direct api.telegram.org instead of Worker: rejected. The VDS provider blocks api.telegram.org direct (existing @rule). Worker is the only path.
+- Async queue (queue lead, return 200 to user immediately, deliver in background): rejected. Adds significant complexity (queue persistence, retry policy, ops surface). Out of scope; revisit if retry still leaves >5% failure rate.
+- Increasing timeout to 30s: rejected. Most timeouts are real (Worker not responding at all), not slow. Longer timeout doesn't change outcome but blocks the user longer.
 
 ## [2026-05-02] NEW-1 series — final summary (Yandex Metrika MCP integration end-to-end)
 
