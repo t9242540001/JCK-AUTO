@@ -88,7 +88,12 @@ export default function LeadFormTrigger({
             {title && (
               <h2 className="mb-4 font-heading text-lg font-bold text-text">{title}</h2>
             )}
-            <LeadForm subject={subject} ctaLabel={ctaLabel} />
+            <LeadForm
+              subject={subject}
+              ctaLabel={ctaLabel}
+              successMode="auto-close"
+              onSuccess={() => setIsOpen(false)}
+            />
           </div>
         </div>
       )}
