@@ -13,7 +13,12 @@
  *   `pm2 startOrReload ecosystem.config.js` as soon as the
  *   emergency passes, to restore the committed state.
  *
- * @updated 2026-05-02
+ * @rule: All PM2 processes write logs to /var/log/pm2/{name}-{out,error}.log
+ *        (NOT to PM2 default /root/.pm2/logs/). This path is inside the
+ *        mcp-gateway FILESYSTEM_ROOTS, so Claude (strategic partner)
+ *        reads them directly via MCP. See ADR [2026-05-04] INFRA-1.
+ *
+ * @updated 2026-05-04
  * @changed 2026-04-22 — mcp-gateway entry corrected: script now
  *   points to real start.sh on VDS, speculative args removed.
  *   Б-11 close remains valid (env unchanged).
@@ -24,23 +29,29 @@
  *   to include /opt/ai-knowledge-system, /etc/nginx,
  *   /var/log/nginx (NEW-1.X-pre1A). DENY_PATHS deny-list added
  *   in mcp_server.py manually on VDS as paired manual-ops step.
+ * @changed 2026-05-04 — INFRA-1: out_file/error_file paths added
+ *   to all entries; FILESYSTEM_ROOTS extended to /var/log/pm2.
  */
 module.exports = {
   apps: [
     {
       name: 'jckauto',
+      cwd: '/var/www/jckauto/app/jck-auto',
+      out_file: '/var/log/pm2/jckauto-out.log',
+      error_file: '/var/log/pm2/jckauto-error.log',
       script: 'npm',
       args: 'run start',
-      cwd: '/var/www/jckauto/app/jck-auto',
       max_restarts: 10,
       // Site process — restart is safe without env reload; pm2 restart jckauto works.
     },
     {
       name: 'jckauto-bot',
+      cwd: '/var/www/jckauto/app/jck-auto',
+      out_file: '/var/log/pm2/jckauto-bot-out.log',
+      error_file: '/var/log/pm2/jckauto-bot-error.log',
       script: 'node_modules/.bin/tsx',
       args: '-r dotenv/config scripts/start-bot.ts dotenv_config_path=.env.local',
       interpreter: 'none',
-      cwd: '/var/www/jckauto/app/jck-auto',
       max_restarts: 5,
       // @rule: Bot reads .env.local via dotenv preload. To pick up
       //   .env.local changes, use `pm2 delete jckauto-bot && pm2
@@ -79,10 +90,12 @@ module.exports = {
     {
       name: 'mcp-gateway',
       cwd: '/var/www/jckauto/app/jck-auto',
+      out_file: '/var/log/pm2/mcp-gateway-out.log',
+      error_file: '/var/log/pm2/mcp-gateway-error.log',
       script: '/opt/ai-knowledge-system/server/start.sh',
       interpreter: 'bash',
       env: {
-        FILESYSTEM_ROOTS: '/var/www/jckauto:/opt/ai-knowledge-system:/etc/nginx:/var/log/nginx',
+        FILESYSTEM_ROOTS: '/var/www/jckauto:/opt/ai-knowledge-system:/etc/nginx:/var/log/nginx:/var/log/pm2',
       },
       max_restarts: 10,
       autorestart: true,
@@ -109,6 +122,8 @@ module.exports = {
     {
       name: 'yandex-metrika-mcp',
       cwd: '/var/www/jckauto/mcp-servers/yandex-metrika-mcp',
+      out_file: '/var/log/pm2/yandex-metrika-mcp-out.log',
+      error_file: '/var/log/pm2/yandex-metrika-mcp-error.log',
       script: 'node_modules/.bin/supergateway',
       args: '--port 8765 --outputTransport streamableHttp --stdio "node /var/www/jckauto/mcp-servers/yandex-metrika-mcp/build/index.js"',
       interpreter: 'none',

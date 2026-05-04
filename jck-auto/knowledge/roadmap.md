@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-04
-  @version:     1.57
+  @version:     1.58
   @lines:       ~310
 -->
 
@@ -17,6 +17,10 @@
 > when this section exceeds 10 entries OR roadmap.md exceeds 400 lines,
 > run a knowledge-cleanup pass to move oldest entries (older than the
 > 7-day cutoff) into roadmap-archive-N.md.
+
+### 2026-05-04 — INFRA-1 closed — PM2 logs centralized to /var/log/pm2/
+
+- **INFRA-1 (closed 2026-05-04).** Moved PM2 logs from `/root/.pm2/logs/` to `/var/log/pm2/` via `out_file`/`error_file` fields in `ecosystem.config.js`. Extended mcp-gateway `FILESYSTEM_ROOTS` to include the new path. Claude (strategic partner) can now read PM2 logs via MCP without SSH round-trips. Added `scripts/cleanup-pm2-logs.sh` for quarterly retention (90 days). See ADR `[2026-05-04] INFRA-1`.
 
 ### 2026-05-04 — SALES-CRIT-2 closed — /api/lead fetch retry for Worker flakiness
 

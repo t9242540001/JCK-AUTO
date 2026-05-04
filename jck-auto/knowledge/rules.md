@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-05-04
-  @version:     1.34
-  @lines:       266
+  @version:     1.35
+  @lines:       267
 -->
 
 # Critical Rules
@@ -44,6 +44,7 @@
 | `npm run build` on VDS MUST always use `NEXT_DIST_DIR` env var — only deploy.yml builds, and it uses two-slot mechanism | VDS shell, all workflows, all cron | Without NEXT_DIST_DIR, Next.js writes to `.next/` directly, destroying the symlink → site crash. sync-catalog.yml must NOT build (catalog is force-dynamic). Cron scripts must NOT build. Only deploy.yml builds via `NEXT_DIST_DIR="$NEXT_SLOT" npm run build` |
 | deploy.yml has self-healing: if `.next` is a directory (not symlink), it auto-restores the two-slot setup before building | deploy.yml | Protects against any process that accidentally runs `npm run build` without NEXT_DIST_DIR. Logs `[build] WARNING` when triggered |
 | Cloudflare Worker `tg-proxy` configuration MUST live in `worker/wrangler.toml` with `[placement] mode = "smart"` + `region = "gcp:europe-west1"` — NEVER edit the Worker in Cloudflare Dashboard | `worker/wrangler.toml`, `worker/tg-proxy.js`, `.github/workflows/deploy-worker.yml`, ADR `[2026-04-23] Cloudflare Worker tg-proxy moved to git + Placement Hints` | Dashboard edits are overwritten by the next `wrangler deploy` (auto-triggered on push to `worker/**`). Without `mode = "smart"`, Wrangler 3.90.0 fails with `"placement.mode" is a required field` and no deploy happens. Without `region = "gcp:europe-west1"` (or another explicit region hint), Smart Placement drifts to `local-DME` (Moscow origin edge) on single-source traffic, causing 19.6s outbound latency to `api.telegram.org`. Incident 2026-04-23: plain Dashboard-toggled Smart Placement (per old ADR [2026-04-20]) silently drifted back to `local-DME` 14 hours after a git pull; only the explicit Placement Hint region eliminated the drift vector. Verified production 2026-04-23: `cf-placement: local-ARN`, 0.193s latency. |
+| All PM2 processes MUST write logs to `/var/log/pm2/{name}-{out,error}.log` via `out_file`/`error_file` fields in `ecosystem.config.js`. NOT to PM2 default `~/.pm2/logs/` | `ecosystem.config.js` (4 entries: jckauto, jckauto-bot, mcp-gateway, yandex-metrika-mcp); ADR `[2026-05-04] INFRA-1 — PM2 logs centralization` | `/var/log/pm2/` is inside mcp-gateway `FILESYSTEM_ROOTS` — Claude (strategic partner) reads logs via MCP without SSH. PM2 default `~/.pm2/logs/` is outside FILESYSTEM_ROOTS, every diagnostic costs an SSH round-trip. Pre-INFRA-1 (2026-05-04) this cost ~1 hour during CRIT-1+SALES-CRIT-2 incident response. New PM2 entries MUST follow this convention |
 
 ## Bot Rate Limiting Rules
 

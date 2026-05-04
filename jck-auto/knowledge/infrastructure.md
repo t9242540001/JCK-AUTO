@@ -2,9 +2,9 @@
   @file:        knowledge/infrastructure.md
   @project:     JCK AUTO
   @description: Server identity, PM2 processes (committed ecosystem.config.js), cron, deploy procedures, runtime constraints
-  @updated:     2026-05-02
-  @version:     1.13
-  @lines:       ~280
+  @updated:     2026-05-04
+  @version:     1.14
+  @lines:       ~298
 -->
 
 # Infrastructure
@@ -106,6 +106,16 @@ sequence for any update is `pm2 delete` + `pm2 start` as above.
 | jckauto-bot | Telegram bot (webhook, port 8443) | 8443 |
 | mcp-gateway | JCK AUTO Files MCP connector | proxied via nginx at `/mcp` |
 | yandex-metrika-mcp | Yandex Metrika MCP for Claude.ai Custom Connector | proxied via nginx at `/mcp/metrika` (see networking.md → Yandex Metrika MCP — install steps) |
+
+### Log paths
+
+All 4 PM2 processes write logs to `/var/log/pm2/{name}-{out,error}.log` via
+`out_file`/`error_file` fields in `ecosystem.config.js`. Path changed
+2026-05-04 (INFRA-1) from PM2 default `/root/.pm2/logs/` — see ADR for
+rationale (the new path is inside mcp-gateway `FILESYSTEM_ROOTS`, so
+Claude reads logs via MCP without SSH). Quarterly cleanup via
+`scripts/cleanup-pm2-logs.sh` (90-day retention) — registered in cron
+manually on VDS.
 
 ### jckauto (Next.js site)
 
