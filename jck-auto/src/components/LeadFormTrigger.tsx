@@ -8,13 +8,14 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import LeadForm from "@/components/LeadForm";
 
 interface LeadFormTriggerProps {
   subject?: string;
   ctaLabel?: string;
   triggerLabel?: string;
+  triggerIcon?: ReactNode;
   triggerVariant?: "primary" | "outline" | "on-primary" | "on-primary-soft";
   modalTitle?: string;
   className?: string;
@@ -24,6 +25,7 @@ export default function LeadFormTrigger({
   subject,
   ctaLabel = "Оставить заявку",
   triggerLabel = "Оставить заявку",
+  triggerIcon,
   triggerVariant = "outline",
   modalTitle,
   className,
@@ -70,7 +72,14 @@ export default function LeadFormTrigger({
   return (
     <div className={className}>
       <button onClick={() => setIsOpen(true)} className={btnCls}>
-        {triggerLabel}
+        {triggerIcon ? (
+          <span className="inline-flex items-center gap-2">
+            {triggerIcon}
+            {triggerLabel}
+          </span>
+        ) : (
+          triggerLabel
+        )}
       </button>
 
       {isOpen && (
