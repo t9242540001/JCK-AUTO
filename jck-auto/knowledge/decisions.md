@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — active section, append-only
   @updated:     2026-05-04
-  @version:     1.86
+  @version:     1.87
   @lines:       ~770
   @note:        Active section: 16 ADRs from 2026-04-29 onward.
                 Older entries (81 ADRs from 2026-01..2026-04-28) → see
@@ -183,6 +183,34 @@ We need a client-side safety net. Persisting the form snapshot to `localStorage`
 - Service Worker offline queue: rejected. Solves the same problem with much higher complexity (SW lifecycle, registration, update flow) and broader scope (would handle other resources). Not warranted by current pain.
 - Server-side queue with client polling for delivery confirmation: rejected. Adds server complexity and operational surface for marginal benefit.
 - Email fallback (mailto: link if fetch fails): rejected. Mobile users almost never have a configured native mail client; fallback would frustrate more users than it saves.
+
+## [2026-05-04] Auth-flow direction — subscription-gate over authorization-gate
+
+**Status:** Accepted (direction). Implementation pending in SALES-SUB-1 series.
+**Confidence:** High.
+
+**Context.** Today's `TelegramAuthBlock` flow on /tools/auction-sheet, /tools/encar, /tools/customs uses Telegram Login Widget as the gate after 3 free attempts. The widget gives us a `telegram_id` and lets us issue a JWT cookie for "10/day for authorized users". But it does **not** make the user a subscriber to `@jckauto_help_bot`. To become a subscriber, the user must additionally click the deep link "Open in bot" and press `/start` inside the bot. Conversion at that final step is observed to be very low; the bot subscription channel is mostly empty despite many tool authorizations.
+
+Bot subscription is the lowest-friction return channel we have for follow-up communication. Tool users are high-intent (they tried the product, often invested time uploading a real auction sheet). Losing the subscription signal here is a substantial channel loss.
+
+**Decision.** Replace the authorization-gate with a **subscription-gate**. After 3 free attempts, the user is asked to subscribe to the bot (not just authorize). The 10/day quota stays. The 3-free mechanic stays. Only the gating mechanism changes.
+
+**Why not subscription-gate from attempt #1?** Vasily's principle (2026-05-04 closing discussion): "We are still building authority and recognition. Three free attempts let users see value before we ask anything in return." When traffic grows past current scale and free-tier costs/abuse become visible, we may reduce the free-tier — registered as HYP-FREE-3.
+
+**Tradeoffs considered.**
+- Subscription-gate from attempt #1: rejected. Friction too high during product/audience-building phase. Defer per Vasily.
+- Keep authorization-gate, add separate "subscribe please" prompt after auth: rejected. This is the current state — observed to fail in practice. Half-measures here have already been tried implicitly.
+- Force subscription via Bot API push (server programmatically subscribes user after auth): rejected. Requires user to have a chat with the bot first, which they don't until they click `/start` themselves. Cannot be forced server-side.
+
+**Consequences.**
+- All three tools change their gate UX. Migration plan needed for existing authorized-but-not-subscribed users (recommend preserving their 10/day quota — don't break active users).
+- Bot subscription channel grows in proportion to tool usage. Becomes a real lead-nurture asset.
+- New server-side concern: how to verify subscription status. Likely Bot API `getChatMember` per-request, or webhook-driven cache. Discovery prompt resolves this.
+- Calculator (/tools/calculator) is **explicitly out of scope** for this change. It remains ungated as Vasily's primary lead-capture surface (SALES-CALC-1).
+
+**Alternatives rejected.** See "Tradeoffs considered" above.
+
+**Implementation tracker.** SALES-SUB-1 series — discovery + 2-3 implementation prompts.
 
 ## [2026-05-02] NEW-1 series — final summary (Yandex Metrika MCP integration end-to-end)
 
