@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — active section, append-only
   @updated:     2026-05-04
-  @version:     1.83
+  @version:     1.84
   @lines:       ~770
   @note:        Active section: 16 ADRs from 2026-04-29 onward.
                 Older entries (81 ADRs from 2026-01..2026-04-28) → see
@@ -87,6 +87,35 @@ The Worker itself needs separate investigation (likely Smart Placement drift per
 - Switching to direct api.telegram.org instead of Worker: rejected. The VDS provider blocks api.telegram.org direct (existing @rule). Worker is the only path.
 - Async queue (queue lead, return 200 to user immediately, deliver in background): rejected. Adds significant complexity (queue persistence, retry policy, ops surface). Out of scope; revisit if retry still leaves >5% failure rate.
 - Increasing timeout to 30s: rejected. Most timeouts are real (Worker not responding at all), not slow. Longer timeout doesn't change outcome but blocks the user longer.
+
+## [2026-05-04] INFRA-1 — PM2 logs centralization to /var/log/pm2/
+
+**Status:** Accepted
+**Confidence:** High
+
+**Context.** During CRIT-1 + SALES-CRIT-2 incident response on 2026-05-04, Claude (strategic partner) needed to read PM2 logs ~6 times to diagnose Cloudflare Worker timeouts and stale-deployment issues. Each read required Vasily to SSH into VDS and copy-paste output (~10 minutes per round-trip due to context-switching). Total cost: ~1 hour of incident response. Root cause: PM2 default log path `/root/.pm2/logs/` is outside the mcp-gateway `FILESYSTEM_ROOTS` allow-list, so MCP `fs_read_file` cannot reach them.
+
+**Decision.**
+1. Move PM2 logs to `/var/log/pm2/{name}-{out,error}.log` via `out_file`/`error_file` fields in `ecosystem.config.js`. Path inside FILESYSTEM_ROOTS — Claude reads via MCP directly.
+2. Extend mcp-gateway `FILESYSTEM_ROOTS` env from `/var/www/jckauto:/opt/ai-knowledge-system:/etc/nginx:/var/log/nginx` to include `/var/log/pm2`.
+3. Add committed cleanup script `scripts/cleanup-pm2-logs.sh` (delete files >90 days). Cron registration is manual ops on VDS (Vasily).
+4. No new API endpoints. No new attack surface. Read-only access via existing MCP-gateway pipeline.
+
+**Tradeoffs considered.**
+- Endpoint-based approach (`/api/admin/env-status`, `/api/admin/pm2-status`): rejected. Adds HTTP attack surface (token auth = single point of failure), needs `child_process.exec` for `pm2 jlist` (RCE risk if auth weakens), more code surface than path-extension approach. The original INFRA-1 design included these endpoints; multi-perspective review with security/architect/Vasily-visionary roles converged on dropping them entirely.
+- Cron-based status dump (write `pm2 jlist` periodically to a file in FILESYSTEM_ROOTS): deferred as INFRA-2 backlog. Not needed yet — log access alone covers most incident-response needs. If log access proves insufficient, INFRA-2 adds a status dump file. YAGNI principle for now.
+- logrotate: rejected for current scale. Quarterly cleanup script is simpler (one shell file in repo, one cron entry on VDS) and the logs only grow ~5–10 MB/day — 90-day retention = ~500 MB max. Disk on VDS is ~50 GB free, not a concern.
+- Higher-frequency cleanup (daily): rejected. 90-day retention preserves history for 3-month-back diagnostics. Quarterly run is enough.
+
+**Consequences.**
+- All future Claude diagnostic sessions can read PM2 logs via MCP directly. Estimated time saving per incident: 30–60 min.
+- New constraint: any new PM2 entry added in future MUST set `out_file`/`error_file` to `/var/log/pm2/{name}-{out,error}.log`. Codified as Infrastructure Rule.
+- One-time manual ops on VDS: `pm2 delete all && pm2 startOrReload ecosystem.config.js && pm2 save` (5–10s downtime for site, bot, MCP gateways). Already executed once on 2026-05-04 before this prompt — must be repeated after merge to apply new log fields.
+- Old log content in `/root/.pm2/logs/` remains there until Vasily manually deletes it. Not in scope of this prompt.
+
+**Alternatives rejected.**
+- Symlink `/root/.pm2/logs` → `/var/log/pm2` to avoid changing PM2 config: rejected. Symlink-based fixes have history of going wrong silently (see two-slot `.next` symlink incidents). Direct path config is more robust.
+- Sentry / external log aggregation: rejected per "All own, on VDS" principle (Vasily 2026-05-04). External SaaS adds cost and dependency.
 
 ## [2026-05-02] NEW-1 series — final summary (Yandex Metrika MCP integration end-to-end)
 
