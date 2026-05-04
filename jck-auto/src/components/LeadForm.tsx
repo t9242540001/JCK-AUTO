@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, CheckCircle } from "lucide-react";
+import { saveBeforeSend, markConfirmed } from "@/lib/leadPersistence";
 
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -58,6 +59,13 @@ export default function LeadForm({
   const onSubmit = async (data: LeadFormData) => {
     setStatus("loading");
     setErrorMessage(null);
+    const persistedId = saveBeforeSend({
+      phone: data.phone,
+      name: data.name || undefined,
+      message: data.comment || undefined,
+      source: subject || "LeadForm",
+      subject: subject || undefined,
+    });
     try {
       const res = await fetch("/api/lead", {
         method: "POST",
@@ -80,6 +88,7 @@ export default function LeadForm({
         setStatus("error");
         return;
       }
+      markConfirmed(persistedId);
       setStatus("success");
     } catch {
       setErrorMessage("Ошибка отправки. Попробуйте позже.");

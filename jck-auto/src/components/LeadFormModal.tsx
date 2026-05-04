@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, CheckCircle } from "lucide-react";
+import { saveBeforeSend, markConfirmed } from "@/lib/leadPersistence";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Введите имя"),
@@ -35,6 +36,12 @@ export default function LeadFormModal({ isOpen, onClose, carName }: LeadFormModa
 
   const onSubmit = async (data: LeadFormData) => {
     setStatus("loading");
+    const persistedId = saveBeforeSend({
+      phone: data.phone,
+      name: data.name,
+      message: data.comment || `Интересует ${carName}`,
+      source: carName,
+    });
     try {
       const res = await fetch("/api/lead", {
         method: "POST",
@@ -47,6 +54,7 @@ export default function LeadFormModal({ isOpen, onClose, carName }: LeadFormModa
         }),
       });
       if (!res.ok) throw new Error("Failed");
+      markConfirmed(persistedId);
       setStatus("success");
       setTimeout(() => {
         onClose();

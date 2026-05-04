@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-04
-  @version:     1.59
+  @version:     1.60
   @lines:       ~310
 -->
 
@@ -17,6 +17,10 @@
 > when this section exceeds 10 entries OR roadmap.md exceeds 400 lines,
 > run a knowledge-cleanup pass to move oldest entries (older than the
 > 7-day cutoff) into roadmap-archive-N.md.
+
+### 2026-05-04 — SALES-PERSIST-1 closed — client-side localStorage persistence of every lead submit
+
+- **SALES-PERSIST-1 (closed 2026-05-04).** Added `src/lib/leadPersistence.ts` with `saveBeforeSend()` + `markConfirmed()`. Wired into both `LeadForm.tsx` and `LeadFormModal.tsx`. Every form submit now persists to localStorage BEFORE fetch — recovery path for leads where fetch fails on client side before reaching server. Indefinite retention, no TTL. NO UI changes — internal recovery infrastructure only. R-OPS-3 added to rules.md (markdown-in-chat copy-paste hazard from INFRA-1.5 incident). Four new backlog items registered in Planned section. See ADR `[2026-05-04] SALES-PERSIST-1`.
 
 ### 2026-05-04 — INFRA-1.5 closed — committed crontab management
 
@@ -466,6 +470,50 @@
 - **TD-KC-7** — `/root/.pm2/logs` не в FILESYSTEM_ROOTS mcp-gateway, поэтому pm2-логи не читаются через JCK AUTO Files MCP. При диагностике приходится использовать SSH или просить Vasily копировать логи. Решение — добавить `/root/.pm2/logs` в FILESYSTEM_ROOTS (отдельный T1 промпт).
 - **TD-KC-8** — `rules.md` split по доменам отложен (deferred from KC-4 master plan). File 257 lines, 28% over guideline, но 14 H2-секций с domain-system (R-FE-*, R-PROC-*, R-OPS-*) делают split нетривиальным — это re-architecture (T3), не date-based archive (T2). Trigger: при превышении 400 lines или domain-confusion ошибках.
 - **TD-KC-9** — LightRAG cleanup в mcp_server.py (NEW-1.5 / pre2) отложен. Hybrid-код (filesystem + LightRAG tools) сейчас работает корректно — LightRAG calls просто возвращают ConnectError на :9621, MCP-клиент это переживает. Но deprecated код в server-файле — code smell. Trigger: при следующем major refactor mcp_server.py или если ConnectError начинает confuses Anthropic Custom Connectors.
+
+## Backlog — added 2026-05-04 (Vasily hypotheses session)
+
+### SALES-PRICE-1 — Background price calibration vs market
+
+Background system that periodically checks our prices (cars + noscuts) against competitor prices. Iterative — small batches per day (e.g. 5 cars + 5 noscuts), not all at once. Alert in admin Telegram when our price diverges from market by more than X%. Threshold and methodology TBD via discovery prompt.
+
+Discovery scope: identify competitor data sources (Encar API for cars? scraping for noscuts?), define "market price" formula (median? p25-p75 range?), pick alert thresholds, design rate-limiting of the comparison job.
+
+Why high impact: today we have no signal that our prices have drifted out of market. A noscut listed at 30% above competitors gets zero leads silently. A car listed 10% below market is a margin loss we don't catch. This problem compounds as catalog grows.
+
+Estimated: T2 discovery prompt + 3-5 implementation prompts.
+
+### SALES-DESIGN-1 — Design audit for conversion friction
+
+Page-by-page audit focused on conversion friction (not technical bugs). Targets: visual clutter, weak/watery copy ("how we work" filler), confusing icons, redundant blocks, hierarchy issues that cause bounce.
+
+Differs from CAT-* technical audit (which looked for layout/overflow/JS bugs). This audit looks at "would I, as a serious buyer, take this site seriously?" through the eyes of representative target audience.
+
+Discovery scope: list all main pages, prioritize by traffic + conversion impact (Yandex Metrika data), produce shortlist of friction points per page. Then individual fix prompts.
+
+Estimated: T2 discovery + 5-10 fix prompts spread over weeks.
+
+### SALES-IMAGES-1 — Image generation prompts iteration
+
+Improve the visual quality of AI-generated cover images for news, articles, and noscut listings. Current pipeline: `coverGenerator.ts` (DeepSeek prompt → Flux watercolor → Sharp overlay). Goal: more realistic, more professional aesthetic.
+
+Discovery scope: collect baseline (gallery of last 30 covers), define quality criteria (subjective scoring rubric), iterate on prompts, evaluate alternative image models (Flux Dev vs Pro vs other DashScope models), measure improvement.
+
+Why moderate impact: poor cover images undercut content credibility. Users skim covers as proxy for content quality. A realistic, well-composed cover signals "real publication" vs "low-effort content farm."
+
+Estimated: T2 discovery + iterative refinement, ongoing.
+
+### SALES-SUB-1 — Bot subscription tracking from /tools/*
+
+When user authenticates via Telegram in /tools/auction-sheet, /tools/encar, or /tools/calculator, they touch the bot for auth but DO NOT become its subscriber. After tool use, the user should end up subscribed — giving us a direct communication channel for follow-up (these tool users are "almost-leads": high intent, contacted us, but not formally requested).
+
+Discovery scope: identify exactly where the auth handshake happens, find the API call that subscribes vs. just authorizes, measure current "tool used → bot subscriber" conversion rate.
+
+Why high impact: we lose the entire return-channel for tool users. A user analyzes 3 auction sheets, calculates customs, then leaves — and we have no way to message them about their candidate cars. Bot subscription is the lowest-cost lead-nurture channel we have.
+
+Original tracking number: NEW-3 (pre-INFRA cleanup). Re-registered here.
+
+Estimated: T2 discovery + 1-2 implementation prompts. High priority on impact, low on effort.
 
 ## Strategic initiatives
 
