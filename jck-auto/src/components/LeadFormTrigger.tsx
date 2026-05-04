@@ -15,7 +15,7 @@ interface LeadFormTriggerProps {
   subject?: string;
   ctaLabel?: string;
   triggerLabel?: string;
-  triggerVariant?: "primary" | "outline" | "on-primary";
+  triggerVariant?: "primary" | "outline" | "on-primary" | "on-primary-soft";
   modalTitle?: string;
   className?: string;
 }
@@ -42,6 +42,7 @@ export default function LeadFormTrigger({
   //   - "outline"    → primary border + primary text on transparent. Use on light backgrounds ONLY.
   //                    Never use on bg-primary sections — text-primary on bg-primary is invisible.
   //   - "on-primary" → white fill + primary text. Use on bg-primary (or any coloured) section.
+  //   - "on-primary-soft" → translucent white fill (bg-white/20) + white text on bg-primary (or any coloured) section. Use as SECONDARY affordance alongside a primary CTA — softer visual weight than "on-primary". Includes flex/items/justify/gap utilities so an icon may be rendered inside the button (e.g. <FileText/> + label).
   // @rule When adding a new variant, extend the switch below AND the triggerVariant union type.
   //       The exhaustiveness check (_exhaustive: never) will break the build if a case is missed.
   let btnCls: string;
@@ -54,6 +55,9 @@ export default function LeadFormTrigger({
       break;
     case "on-primary":
       btnCls = "cursor-pointer w-full rounded-xl bg-white px-6 py-3 font-medium text-primary transition-colors hover:bg-white/90";
+      break;
+    case "on-primary-soft":
+      btnCls = "cursor-pointer flex w-full items-center justify-center gap-2 rounded-xl bg-white/20 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-white/30 sm:px-8 sm:py-4 sm:text-base";
       break;
     default: {
       const _exhaustive: never = triggerVariant;
