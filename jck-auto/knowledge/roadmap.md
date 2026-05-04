@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-04
-  @version:     1.60
+  @version:     1.61
   @lines:       ~310
 -->
 
@@ -17,6 +17,15 @@
 > when this section exceeds 10 entries OR roadmap.md exceeds 400 lines,
 > run a knowledge-cleanup pass to move oldest entries (older than the
 > 7-day cutoff) into roadmap-archive-N.md.
+
+### 2026-05-04 — Session close — knowledge housekeeping for tomorrow
+
+- **Refined SALES-SUB-1** to subscription-gate (replaces authorization-gate; 3 free + bot-subscription-required + 10/day after subscription).
+- **Added SALES-CALC-1** — lead capture form embedded in calculator results, reuses `LeadForm.tsx`.
+- **Added HYP-FREE-3** — deferred hypothesis to reduce free attempts when traffic grows.
+- ADR `[2026-05-04] Auth-flow direction — subscription-gate over authorization-gate` records the strategic decision so future sessions don't re-derive it.
+- Tomorrow: start with discovery prompt for SALES-SUB-1 (T2 research-protocol). After that, SALES-CALC-1 discovery.
+- Day's totals: 5 series closed (CRIT-1, SALES-CRIT-2, INFRA-1, INFRA-1.5, SALES-PERSIST-1), 5 ADRs added, 7 commits to main, R-OPS-3 rule, 4+1+1 backlog items registered/refined.
 
 ### 2026-05-04 — SALES-PERSIST-1 closed — client-side localStorage persistence of every lead submit
 
@@ -503,17 +512,54 @@ Why moderate impact: poor cover images undercut content credibility. Users skim 
 
 Estimated: T2 discovery + iterative refinement, ongoing.
 
-### SALES-SUB-1 — Bot subscription tracking from /tools/*
+### SALES-SUB-1 — Bot subscription as gate after free-tier exhaustion (replace authorization-gate)
 
-When user authenticates via Telegram in /tools/auction-sheet, /tools/encar, or /tools/calculator, they touch the bot for auth but DO NOT become its subscriber. After tool use, the user should end up subscribed — giving us a direct communication channel for follow-up (these tool users are "almost-leads": high intent, contacted us, but not formally requested).
+**Current state.** Three tools (`/tools/auction-sheet`, `/tools/encar`, `/tools/customs`) use a shared `TelegramAuthBlock` component as a rate-limit gate. Flow today: user gets 3 free attempts → on exhaustion, the block prompts authorization via Telegram Login Widget → on auth, user gets 10/day → user sees a "open in bot" deep link, but only **becomes a bot subscriber** if they then click `/start` inside the bot. From observed behaviour, very few users complete that final step. The bot subscription channel is mostly empty despite many tool authorizations.
 
-Discovery scope: identify exactly where the auth handshake happens, find the API call that subscribes vs. just authorizes, measure current "tool used → bot subscriber" conversion rate.
+**Decision (2026-05-04, Vasily).** Replace the authorization-gate with a **subscription-gate**. The 3-free-attempts mechanic stays exactly as today. After exhaustion, the user is asked to **subscribe to the bot** (not just authorize). The 10-requests-per-day quota for subscribed users stays the same. Only the gating mechanism changes: instead of "authorized → 10/day", it is "subscribed → 10/day".
 
-Why high impact: we lose the entire return-channel for tool users. A user analyzes 3 auction sheets, calculates customs, then leaves — and we have no way to message them about their candidate cars. Bot subscription is the lowest-cost lead-nurture channel we have.
+**Why.** Tool users are high-intent (they tried the product). Bot subscription is the lowest-friction return channel for follow-up. Today we lose this channel because subscription is decoupled from the authorization step. Making subscription the gate captures this signal at source.
 
-Original tracking number: NEW-3 (pre-INFRA cleanup). Re-registered here.
+**Why not subscription-gate from attempt #1?** Vasily's principle: "We are still building authority and recognition. Three free attempts let users see value before we ask anything in return." When traffic grows, we may reduce the free-tier — see HYP-FREE-3.
 
-Estimated: T2 discovery + 1-2 implementation prompts. High priority on impact, low on effort.
+**Discovery scope (next prompt — T2 research-protocol):**
+- Read full current auth flow: `TelegramAuthBlock.tsx`, `/api/auth/telegram` route, hooks in auction-sheet/encar/customs that integrate auth state.
+- Determine how the server detects subscription status (Telegram Bot API `getChatMember`? webhook on `/start`?).
+- Plan migration: existing authorized-but-not-subscribed users — preserve their 10/day quota or require re-subscription? Recommend "preserve" to avoid breaking active users.
+- Plan UI copy: clear, single-action prompt "Подпишитесь на бот, чтобы продолжить" with one button → bot deep link → automatic return + status check.
+- Define the persistence: how does the site know "this telegram_id is subscribed" — server-side cookie/JWT, or fresh check on each request?
+- Estimate: 1 discovery prompt + 2-3 implementation prompts.
+
+**Original tracking.** First registered as NEW-3 (pre-INFRA cleanup), then as SALES-SUB-1 (autosubscription approach 2026-05-04 morning), now finalized as subscription-gate per closing discussion.
+
+### SALES-CALC-1 — Lead capture form embedded in calculator results
+
+**Current state.** `/tools/calculator` ("Калькулятор «под ключ»") is open without authentication, no rate limit, no lead capture. User enters parameters (year, engine, country, etc.), sees the cost breakdown, and leaves. We have no way to follow up — the high-intent moment ("user has just seen a real number for a real car") passes silently.
+
+**Decision (2026-05-04, Vasily).** Add a lead-capture form **embedded directly under the calculator results** (not a modal, not a separate page). Form pre-fills `subject` field with the calculation summary so the manager seeing the lead in Telegram immediately knows which car the user was researching.
+
+**Why.** This is our primary lead-capture surface ("форма захвата" per Vasily). The calculator stays open and ungated to maximize top-of-funnel reach. The form converts people who see a result they can act on. The pre-filled subject makes the lead instantly actionable for the manager (no need to re-ask the user what car they were looking at).
+
+**Discovery scope (next prompt — T2 research-protocol):**
+- Read `/tools/calculator` page, identify result-rendering component and the data shape of the calculation result.
+- Decide form placement: directly under result cards? After a slight delay/scroll? Always visible vs. only after first calculation?
+- Decide subject formatting: structured ("Расчёт: Toyota Camry 2020, 2.5L, Корея — 3 200 000 ₽") vs. free-text. Recommend structured.
+- Decide whether to reuse `LeadForm.tsx` (already wired to /api/lead + leadPersistence) or create calculator-specific variant. Recommend reuse — saves implementation, gets all CRIT-1/SALES-CRIT-2/SALES-PERSIST-1 mechanics for free.
+- Verify rate-limit behaviour: calculator is ungated, but lead submissions go through /api/lead's 5/15min limit per IP. This is correct (anti-spam), no change.
+- Estimate: 1 discovery prompt + 1-2 implementation prompts.
+
+### HYP-FREE-3 — Reduce free attempts when traffic grows (deferred hypothesis)
+
+**Hypothesis.** When tool traffic grows past current scale (TBD threshold — likely when authentication/subscription costs become non-negligible, or when free-tier abuse becomes visible), we reduce the 3-free-attempts limit on `/tools/auction-sheet`, `/tools/encar`, `/tools/customs` to 1 or 2.
+
+**Status: deferred.** Vasily's principle (2026-05-04): "We are still building authority and recognition. Three free attempts is the right balance now." Do NOT act on this until one of these signals appears:
+- DashScope/DeepSeek API costs from anonymous tool usage exceed [TBD] per month.
+- Anonymous lifetime ip-key records in `rateLimiter.ts` show abuse pattern (same IP returning monthly to consume 3-attempt window).
+- Bot subscription rate after SALES-SUB-1 lands is below [TBD]% of unique tool users (suggests 3-free is too generous to drive subscription).
+
+**Action when triggered.** A simple change in `src/lib/rateLimiter.ts` — change the constant `ANON_LIFETIME_LIMIT` (or equivalent) from 3 to the new value. Plus knowledge update + comms in bot/site about new policy.
+
+**Estimate.** 1 small T1 prompt when triggered.
 
 ## Strategic initiatives
 
