@@ -17,6 +17,7 @@ interface LeadFormTriggerProps {
   triggerLabel?: string;
   triggerIcon?: ReactNode;
   triggerVariant?: "primary" | "outline" | "on-primary" | "on-primary-soft";
+  size?: "sm" | "md";
   modalTitle?: string;
   className?: string;
 }
@@ -27,6 +28,7 @@ export default function LeadFormTrigger({
   triggerLabel = "Оставить заявку",
   triggerIcon,
   triggerVariant = "outline",
+  size = "md",
   modalTitle,
   className,
 }: LeadFormTriggerProps) {
@@ -45,18 +47,32 @@ export default function LeadFormTrigger({
   //                    Never use on bg-primary sections — text-primary on bg-primary is invisible.
   //   - "on-primary" → white fill + primary text. Use on bg-primary (or any coloured) section.
   //   - "on-primary-soft" → translucent white fill (bg-white/20) + white text on bg-primary (or any coloured) section. Use as SECONDARY affordance alongside a primary CTA — softer visual weight than "on-primary". Includes flex/items/justify/gap utilities so an icon may be rendered inside the button (e.g. <FileText/> + label).
+  // @rule size axis is orthogonal to triggerVariant for the three base variants
+  //   (primary / outline / on-primary):
+  //   - "md" (default) → px-6 py-3, default text size — for standalone CTAs
+  //     (sidebar, hero, full-width sections).
+  //   - "sm" → px-4 py-2 text-sm — for compact contexts (cards, inline,
+  //     small surfaces). Used by NoscutCard.
+  //   "on-primary-soft" IGNORES size — its responsive class already encodes
+  //   compact-on-mobile / standard-on-desktop. Passing size="sm" with
+  //   on-primary-soft has no effect.
+  //   YAGNI: do not add "lg" or other size values until a real consumer
+  //   requires them. Adding a size pre-emptively expands surface area.
   // @rule When adding a new variant, extend the switch below AND the triggerVariant union type.
   //       The exhaustiveness check (_exhaustive: never) will break the build if a case is missed.
+  // Size-dependent classes for primary / outline / on-primary variants.
+  // `on-primary-soft` ignores size — its responsive sm:px-8/py-4/text-base built-in already.
+  const sizeCls = size === "sm" ? "px-4 py-2 text-sm" : "px-6 py-3";
   let btnCls: string;
   switch (triggerVariant) {
     case "primary":
-      btnCls = "cursor-pointer w-full rounded-xl bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-primary/90";
+      btnCls = `cursor-pointer w-full rounded-xl bg-primary font-medium text-white transition-colors hover:bg-primary/90 ${sizeCls}`;
       break;
     case "outline":
-      btnCls = "cursor-pointer w-full rounded-xl border border-primary px-6 py-3 font-medium text-primary transition-colors hover:bg-primary hover:text-white";
+      btnCls = `cursor-pointer w-full rounded-xl border border-primary font-medium text-primary transition-colors hover:bg-primary hover:text-white ${sizeCls}`;
       break;
     case "on-primary":
-      btnCls = "cursor-pointer w-full rounded-xl bg-white px-6 py-3 font-medium text-primary transition-colors hover:bg-white/90";
+      btnCls = `cursor-pointer w-full rounded-xl bg-white font-medium text-primary transition-colors hover:bg-white/90 ${sizeCls}`;
       break;
     case "on-primary-soft":
       btnCls = "cursor-pointer flex w-full items-center justify-center gap-2 rounded-xl bg-white/20 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-white/30 sm:px-8 sm:py-4 sm:text-base";
