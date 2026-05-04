@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — active section, append-only
   @updated:     2026-05-04
-  @version:     1.87
+  @version:     1.88
   @lines:       ~770
   @note:        Active section: 16 ADRs from 2026-04-29 onward.
                 Older entries (81 ADRs from 2026-01..2026-04-28) → see
@@ -20,6 +20,43 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-05-04] UNIFY-1 — Lead-form architecture unification
+
+**Status:** Accepted
+**Confidence:** High
+
+**Context.** В проекте было 4 точки входа lead-форм с расходящимися контрактами: `LeadForm.tsx` (inline, phone-only validation, formatPhone, source-collapse), `LeadFormTrigger.tsx` (button → modal с LeadForm — корректная композиция), `LeadFormModal.tsx` (полный дубликат LeadForm + portal modal, weak validation, no formatPhone, no persistence parity, name+phone both required), inline modal в `NoscutCard.tsx` (4-й паттерн, использовал LeadForm правильно). LeadFormModal на /catalog/cars/[id] был сломан в production: разные тексты ошибок, отсутствие auto-format телефона, weak zod. Conversion attribution невозможна — все callers коллапсируют source=subject (`source: subject || "LeadForm"`).
+
+Research-protocol проведён 2026-05-04 (standard pass). Phase 2 — 5 specialists (architect, UX, target audience, Vasily-visionary, SEO). Phase 3 — premortem выявил 4 failure modes, mitigations включены в план. Phase 4 — рекомендация принята.
+
+**Decision.**
+1. **Один движок — `LeadForm.tsx`:** расширен props `source?` (stable channel label), `requireName?` (per-page name-required toggle, default false — name optional everywhere по решению Vasily), `successMode?` ("inline" | "auto-close", default "inline"), `autoCloseMs?` (default 3000), `onSuccess?` (callback after auto-close timeout). Backward-compat сохранена через defaults: existing callers продолжают работать без изменений.
+2. **Одна modal-обёртка — существующий `LeadFormTrigger.tsx`:** все будущие модальные форм-cases используют его. U-02 расширяет LeadFormTrigger чтобы он передавал `successMode="auto-close"` + `onSuccess={onClose}` в LeadForm — иначе модальные формы не закрываются после submit. Никаких новых wrapper-компонентов. LeadFormDialog separate primitive отклонён в Phase 3 атаке 2 — LeadFormTrigger покрывает все use cases.
+3. **Удаляются (в последующих промптах серии):** LeadFormModal.tsx (U-06), inline modal в NoscutCard.tsx (U-04). Replaced by LeadFormTrigger с подходящими props.
+4. **Stable source labels (U-05):** все callers передают source="<surface-label>" отдельно от subject. Закрывает TD-LEAD-1 как часть этой серии.
+5. **Удаление LeadFormModal.tsx — последний промпт серии (U-06)**, после 48-часового мониторинга деплоя предыдущих промптов (защита от Server Actions stale-deployment incidents).
+
+**Tradeoffs considered.**
+- requireName per-page vs global: per-page через prop. На /catalog/cars/[id] `requireName` остаётся false (Vasily-decision 2026-05-04 — name опционально везде, как на главной, для conversion).
+- Auto-close timeout: 3s default, configurable via autoCloseMs. Premortem показал что 2s слишком быстро для мобильных (LeadFormModal default).
+- LeadFormDialog separate primitive vs existing LeadFormTrigger: отклонено в Phase 3 — LeadFormTrigger покрывает все use cases. Лишний layer нарушает Karpathy simplicity filter.
+- Inertial fix (only patch LeadFormModal): отклонено — drift вернётся через 3-6 месяцев. Через 4 точки входа невозможно поддерживать contract consistency без unification.
+- zod conditional schema: useMemo с двумя precomputed вариантами по requireName. Альтернатива — custom resolver — over-engineering для stable prop.
+
+**Consequences.**
+- Один движок гарантирует единую UX (formatPhone, validation, persistence, source/subject разделение) во всех lead-формах.
+- Conversion attribution разблокирована — `grep '"source":"calculator"' site-leads.log` работает после U-05.
+- SALES-CALC-1 после UNIFY-1 становится тривиальным: `<LeadForm subject={derived} source="calculator" />` встраивается напрямую без обёртки. Не требуется CalculatorLeadForm wrapper-компонент.
+- TD-LEAD-1 (source/subject collapse) закрыт как часть UNIFY-1 (через U-05).
+- Constraint: новые consumer'ы lead-формы используют `<LeadForm>` или `<LeadFormTrigger>`. Никаких других точек входа.
+
+**Alternatives rejected.**
+- Ничего не делать, исправить только bugs в LeadFormModal: inertial fix, drift вернётся через 3-6 месяцев.
+- LeadFormDialog как отдельный shared primitive: LeadFormTrigger покрывает все use cases.
+- Отложить унификацию, сделать SALES-CALC-1 с собственным wrapper'ом: противоречит директиве Vasily 2026-05-04 «принцип универсальности, не плодить сущности».
+
+**Source.** Research conducted in chat 2026-05-04, phases 1-4. Past chat «Планы на ближайшие дни» 2026-05-04 содержит первичный аудит. Series prompts: U-01 (this commit), U-02..U-06 to follow.
 
 ## [2026-05-04] CRIT-1 — /api/lead rate limit isolation and site-side audit log
 

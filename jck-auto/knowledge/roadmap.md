@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-04
-  @version:     1.61
+  @version:     1.62
   @lines:       ~310
 -->
 
@@ -17,6 +17,12 @@
 > when this section exceeds 10 entries OR roadmap.md exceeds 400 lines,
 > run a knowledge-cleanup pass to move oldest entries (older than the
 > 7-day cutoff) into roadmap-archive-N.md.
+
+### 2026-05-04 — UNIFY-1 series started — U-01 closed (LeadForm extended)
+
+- **U-01 closed.** LeadForm.tsx расширен 5 новыми optional props (source?, requireName?, successMode?, autoCloseMs?, onSuccess?) с full backward-compat. Foundation для UNIFY-1 series unifying 4 lead-form entry points (LeadForm, LeadFormTrigger, LeadFormModal, NoscutCard inline modal). Research-protocol проведён в этой же сессии (standard pass, 4 phases с премортемом). См. ADR `[2026-05-04] UNIFY-1`.
+- **Series plan:** U-01 (LeadForm extension, this commit) → U-02 (LeadFormTrigger forwards successMode/onSuccess to LeadForm — required so modals close after submit) → U-03 (CarSidebarActions + CarCtaActions migrate to LeadFormTrigger) → U-04 (NoscutCard inline modal → LeadFormTrigger) → U-05 (stable source labels на все callers, закрывает TD-LEAD-1) → U-06 (delete LeadFormModal.tsx + final ADR + INDEX.md update, после 48ч monitoring).
+- **Unblocks:** SALES-CALC-1 после U-06 становится одним промптом без CalculatorLeadForm wrapper — `<LeadForm subject={...} source="calculator">` встраивается прямо в CalculatorCore.
 
 ### 2026-05-04 — Session close — knowledge housekeeping for tomorrow
 
