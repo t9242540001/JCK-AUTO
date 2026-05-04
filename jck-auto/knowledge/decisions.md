@@ -2,8 +2,8 @@
   @file:        knowledge/decisions.md
   @project:     JCK AUTO
   @description: Architectural Decision Records (ADR log) — active section, append-only
-  @updated:     2026-05-02
-  @version:     1.81
+  @updated:     2026-05-04
+  @version:     1.82
   @lines:       ~770
   @note:        Active section: 16 ADRs from 2026-04-29 onward.
                 Older entries (81 ADRs from 2026-01..2026-04-28) → see
@@ -20,6 +20,39 @@
 > Section for multi-prompt refactors that are not yet complete. Each entry
 > stays here until its final commit lands, at which point it gets promoted
 > to a full Accepted ADR below and this entry is removed.
+
+## [2026-05-04] CRIT-1 — /api/lead rate limit isolation and site-side audit log
+
+**Status:** Accepted
+**Confidence:** High
+
+**Context.** From 2026-04-27 to 2026-05-04 the site `/api/lead` endpoint received zero successful leads despite ~280 weekly visits and a well-targeted audience (verified via Yandex Metrika 106847609). Root cause discovered 2026-05-04 during SALES-0 diagnostic: `src/app/api/lead/route.ts` was wired to `checkRateLimit` from `src/lib/rateLimiter.ts`, which is the AI-tools lifetime-3 quota. Every IP that hit 3 successful tool uses OR 3 successful leads was permanently blocked from leads. CGNAT (mobile carriers) made this catastrophic — single user exhausting 3 tool uses blocked entire NAT segment.
+
+Secondary issue: the site had no audit log of lead attempts. Telegram delivery failures (rate-limit, network drop, deleted group) lost leads without trace.
+
+**Decision.**
+1. Remove `checkRateLimit`/`recordUsage` import and calls from `/api/lead/route.ts`.
+2. Add a route-local sliding-window rate limiter (5 req / 15 min / IP) using a module-scoped `Map<string, number[]>`.
+3. Add `appendSiteLeadLog()` writing JSON-line audit entries to `${STORAGE_PATH}/leads/site-leads.log`. Pattern mirrors bot's `appendLeadLog` (ADR [2026-04-25] Б-15). Two lines per successful lead — pre-send (`telegramDelivered: false`) and post-send (`telegramDelivered: true`). Dedup is consumer's responsibility.
+4. PII storage: full normalized phone + name in audit log. Local FS only (storage/ is outside git, root-only access on VDS). Retention: unlimited until CRM lands (Strategic initiative #1) — at that point leads migrate to DB and log becomes append-only diagnostic trail.
+
+**Tradeoffs considered.**
+- Threshold 5/15min: balance between blocking spam-bots and not blocking CGNAT family-mobile (3-4 family members on one mobile IP). If real CGNAT block reports come in, raise to 10/15min.
+- Two log lines vs single line with status update: chose two lines — pre-send line is the "lead existed" guarantee (irrespective of subsequent FS or Telegram outcome). Single-line approach with later mutation requires read-modify-write under concurrency, which is more fragile than append-only.
+- Module-scope Map vs shared store (Redis): chose Map — single-process PM2 invariant holds for jckauto, Redis is overkill for current scale. Documented as `@rule` in code.
+- File logs vs structured DB: chose file logs — JSON-lines are trivially grep-able, append-only is concurrency-safe with `appendFileSync`, no new dependency. Migration to DB happens with CRM.
+
+**Consequences.**
+- Real users on CGNAT can again submit leads (the main goal).
+- Future SALES-А.3 mini-admin reads `site-leads.log` as its data source — no new schema needed.
+- Future SALES-2 daily digest reads the same log to count successful leads per day.
+- New constraint: jckauto cannot be scaled to multiple PM2 instances without revisiting rate limit storage. `@rule` in code blocks this regression.
+- Audit log accumulates PII on disk indefinitely. Acceptable until CRM lands; revisit then.
+
+**Alternatives rejected.**
+- Patching `rateLimiter.ts` to add a "leads" mode: rejected — it conflates two unrelated quotas in one module, and the lifetime-3 invariant for tools must NOT be touched (anonymous ip-key records permanent — see existing rule).
+- Sentry/external error tracking instead of file log: rejected — external SaaS conflicts with "All own, on VDS" principle (Vasily 2026-05-04). File log is sufficient for current scale.
+- Skipping audit log in this prompt and adding it later: rejected — the same code path that fixes rate limit must also add the log, otherwise we ship the fix without the second-half lesson from Б-15.
 
 ## [2026-05-02] NEW-1 series — final summary (Yandex Metrika MCP integration end-to-end)
 

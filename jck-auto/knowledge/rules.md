@@ -2,9 +2,9 @@
   @file:        knowledge/rules.md
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
-  @updated:     2026-05-02
-  @version:     1.32
-  @lines:       257
+  @updated:     2026-05-04
+  @version:     1.33
+  @lines:       265
 -->
 
 # Critical Rules
@@ -62,6 +62,14 @@
 | Phone validity in bot lead flow MUST be checked via `normalizePhone`/`hasValidPhone` helpers in `src/bot/handlers/request.ts` — bare truthy checks on `user.phone` and ad-hoc digit-counts in entry-point handlers are the regression pattern that produced Б-6 | `src/bot/handlers/request.ts` (helpers + four entry points: `handleRequestCommand`, `bot.on("contact")`, `bot.on("message")`, post-`savePhone` `getUser` lookup), ADR `[2026-04-25] Б-6 closed — phone validation single source of truth` | Б-6 incident (March 2026, @danitsov case): legacy garbage in `users.json` (`" "`, `"+7"`, `""`) and unverified Telegram contact payloads reached operator group as `Телефон: не указан` or with malformed values. Lead-flow phone validity is now a single source of truth — adding any new code path that compares `user.phone` directly is a Б-6 regression |
 | Submit-without-phone fallback in `request.ts` MUST require `msg.from.username` — without it, refuse the lead and explain how to set @username. NEVER send a without-phone lead with `Связь: не указан` because the operator has no way to contact the user | `src/bot/handlers/request.ts` (the `bot.onText(/📝 Без телефона/)` handler), ADR `[2026-04-25] Б-6/2 — submit-without-phone fallback (lead flow, half 2 of 2)` | The whole point of the without-phone path is that contact happens via @username. A lead with no phone AND no username is undeliverable — the operator would receive it but have no channel. The refusal message points the user at Telegram username settings and re-offers the phone path |
 | Every lead attempt in `finishRequest` MUST be persisted via `appendLeadLog()` BEFORE `bot.sendMessage` to the operator group — the audit log is the single source of truth for "this lead existed", independent of Telegram delivery success | `src/bot/handlers/request.ts` (`appendLeadLog` helper writing JSON-line to `${STORAGE_PATH}/leads/leads.log`), ADR `[2026-04-25] Б-15 closed — lead audit log` | Б-15: Telegram delivery failures (rate-limit, network drop, deleted group) used to lose leads silently — user saw `✅ Заявка принята`, operator received nothing, no recovery path. Pre-send append-only log records every lead irrespective of delivery outcome. Helper is fail-open (FS errors swallowed to stderr) — never crash the bot for monitoring code |
+
+## Site Lead Route Rules
+
+| Rule | Location | Consequence |
+|------|----------|-------------|
+| `/api/lead` MUST use its own route-local sliding-window rate limit (5 req / 15 min / IP). DO NOT reuse the lifetime-3 tools quota from `@/lib/rateLimiter` | `src/app/api/lead/route.ts` route-local Map; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | Lifetime-3 wiring caused 7-day zero-leads incident (2026-04-27 to 2026-05-04). Any IP that hit 3 successful AI-tool runs OR 3 successful leads was permanently blocked from leads. CGNAT users (most mobile traffic) blocked entire NAT segments at once |
+| Every site lead MUST be persisted via `appendSiteLeadLog()` to `${STORAGE_PATH}/leads/site-leads.log` BEFORE the Telegram fetch — by analogy with bot's `appendLeadLog` | `src/app/api/lead/route.ts`; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | Without pre-send audit log, Telegram delivery failures (rate-limit, network, deleted group) lose leads silently. Site-leads.log is the single source of truth for "this lead existed", independent of Telegram outcome. Two log lines per successful lead by design — pre-send (`telegramDelivered: false`) and post-send (`telegramDelivered: true`) |
+| `/api/lead` route-local rate limiter relies on PM2 `instances: 1` for the `jckauto` process — Map state is per-process | `src/app/api/lead/route.ts`; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | If `jckauto` is ever scaled to multi-instance, in-memory Map fragments and rate limit becomes per-instance (ineffective). Migrate to shared store (Redis or file lock) before scaling |
 
 ## Code Standards
 
