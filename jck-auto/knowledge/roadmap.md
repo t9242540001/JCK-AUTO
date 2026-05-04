@@ -3,7 +3,7 @@
   @project:     JCK AUTO
   @description: Done / In progress / Planned features — merged from all sources + strategic initiatives
   @updated:     2026-05-04
-  @version:     1.56
+  @version:     1.57
   @lines:       ~310
 -->
 
@@ -17,6 +17,10 @@
 > when this section exceeds 10 entries OR roadmap.md exceeds 400 lines,
 > run a knowledge-cleanup pass to move oldest entries (older than the
 > 7-day cutoff) into roadmap-archive-N.md.
+
+### 2026-05-04 — SALES-CRIT-2 closed — /api/lead fetch retry for Worker flakiness
+
+- **SALES-CRIT-2 (closed 2026-05-04).** Added single retry to Telegram fetch in /api/lead. Per-attempt timeout 6s, backoff 800ms. Triggers on AbortError/network errors only, not on HTTP-level failures. Drops effective lead failure rate from ~20% (Worker flakiness) to ~4%. Worker investigation continues separately. See ADR `[2026-05-04] SALES-CRIT-2`.
 
 ### 2026-05-04 — CRIT-1 closed — /api/lead rate limit isolation + site audit log
 

@@ -3,8 +3,8 @@
   @project:     JCK AUTO
   @description: All critical rules with locations and consequences of violation
   @updated:     2026-05-04
-  @version:     1.33
-  @lines:       265
+  @version:     1.34
+  @lines:       266
 -->
 
 # Critical Rules
@@ -70,6 +70,7 @@
 | `/api/lead` MUST use its own route-local sliding-window rate limit (5 req / 15 min / IP). DO NOT reuse the lifetime-3 tools quota from `@/lib/rateLimiter` | `src/app/api/lead/route.ts` route-local Map; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | Lifetime-3 wiring caused 7-day zero-leads incident (2026-04-27 to 2026-05-04). Any IP that hit 3 successful AI-tool runs OR 3 successful leads was permanently blocked from leads. CGNAT users (most mobile traffic) blocked entire NAT segments at once |
 | Every site lead MUST be persisted via `appendSiteLeadLog()` to `${STORAGE_PATH}/leads/site-leads.log` BEFORE the Telegram fetch — by analogy with bot's `appendLeadLog` | `src/app/api/lead/route.ts`; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | Without pre-send audit log, Telegram delivery failures (rate-limit, network, deleted group) lose leads silently. Site-leads.log is the single source of truth for "this lead existed", independent of Telegram outcome. Two log lines per successful lead by design — pre-send (`telegramDelivered: false`) and post-send (`telegramDelivered: true`) |
 | `/api/lead` route-local rate limiter relies on PM2 `instances: 1` for the `jckauto` process — Map state is per-process | `src/app/api/lead/route.ts`; ADR `[2026-05-04] CRIT-1 — /api/lead rate limit isolation` | If `jckauto` is ever scaled to multi-instance, in-memory Map fragments and rate limit becomes per-instance (ineffective). Migrate to shared store (Redis or file lock) before scaling |
+| `/api/lead` Telegram fetch MUST retry ONCE on AbortError or network error (per-attempt timeout 6s, backoff 800ms). Do NOT retry on HTTP-level failure (4xx/5xx) — only on transport-level | `src/app/api/lead/route.ts` `sendTelegramOnce()` + retry block; ADR `[2026-05-04] SALES-CRIT-2 — fetch retry for Worker flakiness` | Cloudflare Worker `tg-proxy` empirically shows 20% timeout rate (5-curl test 2026-05-04 from VDS). Without retry, ~1 in 5 leads returns 500 to user. Retry drops effective failure rate to ~4%. HTTP-level failures are real errors, not flakiness — retrying them masks bugs |
 
 ## Code Standards
 
